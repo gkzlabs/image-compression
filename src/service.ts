@@ -62,20 +62,23 @@ export class ImageCompression {
   getCapabilities(): Promise<DeviceCapabilities> {
     if (this.capabilities) return Promise.resolve(this.capabilities);
     if (this.capabilitiesPromise) return this.capabilitiesPromise;
-    this.capabilitiesPromise = detectCapabilities().then((caps) => {
-      this.capabilities = caps;
-      // Fire-and-forget worker probe — updates caps in the background
-      this.probeWorkerCapabilities().then((workerCaps) => {
-        if (workerCaps && this.capabilities) {
-          this.capabilities.hasOffscreenCanvasInWorker = workerCaps.hasOffscreenCanvas;
-          this.capabilities.hasWebCodecsInWorker = workerCaps.hasWebCodecs;
-          this.capabilities.hasCreateImageBitmapInWorker = workerCaps.hasCreateImageBitmap;
-        }
-      }).catch((err) => {
-        console.warn('[ImageCompression] background worker probe failed:', err);
-      });
-      return caps;
-    });
+    this.capabilitiesPromise = detectCapabilities()
+      .then((caps) => {
+        this.capabilities = caps;
+        // Fire-and-forget worker probe — updates caps in the background
+        this.probeWorkerCapabilities()
+          .then((workerCaps) => {
+            if (workerCaps && this.capabilities) {
+              this.capabilities.hasOffscreenCanvasInWorker = workerCaps.hasOffscreenCanvas;
+              this.capabilities.hasWebCodecsInWorker = workerCaps.hasWebCodecs;
+              this.capabilities.hasCreateImageBitmapInWorker = workerCaps.hasCreateImageBitmap;
+            }
+          })
+          .catch((err) => {
+            console.warn('[ImageCompression] background worker probe failed:', err);
+          });
+        return caps;
+      })
       .catch((err) => {
         console.warn('[ImageCompression] capability detection failed:', err);
         // Return minimal low-tier capabilities
