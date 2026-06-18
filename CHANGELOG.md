@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-06-18
+
+### Fixed
+- **`onProgress` not working in worker paths** — The service was stripping `onProgress` before passing to the worker (Comlink can't serialize raw functions through `postMessage`). Fixed by wrapping with `Comlink.proxy()` so the callback works across the worker boundary. Progress events now flow correctly in `webcodecs-worker` and `offscreen-worker` paths.
+- **Zombie Worker in long-lived SPAs** — Added 30-second idle timeout. The Web Worker is automatically terminated after 30s of inactivity to free memory. Reset on every `compress()` call. Disable by setting `WORKER_IDLE_TIMEOUT_MS = 0` (internal constant).
+- **`heic2any` missing from `peerDependencies`** — Strict package managers (pnpm, yarn pnp) would fail because `heic2any` is dynamically imported. Added to `peerDependencies` with `peerDependenciesMeta: { heic2any: { optional: true } }`.
+
+### Changed
+- **`result.blob` marked `@deprecated`** — Use `result.file` instead. `File` extends `Blob`, so all Blob methods work. Kept for backward compatibility with v0.5.x; will be removed in v1.0.
+- Refactored `service.ts` to preserve `onProgress` through the Comlink layer instead of stripping it.
+
+### Added
+- 2 new tests in `onprogress.test.ts` verifying the onProgress option is preserved.
+
+### Notes
+- Total tests: 79 passing (up from 77), 7 skipped.
+- Code review addressed: 1.1 (onProgress bug), 2.1 (zombie worker), 3.1 (peerDependencies), 4.2 (@deprecated).
+- **Deferred to follow-up:**
+  - 1.2 (single-canvas transform pipeline) — refactor to do all transforms in a single draw instead of up to 4 separate `ImageBitmap` creations. Tracked for v0.3.0.
+  - 4.1 (`continueOnError` for batch) — useful but orthogonal. Tracked for v0.3.0.
+  - 2.2 (img.src cleanup) — minor. Tracked for v0.2.2.
+
 ## [0.2.0] - 2026-06-18
 
 ### Added

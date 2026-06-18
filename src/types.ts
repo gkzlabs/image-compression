@@ -157,13 +157,14 @@ export interface CompressionResult {
   /**
    * Compressed image as a `File` (preserves original name with new extension).
    * Use directly with `FormData.append('file', result.file, result.file.name)`.
-   * Backward compat: `result.blob` is the same as `result.file` (File extends Blob).
-   */
-  blob: Blob;
-  /**
-   * Compressed image as a `File` (same as `result.blob`, typed explicitly for IDE help).
    */
   file: File;
+  /**
+   * @deprecated Use `result.file` instead. `File` extends `Blob`, so all
+   * Blob methods work on `result.file`. This property is kept for backward
+   * compatibility with v0.5.x and will be removed in v1.0.
+   */
+  blob: Blob;
   /**
    * Filename of the compressed image. Same as `result.file.name`.
    * Useful for displaying in UI: "Compressed: result.name (256 KB)".

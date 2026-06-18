@@ -34,12 +34,18 @@ import type {
  * ```
  */
 export class ImageCompression {
+  /** Idle timeout for the Web Worker (ms). Worker is terminated after this
+   * period of inactivity to free memory. Set to 0 to disable. Default: 30s. */
+  private static readonly WORKER_IDLE_TIMEOUT_MS = 30_000;
+
   private capabilities: DeviceCapabilities | null = null;
   private capabilitiesPromise: Promise<DeviceCapabilities> | null = null;
   private worker: Comlink.Remote<ImageWorkerApi> | null = null;
   private workerPromise: Promise<Comlink.Remote<ImageWorkerApi> | null> | null = null;
   /** Raw Worker reference (for .terminate() cleanup). Comlink wraps the worker but doesn't expose terminate. */
   private rawWorker: Worker | null = null;
+  /** Timer for idle-worker cleanup. */
+  private workerIdleTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Lazy-init: detect capabilities on first call, cache forever.
@@ -82,12 +88,16 @@ export class ImageCompression {
    * Lazy-init: create Worker on first call, reuse for all subsequent calls.
    * Returns null if Worker cannot be created.
    */
-  private getWorker(): Promise<Comlink.Remote<ImageWorkerApi> | null> {
-    if (this.worker) return Promise.resolve(this.worker);
+  private async getWorker(): Promise<Comlink.Remote<ImageWorkerApi> | null> {
+    if (this.worker) {
+      this.resetWorkerIdleTimer();
+      return Promise.resolve(this.worker);
+    }
     if (this.workerPromise) return this.workerPromise;
     this.workerPromise = this.createWorker()
       .then((w) => {
         this.worker = w;
+        if (w) this.resetWorkerIdleTimer();
         return w;
       })
       .catch((err) => {
@@ -95,6 +105,20 @@ export class ImageCompression {
         return null;
       });
     return this.workerPromise;
+  }
+
+  /**
+   * Schedule worker termination after WORKER_IDLE_TIMEOUT_MS of inactivity.
+   * Prevents zombie workers in long-lived SPAs that call compress() once
+   * and never again. Reset on every compress() call.
+   */
+  private resetWorkerIdleTimer(): void {
+    if (this.workerIdleTimer) clearTimeout(this.workerIdleTimer);
+    if (ImageCompression.WORKER_IDLE_TIMEOUT_MS <= 0) return;
+    this.workerIdleTimer = setTimeout(() => {
+      // Silent idle shutdown — user is done, free memory
+      this.terminate();
+    }, ImageCompression.WORKER_IDLE_TIMEOUT_MS);
   }
 
   private async createWorker(): Promise<Comlink.Remote<ImageWorkerApi> | null> {
@@ -400,16 +424,16 @@ export class ImageCompression {
     }
     const worker = await this.getWorker();
     if (!worker) return null;
-    // Comlink/structured-clone cannot transfer function values via postMessage.
-    // Functions (even Comlink.proxy()-wrapped ones) are not reliably cloneable
-    // across some bundler/runtime boundaries (especially with zone.js wrapping).
+    // Comlink/structured-clone cannot transfer raw function values via postMessage.
+    // Wrap with Comlink.proxy() so the worker can call this callback across
+    // the thread boundary (Comlink handles the serialization via its proxy).
     //
-    // Solution: strip onProgress from options before passing to worker.
-    // The service emits its own progress events at the cascade level
-    // (decoding/resizing/encoding), so the worker doesn't need a callback.
-    // The worker's internal `emit` calls become no-ops.
-    const { onProgress: _ignored, ...workerOptions } = options;
-    void _ignored;
+    // If the user's onProgress isn't provided, omit it from worker options
+    // (the worker's `emit` calls become no-ops).
+    const workerOptions: CompressionOptions = { ...options };
+    if (options.onProgress) {
+      workerOptions.onProgress = Comlink.proxy(options.onProgress);
+    }
     const { blob, width, height, mimeType } = await worker.compress(file, workerOptions);
     return { blob, compressedSize: blob.size, width, height, mimeType };
   }
@@ -860,6 +884,10 @@ export class ImageCompression {
    * Safe to call multiple times.
    */
   terminate(): void {
+    if (this.workerIdleTimer) {
+      clearTimeout(this.workerIdleTimer);
+      this.workerIdleTimer = null;
+    }
     if (this.rawWorker) {
       this.rawWorker.terminate(); // Kill the OS worker — frees memory
       this.rawWorker = null;
