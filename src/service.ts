@@ -159,7 +159,17 @@ export class ImageCompression {
   ): Promise<CompressionResult> {
     const start = performance.now();
     const onProgress = options.onProgress;
+
+    /**
+     * Emit a progress event. Wraps the user's onProgress callback.
+     * We pre-compute `totalPaths` once the cascade plan is known and
+     * inject it into every event so UIs can display "[N/M]" prefixes.
+     */
+    let totalPaths: number | undefined;
     const emit = (p: CompressionProgress) => {
+      if (totalPaths !== undefined && p.totalPaths === undefined) {
+        p.totalPaths = totalPaths;
+      }
       onProgress?.(p);
     };
 
@@ -253,6 +263,9 @@ export class ImageCompression {
     // Try paths in cascade order
     const tried: CompressionPath[] = [];
     const paths = this.selectPaths(caps, options);
+    // Once the cascade plan is known, set totalPaths so every subsequent
+    // emit() can include it. UIs display this as "[N/M]" prefix.
+    totalPaths = paths.length;
 
     for (let i = 0; i < paths.length; i++) {
       const path = paths[i];
@@ -279,7 +292,16 @@ export class ImageCompression {
       } catch (err) {
         console.warn(`[ImageCompression] path ${path} failed:`, err);
         if (i < paths.length - 1) {
-          emit({ stage: 'fallback', percent: 0, path, attempt, message: `Falling back from ${path}...` });
+          // Include both the failed path (path) and the next path being tried (attempt+1)
+          const nextPath = paths[i + 1];
+          emit({
+            stage: 'fallback',
+            percent: 0,
+            path,
+            attempt,
+            totalPaths: paths.length,
+            message: `${path} failed → trying ${nextPath} (${attempt + 1}/${paths.length})`,
+          });
         }
         // Continue to next path
       }

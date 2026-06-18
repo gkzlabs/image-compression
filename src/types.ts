@@ -50,8 +50,16 @@ export interface CompressionProgress {
   percent: number;
   /** Current path being attempted (may change during cascade) */
   path?: CompressionPath;
-  /** Cascade attempt number (1 = first try) */
+  /**
+   * Cascade attempt number (1 = first try). Increments when a path fails
+   * and the cascade moves to the next path. Stable within a single path.
+   */
   attempt?: number;
+  /**
+   * Total number of paths in the cascade (typically 4 for normal cascade,
+   * 1 for forcePath). Lets UIs display "[1/4]" for clarity.
+   */
+  totalPaths?: number;
   /** Optional human-readable message */
   message?: string;
 }

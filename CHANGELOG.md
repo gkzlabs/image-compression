@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-06-18
+
+### Added
+- **`totalPaths` field in `CompressionProgress`** — when the cascade plan is known (typically 4 paths), every subsequent progress event includes `totalPaths`. UIs can display `[N/M]` prefix to show cascade progress (e.g., `[2/4] offscreen-worker`).
+- **Clearer fallback messages** — `${path} failed → trying ${nextPath} (N/M)` instead of just `Falling back from ${path}...`. The new message explicitly tells you which path failed AND which path is being tried next, removing the ambiguity of the old message.
+- **3 new tests** in `progress.test.ts` verifying the type, message format, and emit() wrapper logic.
+
+### Changed
+- `service.ts` `emit()` wrapper now auto-injects `totalPaths` into every event once the cascade plan is known (DRY — paths don't need to specify it themselves).
+- `service.ts` `compress()` cascade loop now passes both `path` (failed) and `attempt+1` (next) in fallback events.
+
+### Notes
+- Total tests: 84 passing (up from 79), 7 skipped.
+- Backward compatible: existing consumers that don't read `totalPaths` are unaffected.
+- This is a UX fix for the demo's progress log (clearer cascade visualization).
+
 ## [0.2.1] - 2026-06-18
 
 ### Fixed
