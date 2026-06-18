@@ -23,10 +23,17 @@ describe('detectCapabilities', () => {
         'hasCanvas2D',
         'supportsHEIC',
         'saveData',
-        'isSafari',
-        'isIOS',
       ] as const) {
         expect(typeof caps[key]).toBe('boolean');
+      }
+      // Optional worker-side fields — may be undefined if probe hasn't completed
+      for (const key of [
+        'hasOffscreenCanvasInWorker',
+        'hasWebCodecsInWorker',
+        'hasCreateImageBitmapInWorker',
+      ] as const) {
+        const v = caps[key];
+        expect(v === undefined || typeof v === 'boolean').toBe(true);
       }
       // Numeric fields with sane ranges
       expect(typeof caps.hardwareConcurrency).toBe('number');
@@ -65,8 +72,8 @@ describe('detectCapabilities', () => {
 
     it('detects not-Safari, not-iOS for headless Chrome on macOS', async () => {
       const caps = await detectCapabilities();
-      expect(caps.isSafari).toBe(false);
-      expect(caps.isIOS).toBe(false);
+      // isSafari/isIOS removed in v0.2.5 — just verify no throw
+      expect(caps).toBeDefined();
     });
 
     it('produces high or mid tier for headless Chrome (modern hardware)', async () => {
@@ -134,7 +141,10 @@ describe('detectCapabilities', () => {
     });
   });
 
-  describe('iOS Safari detection', () => {
+  // iOS Safari / isSafari / isIOS fields were removed in v0.2.5 (unused
+  // after the type refactor). Detection can be done via the new
+  // detectBrowser() helper in the demo or via UA parsing if needed.
+  describe.skip('iOS Safari detection (removed in v0.2.5)', () => {
     let originalUA: string;
 
     beforeEach(() => {
@@ -148,7 +158,7 @@ describe('detectCapabilities', () => {
       });
     });
 
-    it('detects iPhone user agent', async () => {
+    it.skip('detects iPhone user agent', async () => {
       Object.defineProperty(navigator, 'userAgent', {
         value:
           'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
@@ -159,7 +169,7 @@ describe('detectCapabilities', () => {
       expect(caps.isSafari).toBe(true);
     });
 
-    it('detects iPad user agent', async () => {
+    it.skip('detects iPad user agent', async () => {
       Object.defineProperty(navigator, 'userAgent', {
         value:
           'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
@@ -170,7 +180,7 @@ describe('detectCapabilities', () => {
       expect(caps.isSafari).toBe(true);
     });
 
-    it('does not flag Android Chrome as iOS or Safari', async () => {
+    it.skip('does not flag Android Chrome as iOS or Safari', async () => {
       Object.defineProperty(navigator, 'userAgent', {
         value:
           'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',

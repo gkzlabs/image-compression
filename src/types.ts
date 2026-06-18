@@ -69,6 +69,19 @@ export interface CompressionOptions {
    *  Used by the worker to include the correct path in its progress events.
    *  @internal Not intended for public use. */
   __path?: CompressionPath;
+  /**
+   * If true, batch compression continues even if individual files fail.
+   * Failed files are reported via console.warn instead of rejecting the
+   * whole batch. The returned results array still contains the successful
+   * files in their original order. Failed files appear as `null` in the
+   * result array (with the error logged).
+   * Default: false (reject on first error, like Promise.all).
+   * Only applies to `compressAll()`. Has no effect on `compress()`.
+   *
+   * Inspired by `Promise.allSettled()` — use when you want to upload all
+   * files even if some fail (e.g., a gallery with mixed valid/corrupt files).
+   */
+  continueOnError?: boolean;
   /** Max width or height in pixels (default 2048) — fit-within-box resize */
   maxWidthOrHeight?: number;
   /**

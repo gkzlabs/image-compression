@@ -7,10 +7,9 @@ import type {
 } from './types';
 import {
   applyExifOrientation,
-  applyRotation,
+  applyTransforms,
   encodeViaOffscreenCanvas,
   readExifOrientation,
-  resizeExact,
   resizeOffscreen,
   tryDecodeHEIC,
 } from './worker-helpers';
@@ -57,8 +56,6 @@ const api: ImageWorkerApi = {
     };
 
     let bitmap: ImageBitmap;
-    let outWidth: number;
-    let outHeight: number;
 
     // For HEIC, try native decode first
     const isHEIC =
@@ -71,8 +68,6 @@ const api: ImageWorkerApi = {
       const heicBitmap = await tryDecodeHEIC(file);
       if (heicBitmap) {
         bitmap = heicBitmap;
-        outWidth = heicBitmap.width;
-        outHeight = heicBitmap.height;
         emit('resizing', 50);
       } else {
         throw new Error(
@@ -81,17 +76,11 @@ const api: ImageWorkerApi = {
       }
     } else {
       emit('decoding', 20);
+      // Step 1: decode + max-width resize (1 OffscreenCanvas draw)
       const decoded = await resizeOffscreen(file, maxWidthOrHeight);
       bitmap = decoded.bitmap;
-      outWidth = decoded.width;
-      outHeight = decoded.height;
 
-      // EXIF auto-rotation: read orientation tag (no-op for non-JPEG or
-      // orientation 1) and apply the rotation so the output is correctly
-      // oriented even though Canvas re-encoding strips EXIF metadata.
-      // This is critical for photos taken on phones in portrait mode
-      // (orientation 6 = 90° CW is the most common case).
-      //
+      // Step 2: EXIF auto-rotation (1 draw, only if no manual rotate override)
       // If `rotate` is explicitly set (including 0), it overrides EXIF auto-rotation.
       if (rotate === undefined) {
         const orientation = await readExifOrientation(file);
@@ -99,35 +88,28 @@ const api: ImageWorkerApi = {
           const rotated = applyExifOrientation(bitmap, orientation);
           bitmap.close();
           bitmap = rotated.bitmap;
-          outWidth = rotated.width;
-          outHeight = rotated.height;
           emit('resizing', 55);
         }
       } else {
-        // User specified manual rotation — emit a "rotating" stage for UI feedback
         emit('resizing', 55);
       }
     }
 
-    // Apply manual rotation (if user specified) and/or mirror
-    if (rotate !== undefined || mirror !== undefined) {
-      const rotated = applyRotation(bitmap, rotate ?? 0, mirror);
-      bitmap.close();
-      bitmap = rotated.bitmap;
-      outWidth = rotated.width;
-      outHeight = rotated.height;
-    }
+    // Step 3: combined manual rotate + mirror + exact resize in a SINGLE draw
+    // (v0.3.0 optimization: replaces 3 separate bitmap operations with 1)
+    const transformed = applyTransforms(bitmap, {
+      rotate,
+      mirror,
+      width,
+      height,
+      keepAspectRatio,
+    });
+    bitmap.close();
+    const outWidth = transformed.width;
+    const outHeight = transformed.height;
+    bitmap = transformed.bitmap;
 
-    // Apply exact resize (if user specified width/height) — overrides maxWidthOrHeight
-    if (width !== undefined || height !== undefined) {
-      const resized = resizeExact(bitmap, width ?? outWidth, height, keepAspectRatio ?? false);
-      bitmap.close();
-      bitmap = resized.bitmap;
-      outWidth = resized.width;
-      outHeight = resized.height;
-    }
-
-    // Encode
+    // Step 4: encode (1 final operation)
     const blob = await encodeViaOffscreenCanvas(bitmap, format, quality);
     bitmap.close();
     emit('encoding', 95);

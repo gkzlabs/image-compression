@@ -1,6 +1,6 @@
 import * as Comlink from 'comlink';
 import { detectCapabilities } from './capabilities';
-import { CompressionError, extensionForMimeType } from './types';
+import { CompressionError, CompressionErrorCode, extensionForMimeType } from './types';
 import type {
   CompressionOptions,
   CompressionPath,
@@ -382,10 +382,12 @@ export class ImageCompression {
 
     return new Promise<CompressionResult[]>((resolve, reject) => {
       const results: (CompressionResult | null)[] = new Array(files.length).fill(null);
+      const errors: (CompressionError | null)[] = new Array(files.length).fill(null);
       let nextIndex = 0;
       let activeCount = 0;
       let completedCount = 0;
       let errored: Error | null = null;
+      const continueOnError = options.continueOnError === true;
 
       const launchNext = (): void => {
         if (errored) return;
@@ -405,20 +407,37 @@ export class ImageCompression {
 
           this.compress(file, { ...options, onProgress: wrappedOnProgress })
             .then((result) => {
-              if (errored) return;
+              if (errored && !continueOnError) return;
               results[fileIndex] = result;
             })
             .catch((err) => {
-              if (errored) return;
-              errored = err instanceof Error ? err : new Error(String(err));
+              if (errored && !continueOnError) return;
+              const wrapped =
+                err instanceof CompressionError
+                  ? err
+                  : new CompressionError(
+                      'UNKNOWN' satisfies CompressionErrorCode,
+                      err instanceof Error ? err.message : String(err),
+                    );
+              errors[fileIndex] = wrapped;
+              if (!continueOnError) {
+                errored = wrapped;
+              }
             })
             .finally(() => {
               activeCount--;
               completedCount++;
-              if (errored) {
+              if (errored && !continueOnError) {
                 reject(errored);
               } else if (completedCount === files.length) {
-                resolve(results as CompressionResult[]);
+                if (errored) {
+                  // Reject with the first error
+                  reject(errored);
+                } else {
+                  // Resolve with results (errors are null in this branch since
+                  // continueOnError=false would have rejected)
+                  resolve(results as CompressionResult[]);
+                }
               } else {
                 launchNext();
               }
@@ -555,10 +574,15 @@ export class ImageCompression {
     // Fallback: img element → createImageBitmap
     if (!bitmap) {
       const url = URL.createObjectURL(file);
+      let img: HTMLImageElement | null = null;
       try {
-        const img = await this.loadImage(url);
+        img = await this.loadImage(url);
         bitmap = await createImageBitmap(img);
       } finally {
+        // Release the img's data promptly so GC can collect it
+        // (HTMLImageElement holds a reference to the URL's data even after
+        // URL.revokeObjectURL is called, until src is cleared).
+        if (img) img.src = '';
         URL.revokeObjectURL(url);
       }
     }

@@ -349,3 +349,80 @@ export function resizeExact(
 
 export type { ExifOrientation } from './exif';
 export { readExifOrientation } from './exif';
+/**
+ * Apply manual rotation, mirror, AND exact resize in a SINGLE OffscreenCanvas
+ * draw. v0.3.0 optimization — replaces 3 separate bitmap operations with 1.
+ *
+ * Saves:
+ * - Memory: 2 fewer ImageBitmap allocations
+ * - CPU: avoids redundant rasterization passes
+ * - Quality: less quality loss from multiple resizes
+ */
+export function applyTransforms(
+  bitmap: ImageBitmap,
+  opts: {
+    rotate?: 0 | 90 | 180 | 270;
+    mirror?: 'horizontal' | 'vertical';
+    width?: number;
+    height?: number;
+    keepAspectRatio?: boolean;
+  },
+): { bitmap: ImageBitmap; width: number; height: number } {
+  const { rotate = 0, mirror, width, height, keepAspectRatio = false } = opts;
+  const srcW = bitmap.width;
+  const srcH = bitmap.height;
+
+  // Fast path: no transforms requested
+  if (rotate === 0 && !mirror && width === undefined && height === undefined) {
+    return { bitmap, width: srcW, height: srcH };
+  }
+
+  // 1. Compute post-rotation dimensions (90/270 swap)
+  const swapForRotate = rotate === 90 || rotate === 270;
+  const postW = swapForRotate ? srcH : srcW;
+  const postH = swapForRotate ? srcW : srcH;
+
+  // 2. Apply exact resize
+  let finalW: number;
+  let finalH: number;
+  if (width === undefined && height === undefined) {
+    finalW = postW;
+    finalH = postH;
+  } else if (width !== undefined && height === undefined) {
+    finalW = width;
+    finalH = Math.round(width / (postW / postH));
+  } else if (width === undefined && height !== undefined) {
+    finalH = height;
+    finalW = Math.round(height * (postW / postH));
+  } else if (width === postW && height === postH) {
+    return { bitmap, width, height };
+  } else if (keepAspectRatio) {
+    const ratio = postW / postH;
+    if (width! / height! > ratio) {
+      finalH = height!;
+      finalW = Math.round(height! * ratio);
+    } else {
+      finalW = width!;
+      finalH = Math.round(width! / ratio);
+    }
+  } else {
+    finalW = width!;
+    finalH = height!;
+  }
+
+  // 3. Create canvas + apply all transforms in single draw
+  const canvas = new OffscreenCanvas(finalW, finalH);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('OffscreenCanvas 2D context unavailable for transforms');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  ctx.translate(finalW / 2, finalH / 2);
+  if (rotate !== 0) ctx.rotate((rotate * Math.PI) / 180);
+  if (mirror === 'horizontal') ctx.scale(-1, 1);
+  else if (mirror === 'vertical') ctx.scale(1, -1);
+  ctx.translate(-srcW / 2, -srcH / 2);
+  ctx.drawImage(bitmap, 0, 0);
+
+  return { bitmap: canvas.transferToImageBitmap(), width: finalW, height: finalH };
+}
