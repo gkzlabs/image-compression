@@ -1,0 +1,6 @@
+image-compression/
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store

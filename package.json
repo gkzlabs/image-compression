@@ -1,0 +1,63 @@
+{
+  "name": "@GKz/image-compression",
+  "version": "0.1.0",
+  "description": "Framework-agnostic image compression for the browser. Pure web APIs (WebCodecs, OffscreenCanvas, Comlink Worker). Works with any frontend framework (Angular, React, Vue, Svelte) or vanilla JS.",
+  "repository": {
+    "type": "git",
+    "url": "git@gitlab.com:guidekungz/image-compression.git"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "import": "./dist/worker.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "prepublishOnly": "npm run lint && npm test && npm run build"
+  },
+  "keywords": [
+    "image",
+    "compression",
+    "webcodecs",
+    "offscreen-canvas",
+    "worker",
+    "comlink",
+    "browser",
+    "framework-agnostic",
+    "heic",
+    "exif"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "comlink": "^4.4.2"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "^1.0.0",
+    "@types/node": "^20.10.0",
+    "happy-dom": "^15.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
