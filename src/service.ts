@@ -60,7 +60,9 @@ export class ImageCompression {
     if (this.capabilitiesPromise) return this.capabilitiesPromise;
     this.capabilitiesPromise = detectCapabilities()
       .then(async (caps) => {
-        // Probe the Worker's own capabilities (non-blocking — fails gracefully)
+        // Probe the Worker's own capabilities (non-blocking — falls back to
+        // main-thread caps on timeout/error). The probe is wrapped with a
+        // 2s timeout in probeWorkerCapabilities() to prevent hangs.
         const workerCaps = await this.probeWorkerCapabilities();
         // Replace main-thread detection with worker detection for the cascade
         if (workerCaps) {
@@ -160,10 +162,18 @@ export class ImageCompression {
     hasCreateImageBitmap: boolean;
   } | null> {
     try {
-      const worker = await this.getWorker();
-      if (!worker) return null;
-      const caps = await worker.getWorkerCapabilities();
-      return caps;
+      // Race the probe against a 2s timeout. If the worker probe hangs
+      // (Comlink mis-config, broken worker URL, etc.) we fall back to
+      // main-thread detection rather than blocking the whole compress() flow.
+      const probePromise = (async () => {
+        const worker = await this.getWorker();
+        if (!worker) return null;
+        return await worker.getWorkerCapabilities();
+      })();
+      const timeoutPromise = new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), 2000),
+      );
+      return (await Promise.race([probePromise, timeoutPromise])) ?? null;
     } catch (err) {
       console.warn('[ImageCompression] worker capability probe failed:', err);
       return null;
