@@ -1,0 +1,40 @@
+# Git attributes
+
+# Auto-detect text files and normalize line endings to LF on commit
+* text=auto eol=lf
+
+# Explicitly declare text files
+*.ts text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+
+# Binary files (don't diff)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.heic binary
+*.heif binary
+*.woff binary
+*.woff2 binary
+
+# Export tags (for git archive)
+CHANGELOG.md export-ignore
+*.test.ts export-ignore
+*.spec.ts export-ignore
+__tests__/ export-ignore
+vitest.config.ts export-ignore
+vitest.setup.ts export-ignore
+tsconfig*.json export-ignore
+.editorconfig export-ignore
+.gitattributes export-ignore
+.github/ export-ignore
+.gitlab-ci.yml export-ignore

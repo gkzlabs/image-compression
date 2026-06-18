@@ -1,0 +1,24 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# Top-most EditorConfig file
+root = true
+
+[*]
+indent_style = space
+indent_size = 2
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Markdown files sometimes have trailing whitespace (two spaces = line break)
+[*.md]
+trim_trailing_whitespace = false
+
+# Windows-style line endings for Windows-specific files
+[*.bat]
+end_of_line = crlf
+
+# Don't modify generated lockfiles
+[package-lock.json]
+insert_final_newline = false
