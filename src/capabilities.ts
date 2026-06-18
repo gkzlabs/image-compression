@@ -121,8 +121,6 @@ export async function detectCapabilities(): Promise<DeviceCapabilities> {
     deviceMemory,
     saveData,
     effectiveType,
-    isSafari,
-    isIOS,
     tier,
   };
 }

@@ -88,7 +88,6 @@ export class ImageCompression {
           saveData: false,
           effectiveType: '4g',
           tier: 'low',
-          tier: 'low',
         };
         this.capabilities = fallback;
         return fallback;
