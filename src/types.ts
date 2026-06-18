@@ -57,8 +57,45 @@ export interface CompressionProgress {
 }
 
 export interface CompressionOptions {
-  /** Max width or height in pixels (default 2048) */
+  /** Max width or height in pixels (default 2048) — fit-within-box resize */
   maxWidthOrHeight?: number;
+  /**
+   * Exact target width in pixels. Overrides `maxWidthOrHeight` when set.
+   * - If only `width` is set: height is auto-computed to preserve aspect ratio
+   * - If both `width` and `height` are set: image is stretched to exact size
+   *   (may distort — use `keepAspectRatio: true` to fit-within instead)
+   */
+  width?: number;
+  /**
+   * Exact target height in pixels. Overrides `maxWidthOrHeight` when set.
+   * - If only `height` is set: width is auto-computed to preserve aspect ratio
+   * - If both `width` and `height` are set: image is stretched to exact size
+   */
+  height?: number;
+  /**
+   * When `width` and `height` are both set, preserve aspect ratio by fitting
+   * the image within the box (letterboxing if needed). Default: false.
+   * Only applies when both `width` and `height` are provided.
+   */
+  keepAspectRatio?: boolean;
+  /**
+   * Manual rotation in degrees clockwise. Default: undefined (use EXIF auto-rotation).
+   * Set to 0 to disable EXIF auto-rotation (keeps image as-is, no rotation).
+   * Common values: 90, 180, 270.
+   */
+  rotate?: 0 | 90 | 180 | 270;
+  /** Mirror/flip the image after rotation. Default: undefined (no flip). */
+  mirror?: 'horizontal' | 'vertical';
+  /**
+   * Strip EXIF metadata from the output. Default: true.
+   * When true (default), all EXIF data is removed during re-encoding.
+   * When false, EXIF orientation is auto-applied but other metadata
+   * (camera, GPS, timestamps) is also removed by re-encoding.
+   *
+   * Note: re-encoding always strips most EXIF data. To preserve full EXIF,
+   * use `passThroughUnderBytes` (which returns the original file unchanged).
+   */
+  stripExif?: boolean;
   /** JPEG/WebP quality 0..1 (default 0.85) */
   quality?: number;
   /** Output format (default 'image/jpeg') */

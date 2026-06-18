@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-06-18
+
+### Added
+- **`rotate` option** — manual rotation in degrees clockwise (`0 | 90 | 180 | 270`). Override EXIF auto-rotation.
+- **`mirror` option** — flip image (`'horizontal' | 'vertical'`). Applied after rotation.
+- **`width` / `height` options** — exact target dimensions for resize.
+  - Only `width`: height auto-computed (preserves aspect ratio)
+  - Only `height`: width auto-computed (preserves aspect ratio)
+  - Both + `keepAspectRatio: true`: fit-within-box (letterbox if needed)
+  - Both + `keepAspectRatio: false` (default): stretch to exact
+- **`keepAspectRatio` option** — preserve aspect ratio when both width+height are set.
+- **`stripExif` option** — strip EXIF metadata from output (default: `true`). Re-encoding always strips most EXIF data; pass-through returns original unchanged.
+- **Utility exports** — `applyExifOrientation()`, `applyRotation()`, `resizeExact()` now exported from `worker-helpers`.
+- **12 new tests** in `transforms.test.ts` covering rotation, mirror, exact resize, aspect ratio, and combined transforms.
+
+### Internal
+- Refactored `canvas-main` path to use the same `applyExifOrientation()`, `applyRotation()`, `resizeExact()` helpers as the worker paths (consistency + less duplicated code).
+- `worker.ts` now applies manual rotation AFTER EXIF auto-rotation (or instead of it, if `rotate` is set).
+- Order of transforms: EXIF auto-rotation (if not overridden) → manual rotation → mirror → resize → encode.
+
+### Notes
+- Manual rotation is applied AFTER EXIF auto-rotation. Setting `rotate: 0` disables EXIF auto-rotation entirely.
+- Total tests: 77 passing (up from 65), 7 skipped (browser-only).
+- New test file: `src/transforms.test.ts`.
+
 ## [0.1.0] - 2026-06-18
 
 ### Added

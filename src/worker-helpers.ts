@@ -212,6 +212,137 @@ export async function tryDecodeHEIC(file: File | Blob): Promise<ImageBitmap | nu
   }
 }
 
+/**
+ * Apply manual rotation and/or mirroring to an image bitmap.
+ *
+ * Used when the caller wants to override EXIF auto-rotation or apply
+ * additional transforms (e.g., rotate a vertical photo 90° for landscape).
+ *
+ * @param bitmap  Source image
+ * @param rotate  Rotation in degrees clockwise (0 | 90 | 180 | 270)
+ * @param mirror  Optional mirror ('horizontal' or 'vertical') applied AFTER rotation
+ * @returns New bitmap with transforms applied
+ */
+export function applyRotation(
+  bitmap: ImageBitmap,
+  rotate: 0 | 90 | 180 | 270 = 0,
+  mirror?: 'horizontal' | 'vertical',
+): { bitmap: ImageBitmap; width: number; height: number } {
+  // Fast path: no rotation, no mirror → return as-is
+  if (rotate === 0 && !mirror) {
+    return { bitmap, width: bitmap.width, height: bitmap.height };
+  }
+
+  // 90° and 270° rotations swap dimensions
+  const swapDims = rotate === 90 || rotate === 270;
+  const w = swapDims ? bitmap.height : bitmap.width;
+  const h = swapDims ? bitmap.width : bitmap.height;
+
+  const canvas = new OffscreenCanvas(w, h);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('OffscreenCanvas 2D context unavailable for rotation');
+  }
+
+  // Move origin to center, apply transforms, draw bitmap
+  ctx.translate(w / 2, h / 2);
+  if (rotate !== 0) {
+    ctx.rotate((rotate * Math.PI) / 180);
+  }
+  if (mirror === 'horizontal') {
+    ctx.scale(-1, 1);
+  } else if (mirror === 'vertical') {
+    ctx.scale(1, -1);
+  }
+  ctx.translate(-bitmap.width / 2, -bitmap.height / 2);
+  ctx.drawImage(bitmap, 0, 0);
+
+  return {
+    bitmap: canvas.transferToImageBitmap(),
+    width: w,
+    height: h,
+  };
+}
+
+/**
+ * Resize an image to exact target dimensions.
+ *
+ * Three behaviors depending on options:
+ * - Only `width` set:  height auto-computed (preserves aspect ratio)
+ * - Only `height` set: width auto-computed (preserves aspect ratio)
+ * - Both set + `keepAspectRatio: true`: fit-within-box (letterbox if needed)
+ * - Both set + `keepAspectRatio: false` (default): stretch to exact size
+ *
+ * @param bitmap  Source image
+ * @param width   Target width in pixels
+ * @param height  Target height in pixels (optional)
+ * @param keepAspectRatio  If both width+height set, fit-within instead of stretching
+ * @returns New bitmap with target dimensions
+ */
+export function resizeExact(
+  bitmap: ImageBitmap,
+  width?: number,
+  height?: number,
+  keepAspectRatio: boolean = false,
+): { bitmap: ImageBitmap; width: number; height: number } {
+  let targetW: number;
+  let targetH: number;
+  const srcW = bitmap.width;
+  const srcH = bitmap.height;
+  const ratio = srcW / srcH;
+
+  // Case 1: both undefined → no resize
+  if (width === undefined && height === undefined) {
+    return { bitmap, width: srcW, height: srcH };
+  }
+
+  // Case 2: only width given → scale height proportionally
+  if (width !== undefined && height === undefined) {
+    targetW = width;
+    targetH = Math.round(width / ratio);
+  }
+  // Case 3: only height given → scale width proportionally
+  else if (width === undefined && height !== undefined) {
+    targetH = height;
+    targetW = Math.round(height * ratio);
+  }
+  // Case 4: both given — stretch or fit-within
+  else if (width === srcW && height === srcH) {
+    // No-op: same dimensions
+    return { bitmap, width, height };
+  } else if (keepAspectRatio) {
+    // Both given + keepAspectRatio: fit-within-box
+    if (width / height > ratio) {
+      // Box is wider than image — fit by height
+      targetH = height!;
+      targetW = Math.round(height! * ratio);
+    } else {
+      // Box is taller than image — fit by width
+      targetW = width!;
+      targetH = Math.round(width! / ratio);
+    }
+  } else {
+    // Both given, no aspect ratio: stretch to exact
+    targetW = width!;
+    targetH = height!;
+  }
+
+  const canvas = new OffscreenCanvas(targetW, targetH);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('OffscreenCanvas 2D context unavailable for resize');
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bitmap, 0, 0, targetW, targetH);
+
+  return {
+    bitmap: canvas.transferToImageBitmap(),
+    width: targetW,
+    height: targetH,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // EXIF types and re-export for convenience
 // ---------------------------------------------------------------------------

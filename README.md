@@ -12,6 +12,10 @@ A modern, progressive-enhancement image compression library that runs entirely i
 ## ✨ Features
 
 - 🚀 **4-path cascade** — WebCodecs → OffscreenCanvas → Canvas2D → server-fallback
+- 🔄 **Manual rotation** — `rotate: 0 | 90 | 180 | 270` (overrides EXIF auto-rotation)
+- 🪞 **Mirror/flip** — `mirror: 'horizontal' | 'vertical'`
+- 📐 **Exact resize** — `width` / `height` / `keepAspectRatio` for precise dimensions
+- 🖼️ **Auto EXIF rotation** — vertical phone photos auto-orient correctly
 - 🌊 **Streaming API** — `compress$()` and `compressAll$()` return native `AsyncIterable` (no RxJS needed)
 - 📦 **Framework-agnostic** — Zero dependencies on Angular, React, or RxJS
 - 🖼️ **HEIC decode** — Lazy-loaded via `heic2any` (optional, ~256 KB)

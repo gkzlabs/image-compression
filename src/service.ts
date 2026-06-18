@@ -423,103 +423,130 @@ export class ImageCompression {
     options: CompressionOptions,
     caps: DeviceCapabilities,
   ): Promise<Omit<CompressionResult, 'originalSize' | 'path' | 'durationMs' | 'tier' | 'file' | 'name'> | null> {
-    const { maxWidthOrHeight = 2048, quality = 0.85, format = 'image/jpeg' } = options;
+    const {
+      maxWidthOrHeight = 2048,
+      quality = 0.85,
+      format = 'image/jpeg',
+      width,
+      height,
+      keepAspectRatio,
+      rotate,
+      mirror,
+    } = options;
     const onProgress = options.onProgress;
 
+    // Try createImageBitmap first (HW decode)
     let bitmap: ImageBitmap | null = null;
-    try {
-      onProgress?.({ stage: 'decoding', percent: 30, path: 'canvas-main', message: 'Decoding image...' });
-      // Try createImageBitmap first (HW decode)
-      if (caps.hasCreateImageBitmap) {
-        try {
-          bitmap = await createImageBitmap(file);
-        } catch {
-          bitmap = null;
-        }
+    if (caps.hasCreateImageBitmap) {
+      try {
+        bitmap = await createImageBitmap(file);
+      } catch {
+        bitmap = null;
       }
+    }
 
-      // Fallback: img element
-      if (!bitmap) {
-        const url = URL.createObjectURL(file);
-        try {
-          const img = await this.loadImage(url);
-          onProgress?.({ stage: 'resizing', percent: 60, path: 'canvas-main', message: 'Resizing...' });
-          const canvas = document.createElement('canvas');
-          const ratio = img.width / img.height;
-          let targetW = img.width;
-          let targetH = img.height;
-          if (img.width > maxWidthOrHeight || img.height > maxWidthOrHeight) {
-            if (img.width >= img.height) {
-              targetW = Math.min(maxWidthOrHeight, img.width);
-              targetH = Math.round(targetW / ratio);
-            } else {
-              targetH = Math.min(maxWidthOrHeight, img.height);
-              targetW = Math.round(targetH * ratio);
-            }
-          }
-          canvas.width = targetW;
-          canvas.height = targetH;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) throw new Error('Canvas2D context unavailable');
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(img, 0, 0, targetW, targetH);
-          onProgress?.({ stage: 'encoding', percent: 90, path: 'canvas-main', message: 'Encoding...' });
-          const blob = await new Promise<Blob | null>((resolve) => {
-            canvas.toBlob((b) => resolve(b), format, quality);
-          });
-          if (!blob) throw new Error('toBlob returned null');
-          return {
-            blob,
-            compressedSize: blob.size,
-            width: targetW,
-            height: targetH,
-            mimeType: format,
-          };
-        } finally {
-          URL.revokeObjectURL(url);
-        }
+    // Fallback: img element → createImageBitmap
+    if (!bitmap) {
+      const url = URL.createObjectURL(file);
+      try {
+        const img = await this.loadImage(url);
+        bitmap = await createImageBitmap(img);
+      } finally {
+        URL.revokeObjectURL(url);
       }
+    }
 
-      // createImageBitmap path
-      onProgress?.({ stage: 'resizing', percent: 60, path: 'canvas-main', message: 'Resizing...' });
-      const ratio = bitmap.width / bitmap.height;
-      let targetW = bitmap.width;
-      let targetH = bitmap.height;
-      if (bitmap.width > maxWidthOrHeight || bitmap.height > maxWidthOrHeight) {
-        if (bitmap.width >= bitmap.height) {
-          targetW = Math.min(maxWidthOrHeight, bitmap.width);
+    if (!bitmap) {
+      throw new Error('Failed to decode image for canvas-main path');
+    }
+
+    onProgress?.({ stage: 'decoding', percent: 30, path: 'canvas-main', message: 'Decoding image...' });
+
+    let outWidth = bitmap.width;
+    let outHeight = bitmap.height;
+
+    // EXIF auto-rotation (if not overridden by manual rotate)
+    if (rotate === undefined) {
+      const { readExifOrientation, applyExifOrientation } = await import('./worker-helpers');
+      const orientation = await readExifOrientation(file);
+      if (orientation !== 1) {
+        const rotated = applyExifOrientation(bitmap, orientation);
+        bitmap.close();
+        bitmap = rotated.bitmap as unknown as ImageBitmap;
+        outWidth = rotated.width;
+        outHeight = rotated.height;
+        onProgress?.({ stage: 'resizing', percent: 55, path: 'canvas-main', message: 'Auto-rotated via EXIF' });
+      }
+    }
+
+    // Manual rotation / mirror
+    if (rotate !== undefined || mirror !== undefined) {
+      const { applyRotation } = await import('./worker-helpers');
+      const rotated = applyRotation(bitmap, rotate ?? 0, mirror);
+      bitmap.close();
+      bitmap = rotated.bitmap as unknown as ImageBitmap;
+      outWidth = rotated.width;
+      outHeight = rotated.height;
+      onProgress?.({ stage: 'resizing', percent: 65, path: 'canvas-main', message: 'Rotating...' });
+    }
+
+    // Resize (maxWidthOrHeight or exact width/height)
+    onProgress?.({ stage: 'resizing', percent: 70, path: 'canvas-main', message: 'Resizing...' });
+    let targetW = outWidth;
+    let targetH = outHeight;
+    if (width !== undefined || height !== undefined) {
+      // Exact resize: use helper
+      const { resizeExact } = await import('./worker-helpers');
+      const resized = resizeExact(bitmap, width ?? outWidth, height, keepAspectRatio ?? false);
+      bitmap.close();
+      bitmap = resized.bitmap as unknown as ImageBitmap;
+      targetW = resized.width;
+      targetH = resized.height;
+    } else {
+      // Fit-within-box resize
+      if (outWidth > maxWidthOrHeight || outHeight > maxWidthOrHeight) {
+        const ratio = outWidth / outHeight;
+        if (outWidth >= outHeight) {
+          targetW = Math.min(maxWidthOrHeight, outWidth);
           targetH = Math.round(targetW / ratio);
         } else {
-          targetH = Math.min(maxWidthOrHeight, bitmap.height);
+          targetH = Math.min(maxWidthOrHeight, outHeight);
           targetW = Math.round(targetH * ratio);
         }
+        // Apply via OffscreenCanvas helper for consistency
+        const { resizeExact } = await import('./worker-helpers');
+        const resized = resizeExact(bitmap, targetW, targetH, false);
+        bitmap.close();
+        bitmap = resized.bitmap as unknown as ImageBitmap;
+        targetW = resized.width;
+        targetH = resized.height;
       }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = targetW;
-      canvas.height = targetH;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('Canvas2D context unavailable');
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(bitmap, 0, 0, targetW, targetH);
-
-      onProgress?.({ stage: 'encoding', percent: 90, path: 'canvas-main', message: 'Encoding...' });
-      const blob = await new Promise<Blob | null>((resolve) => {
-        canvas.toBlob((b) => resolve(b), format, quality);
-      });
-      if (!blob) throw new Error('toBlob returned null');
-      return {
-        blob,
-        compressedSize: blob.size,
-        width: targetW,
-        height: targetH,
-        mimeType: format,
-      };
-    } finally {
-      bitmap?.close();
     }
+
+    // Encode
+    onProgress?.({ stage: 'encoding', percent: 90, path: 'canvas-main', message: 'Encoding...' });
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas2D context unavailable');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bitmap as unknown as CanvasImageSource, 0, 0);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((b) => resolve(b), format, quality);
+    });
+    if (!blob) throw new Error('toBlob returned null');
+
+    return {
+      blob,
+      compressedSize: blob.size,
+      width: targetW,
+      height: targetH,
+      mimeType: format,
+    };
   }
 
   private loadImage(src: string, timeoutMs = 15_000): Promise<HTMLImageElement> {
