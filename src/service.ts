@@ -49,12 +49,25 @@ export class ImageCompression {
 
   /**
    * Lazy-init: detect capabilities on first call, cache forever.
+   *
+   * On first call, also queries the Web Worker for its own capabilities.
+   * Main-thread OffscreenCanvas detection does NOT guarantee Worker context
+   * has it (Safari iOS, some Firefox configs, headless Chrome). The worker's
+   * own check is the ground truth.
    */
   getCapabilities(): Promise<DeviceCapabilities> {
     if (this.capabilities) return Promise.resolve(this.capabilities);
     if (this.capabilitiesPromise) return this.capabilitiesPromise;
     this.capabilitiesPromise = detectCapabilities()
-      .then((caps) => {
+      .then(async (caps) => {
+        // Probe the Worker's own capabilities (non-blocking — fails gracefully)
+        const workerCaps = await this.probeWorkerCapabilities();
+        // Replace main-thread detection with worker detection for the cascade
+        if (workerCaps) {
+          caps.hasOffscreenCanvasInWorker = workerCaps.hasOffscreenCanvas;
+          caps.hasWebCodecsInWorker = workerCaps.hasWebCodecs;
+          caps.hasCreateImageBitmapInWorker = workerCaps.hasCreateImageBitmap;
+        }
         this.capabilities = caps;
         return caps;
       })
@@ -135,6 +148,26 @@ export class ImageCompression {
       return Comlink.wrap<ImageWorkerApi>(worker);
     } catch (err) {
       console.warn('[ImageCompression] failed to spawn worker:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Query the Web Worker for its own runtime capabilities.
+   * Returns null if the worker can't be created or probed.
+   */
+  private async probeWorkerCapabilities(): Promise<{
+    hasOffscreenCanvas: boolean;
+    hasWebCodecs: boolean;
+    hasCreateImageBitmap: boolean;
+  } | null> {
+    try {
+      const worker = await this.getWorker();
+      if (!worker) return null;
+      const caps = await worker.getWorkerCapabilities();
+      return caps;
+    } catch (err) {
+      console.warn('[ImageCompression] worker capability probe failed:', err);
       return null;
     }
   }
@@ -392,12 +425,21 @@ export class ImageCompression {
   ): CompressionPath[] {
     const paths: CompressionPath[] = [];
 
+    // Use the Worker's own capability detection for Worker paths.
+    // Main-thread detection can give false positives (OffscreenCanvas exists
+    // in main thread but not in Worker context — common in Safari iOS).
+    const workerOC = caps.hasOffscreenCanvasInWorker ?? caps.hasOffscreenCanvas;
+    const workerWC = caps.hasWebCodecsInWorker ?? caps.hasWebCodecs;
+    const workerCIB = caps.hasCreateImageBitmapInWorker ?? caps.hasCreateImageBitmap;
+
     // 'webcodecs-worker' = use ImageDecoder (for HEIC) inside Worker context.
-    // This path is preferred when the browser supports native HEIC decode.
-    if (caps.hasWebCodecs && caps.hasOffscreenCanvas && caps.hasWorker) {
+    // Requires WebCodecs + OffscreenCanvas + createImageBitmap IN the worker.
+    if (workerWC && workerOC && workerCIB && caps.hasWorker) {
       paths.push('webcodecs-worker');
     }
-    if (caps.hasOffscreenCanvas && caps.hasWorker) {
+    // 'offscreen-worker' = Canvas2D + createImageBitmap in Worker context.
+    // Requires OffscreenCanvas + createImageBitmap IN the worker.
+    if (workerOC && workerCIB && caps.hasWorker) {
       paths.push('offscreen-worker');
     }
     if (caps.hasCanvas2D) {
@@ -416,10 +458,13 @@ export class ImageCompression {
     options: CompressionOptions,
     caps: DeviceCapabilities,
   ): Promise<Omit<CompressionResult, 'originalSize' | 'path' | 'durationMs' | 'tier' | 'file' | 'name'> | null> {
+    // Tag the options with the actual path so the worker can include it
+    // in its progress events. Cleaner than passing a separate parameter.
+    const optionsWithPath: CompressionOptions = { ...options, __path: path };
     switch (path) {
       case 'webcodecs-worker':
       case 'offscreen-worker':
-        return this.executeWorkerPath(file, options);
+        return this.executeWorkerPath(file, optionsWithPath, path);
 
       case 'canvas-main':
         return this.executeCanvasMainPath(file, options, caps);
@@ -438,11 +483,12 @@ export class ImageCompression {
   private async executeWorkerPath(
     file: File | Blob,
     options: CompressionOptions,
+    path: CompressionPath,
   ): Promise<Omit<CompressionResult, 'originalSize' | 'path' | 'durationMs' | 'tier' | 'file' | 'name'> | null> {
     const onProgress = options.onProgress;
     // Stage 2: Load worker (if not already cached)
     if (!this.worker) {
-      onProgress?.({ stage: 'loading-worker', percent: 10, path: 'webcodecs-worker', message: 'Loading worker...' });
+      onProgress?.({ stage: 'loading-worker', percent: 10, path, message: `Loading worker (${path})...` });
     }
     const worker = await this.getWorker();
     if (!worker) return null;

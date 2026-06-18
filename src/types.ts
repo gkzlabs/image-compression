@@ -65,6 +65,10 @@ export interface CompressionProgress {
 }
 
 export interface CompressionOptions {
+  /** Internal: tagged by the service to indicate which path is executing.
+   *  Used by the worker to include the correct path in its progress events.
+   *  @internal Not intended for public use. */
+  __path?: CompressionPath;
   /** Max width or height in pixels (default 2048) — fit-within-box resize */
   maxWidthOrHeight?: number;
   /**
@@ -196,36 +200,40 @@ export interface CompressionResult {
 }
 
 export interface DeviceCapabilities {
-  /** WebCodecs API (VideoEncoder + ImageDecoder) */
+  /** WebCodecs API available (ImageDecoder + VideoEncoder) — main thread */
   hasWebCodecs: boolean;
-  /** ImageDecoder API specifically (for HEIC/JPEG/PNG decode) */
+  /** ImageDecoder API available — main thread (subset of WebCodecs) */
   hasImageDecoder: boolean;
-  /** VideoEncoder API (for encode) */
+  /** VideoEncoder API available — main thread (subset of WebCodecs) */
   hasVideoEncoder: boolean;
-  /** OffscreenCanvas available */
+  /** OffscreenCanvas API available — main thread */
   hasOffscreenCanvas: boolean;
-  /** Web Worker available */
+  /** Worker API available */
   hasWorker: boolean;
-  /** createImageBitmap available */
+  /** createImageBitmap() available — main thread */
   hasCreateImageBitmap: boolean;
-  /** Canvas2D context available */
+  /** HTMLCanvasElement + Canvas2D context available (any of OffscreenCanvas or HTMLCanvasElement) */
   hasCanvas2D: boolean;
-  /** HEIC decode supported natively (ImageDecoder) */
+  /** Native HEIC decode supported via ImageDecoder */
   supportsHEIC: boolean;
-  /** CPU cores (1..32, default 2) */
+  /** Number of logical CPU cores (navigator.hardwareConcurrency) */
   hardwareConcurrency: number;
-  /** Device RAM in GB (0 if unknown) */
+  /** Approximate device memory in GB (navigator.deviceMemory, 0 if unavailable) */
   deviceMemory: number;
-  /** User has data saver enabled */
+  /** User has save-data enabled */
   saveData: boolean;
-  /** Network effective type (4g, 3g, 2g, slow-2g) */
-  effectiveType: string;
-  /** Safari browser (has WebCodecs quirks) */
-  isSafari: boolean;
-  /** iOS device */
-  isIOS: boolean;
-  /** Derived device tier */
+  /** Network effective type (2g/3g/4g/slow-2g) */
+  effectiveType: '2g' | '3g' | '4g' | 'slow-2g';
+  /** Device tier classification (low/mid/high) */
   tier: DeviceTier;
+
+  // ----- Worker-side capabilities (probed from Worker context) -----
+  /** OffscreenCanvas API available in Worker context (may differ from main thread) */
+  hasOffscreenCanvasInWorker?: boolean;
+  /** WebCodecs API available in Worker context */
+  hasWebCodecsInWorker?: boolean;
+  /** createImageBitmap() available in Worker context */
+  hasCreateImageBitmapInWorker?: boolean;
 }
 
 /**

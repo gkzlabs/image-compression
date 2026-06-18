@@ -49,7 +49,10 @@ const api: ImageWorkerApi = {
       onProgress?.({
         stage,
         percent,
-        path: 'webcodecs-worker' satisfies CompressionPath,
+        // Use the path passed via the workerOptions (via Comlink) if available,
+        // otherwise default to 'webcodecs-worker' for backward compatibility.
+        // The service sets this to the actual path being tried (e.g. 'offscreen-worker').
+        path: ((options as { __path?: CompressionPath }).__path ?? 'webcodecs-worker') satisfies CompressionPath,
       });
     };
 

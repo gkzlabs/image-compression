@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-06-18
+
+### Fixed
+- **Worker paths failing when main-thread has OffscreenCanvas but Worker doesn't** — The cascade previously filtered Worker paths based on main-thread capability detection, which gave false positives on browsers where main-thread OffscreenCanvas is available but Worker-context OffscreenCanvas is not (Safari iOS, some Firefox configs, headless Chrome). The service now queries the Worker's own `getWorkerCapabilities()` and uses those for the cascade filter. The user's environment: main thread has OffscreenCanvas + Web Worker, but Worker context lacks OffscreenCanvas → cascade correctly skips `offscreen-worker` and `webcodecs-worker` paths, going straight to `canvas-main`.
+- **Progress events always labeled `webcodecs-worker`** — Even when the actual path was `offscreen-worker`, the worker's emit() function and the service's "Loading worker" event always said `webcodecs-worker`. Now both reflect the actual path being tried.
+
+### Added
+- **Worker-side capability fields** in `DeviceCapabilities`:
+  - `hasOffscreenCanvasInWorker` (probed from Worker)
+  - `hasWebCodecsInWorker` (probed from Worker)
+  - `hasCreateImageBitmapInWorker` (probed from Worker)
+  - All optional — fallback to main-thread caps if not yet probed.
+- **`probeWorkerCapabilities()` method** in `ImageCompression` class — non-blocking, fails gracefully.
+- **Internal `__path` field** in `CompressionOptions` — tags which path the worker is executing (used by worker emit() to label progress events correctly).
+- **6 new tests** in `worker-caps.test.ts` covering:
+  - Main-thread has OC but Worker doesn't → cascade skips worker paths
+  - Worker has OC + CIB → include offscreen-worker
+  - Worker has everything → include all 3 paths
+  - No worker support → only canvas-main
+  - No capability at all → empty cascade
+  - Worker caps fallback to main-thread caps
+
+### Notes
+- Total tests: 90 passing (up from 84), 7 skipped.
+- Backward compatible: existing consumers that don't read worker-side caps see the old behavior.
+- This is a **real bug fix** — without it, the cascade was wasting time trying Worker paths that would always fail.
+
 ## [0.2.2] - 2026-06-18
 
 ### Added
