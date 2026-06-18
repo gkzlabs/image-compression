@@ -84,7 +84,7 @@ export async function detectCapabilities(): Promise<DeviceCapabilities> {
   const hardwareConcurrency = nav.hardwareConcurrency || 2;
   const deviceMemory = nav.deviceMemory || 0;
   const saveData = Boolean(nav.connection?.saveData);
-  const effectiveType = nav.connection?.effectiveType || '4g';
+  const effectiveType = (nav.connection?.effectiveType || '4g') as '2g' | '3g' | '4g' | 'slow-2g';
 
   // Layer 3: Tier calculation
   // High: ImageDecoder (for HEIC) + OffscreenCanvas + Worker + createImageBitmap all working

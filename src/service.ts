@@ -87,8 +87,7 @@ export class ImageCompression {
           deviceMemory: 0,
           saveData: false,
           effectiveType: '4g',
-          isSafari: false,
-          isIOS: false,
+          tier: 'low',
           tier: 'low',
         };
         this.capabilities = fallback;
