@@ -50,29 +50,32 @@ export class ImageCompression {
   /**
    * Lazy-init: detect capabilities on first call, cache forever.
    *
-   * On first call, also queries the Web Worker for its own capabilities.
-   * Main-thread OffscreenCanvas detection does NOT guarantee Worker context
-   * has it (Safari iOS, some Firefox configs, headless Chrome). The worker's
-   * own check is the ground truth.
+   * Returns main-thread capabilities IMMEDIATELY (no worker probe).
+   * The worker probe runs in the background and updates caps when ready.
+   * This way getCapabilities() never blocks the UI.
+   *
+   * Note: until the worker probe completes, the cascade may include
+   * Worker paths that would fail. The cascade's automatic fallback to
+   * canvas-main handles this — compression always succeeds, just may
+   * be slower for the first call after page load.
    */
   getCapabilities(): Promise<DeviceCapabilities> {
     if (this.capabilities) return Promise.resolve(this.capabilities);
     if (this.capabilitiesPromise) return this.capabilitiesPromise;
-    this.capabilitiesPromise = detectCapabilities()
-      .then(async (caps) => {
-        // Probe the Worker's own capabilities (non-blocking — falls back to
-        // main-thread caps on timeout/error). The probe is wrapped with a
-        // 2s timeout in probeWorkerCapabilities() to prevent hangs.
-        const workerCaps = await this.probeWorkerCapabilities();
-        // Replace main-thread detection with worker detection for the cascade
-        if (workerCaps) {
-          caps.hasOffscreenCanvasInWorker = workerCaps.hasOffscreenCanvas;
-          caps.hasWebCodecsInWorker = workerCaps.hasWebCodecs;
-          caps.hasCreateImageBitmapInWorker = workerCaps.hasCreateImageBitmap;
+    this.capabilitiesPromise = detectCapabilities().then((caps) => {
+      this.capabilities = caps;
+      // Fire-and-forget worker probe — updates caps in the background
+      this.probeWorkerCapabilities().then((workerCaps) => {
+        if (workerCaps && this.capabilities) {
+          this.capabilities.hasOffscreenCanvasInWorker = workerCaps.hasOffscreenCanvas;
+          this.capabilities.hasWebCodecsInWorker = workerCaps.hasWebCodecs;
+          this.capabilities.hasCreateImageBitmapInWorker = workerCaps.hasCreateImageBitmap;
         }
-        this.capabilities = caps;
-        return caps;
-      })
+      }).catch((err) => {
+        console.warn('[ImageCompression] background worker probe failed:', err);
+      });
+      return caps;
+    });
       .catch((err) => {
         console.warn('[ImageCompression] capability detection failed:', err);
         // Return minimal low-tier capabilities
@@ -162,16 +165,17 @@ export class ImageCompression {
     hasCreateImageBitmap: boolean;
   } | null> {
     try {
-      // Race the probe against a 2s timeout. If the worker probe hangs
-      // (Comlink mis-config, broken worker URL, etc.) we fall back to
-      // main-thread detection rather than blocking the whole compress() flow.
+      // Race the probe against a 1s timeout. If the worker probe hangs
+      // (Comlink mis-config, broken worker URL, etc.) we just return null
+      // and the caller stays on main-thread caps. Since this is fire-and-forget
+      // background, a longer timeout would just block the next call.
       const probePromise = (async () => {
         const worker = await this.getWorker();
         if (!worker) return null;
         return await worker.getWorkerCapabilities();
       })();
       const timeoutPromise = new Promise<null>((resolve) =>
-        setTimeout(() => resolve(null), 2000),
+        setTimeout(() => resolve(null), 1000),
       );
       return (await Promise.race([probePromise, timeoutPromise])) ?? null;
     } catch (err) {
