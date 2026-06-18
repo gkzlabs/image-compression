@@ -312,7 +312,7 @@ export function resizeExact(
     return { bitmap, width, height };
   } else if (keepAspectRatio) {
     // Both given + keepAspectRatio: fit-within-box
-    if (width / height > ratio) {
+    if (width! / height! > ratio) {
       // Box is wider than image — fit by height
       targetH = height!;
       targetW = Math.round(height! * ratio);
