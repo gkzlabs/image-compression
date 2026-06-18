@@ -65,17 +65,33 @@ export class ImageCompression {
     this.capabilitiesPromise = detectCapabilities()
       .then((caps) => {
         this.capabilities = caps;
-        // Fire-and-forget worker probe — updates caps in the background
+        // Fire-and-forget worker probe — updates caps in the background.
+        // We create a NEW object (not mutate) so subscribers using object
+        // identity (like Angular signals) see the change.
+        // After probe completes (success or timeout/error), we update the
+        // worker caps to their final values (true if available, false if not).
+        // This way the UI can distinguish "still probing" from "probed, not available".
         this.probeWorkerCapabilities()
           .then((workerCaps) => {
-            if (workerCaps && this.capabilities) {
-              this.capabilities.hasOffscreenCanvasInWorker = workerCaps.hasOffscreenCanvas;
-              this.capabilities.hasWebCodecsInWorker = workerCaps.hasWebCodecs;
-              this.capabilities.hasCreateImageBitmapInWorker = workerCaps.hasCreateImageBitmap;
+            if (this.capabilities) {
+              this.capabilities = {
+                ...this.capabilities,
+                hasOffscreenCanvasInWorker: workerCaps?.hasOffscreenCanvas ?? false,
+                hasWebCodecsInWorker: workerCaps?.hasWebCodecs ?? false,
+                hasCreateImageBitmapInWorker: workerCaps?.hasCreateImageBitmap ?? false,
+              };
             }
           })
           .catch((err) => {
             console.warn('[ImageCompression] background worker probe failed:', err);
+            if (this.capabilities) {
+              this.capabilities = {
+                ...this.capabilities,
+                hasOffscreenCanvasInWorker: false,
+                hasWebCodecsInWorker: false,
+                hasCreateImageBitmapInWorker: false,
+              };
+            }
           });
         return caps;
       })
@@ -144,11 +160,22 @@ export class ImageCompression {
     // Verify worker context will have what we need
     if (typeof Worker === 'undefined') return null;
     try {
-      // Angular 17 application builder pattern
-      const worker = new Worker(
-        new URL('./image-compression.worker', import.meta.url),
-        { type: 'module' },
-      );
+      // Use the bundled worker at a stable URL. The postbuild script
+      // (scripts/build-worker.js) bundles the @GKz/image-compression
+      // worker to /image-compression.worker.js in the dist directory.
+      // The standard `new URL('./...', import.meta.url)` pattern doesn't
+      // work reliably in Angular CLI's esbuild bundler — the URL stays
+      // as the raw file name and the browser gets a 404 (or HTML SPA
+      // fallback). Using a stable URL is the most portable approach.
+      //
+      // The `?v=2` cache buster is a workaround for Cloudflare Tunnel
+      // caching the SPA fallback (HTML) response. Without it, the
+      // first request when the file didn't exist cached the HTML 200
+      // response and now Cloudflare returns HTML for the worker URL.
+      const workerUrl =
+        (typeof window !== 'undefined' && (window as { __IC_WORKER_URL?: string }).__IC_WORKER_URL) ||
+        '/image-compression.worker.js?v=2';
+      const worker = new Worker(workerUrl, { type: 'module' });
       // Keep raw reference so terminate() can actually kill the worker
       this.rawWorker = worker;
       return Comlink.wrap<ImageWorkerApi>(worker);
@@ -338,6 +365,7 @@ export class ImageCompression {
           );
         }
       } catch (err) {
+        const errMsg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
         console.warn(`[ImageCompression] path ${path} failed:`, err);
         if (i < paths.length - 1) {
           // Include both the failed path (path) and the next path being tried (attempt+1)
@@ -348,7 +376,8 @@ export class ImageCompression {
             path,
             attempt,
             totalPaths: paths.length,
-            message: `${path} failed → trying ${nextPath} (${attempt + 1}/${paths.length})`,
+            // Show the actual error message so users can debug without DevTools
+            message: `${path} failed (${errMsg}) → trying ${nextPath} (${attempt + 1}/${paths.length})`,
           });
         }
         // Continue to next path
@@ -467,15 +496,17 @@ export class ImageCompression {
     const workerCIB = caps.hasCreateImageBitmapInWorker ?? caps.hasCreateImageBitmap;
 
     // 'webcodecs-worker' = use ImageDecoder (for HEIC) inside Worker context.
-    // Requires WebCodecs + OffscreenCanvas + createImageBitmap IN the worker.
-    if (workerWC && workerOC && workerCIB && caps.hasWorker) {
-      paths.push('webcodecs-worker');
-    }
+    // 'webcodecs-worker' = use ImageDecoder (for HEIC) inside Worker context.
+    // DISABLED: Chrome has a "image source is detached" bug with Worker-context
+    // bitmaps in this environment. Re-enable when Chrome fixes the issue.
+    // if (workerWC && workerOC && workerCIB && caps.hasWorker) {
+    //   paths.push('webcodecs-worker');
+    // }
     // 'offscreen-worker' = Canvas2D + createImageBitmap in Worker context.
-    // Requires OffscreenCanvas + createImageBitmap IN the worker.
-    if (workerOC && workerCIB && caps.hasWorker) {
-      paths.push('offscreen-worker');
-    }
+    // DISABLED: same Chrome bitmap detachment bug.
+    // if (workerOC && workerCIB && caps.hasWorker) {
+    //   paths.push('offscreen-worker');
+    // }
     if (caps.hasCanvas2D) {
       paths.push('canvas-main');
     }
@@ -519,24 +550,23 @@ export class ImageCompression {
     options: CompressionOptions,
     path: CompressionPath,
   ): Promise<Omit<CompressionResult, 'originalSize' | 'path' | 'durationMs' | 'tier' | 'file' | 'name'> | null> {
-    const onProgress = options.onProgress;
+    // Comlink/structured-clone cannot transfer raw function values via postMessage.
+    // Comlink.proxy only detects the marker on TOP-LEVEL arguments, not nested
+    // in options. So we pass onProgress as a SEPARATE top-level argument.
+    const { onProgress, ...optionsOnly } = options;
+    const workerOptions = optionsOnly as CompressionOptions;
     // Stage 2: Load worker (if not already cached)
     if (!this.worker) {
       onProgress?.({ stage: 'loading-worker', percent: 10, path, message: `Loading worker (${path})...` });
     }
     const worker = await this.getWorker();
     if (!worker) return null;
-    // Comlink/structured-clone cannot transfer raw function values via postMessage.
-    // Wrap with Comlink.proxy() so the worker can call this callback across
-    // the thread boundary (Comlink handles the serialization via its proxy).
-    //
-    // If the user's onProgress isn't provided, omit it from worker options
-    // (the worker's `emit` calls become no-ops).
-    const workerOptions: CompressionOptions = { ...options };
-    if (options.onProgress) {
-      workerOptions.onProgress = Comlink.proxy(options.onProgress);
-    }
-    const { blob, width, height, mimeType } = await worker.compress(file, workerOptions);
+    const progressProxy = onProgress ? Comlink.proxy(onProgress) : undefined;
+    const { blob, width, height, mimeType } = await worker.compress(
+      file,
+      workerOptions,
+      progressProxy,
+    );
     return { blob, compressedSize: blob.size, width, height, mimeType };
   }
 
@@ -601,7 +631,7 @@ export class ImageCompression {
       const { readExifOrientation, applyExifOrientation } = await import('./worker-helpers');
       const orientation = await readExifOrientation(file);
       if (orientation !== 1) {
-        const rotated = applyExifOrientation(bitmap, orientation);
+        const rotated = await applyExifOrientation(bitmap, orientation);
         bitmap.close();
         bitmap = rotated.bitmap as unknown as ImageBitmap;
         outWidth = rotated.width;
@@ -613,7 +643,7 @@ export class ImageCompression {
     // Manual rotation / mirror
     if (rotate !== undefined || mirror !== undefined) {
       const { applyRotation } = await import('./worker-helpers');
-      const rotated = applyRotation(bitmap, rotate ?? 0, mirror);
+      const rotated = await applyRotation(bitmap, rotate ?? 0, mirror);
       bitmap.close();
       bitmap = rotated.bitmap as unknown as ImageBitmap;
       outWidth = rotated.width;
@@ -628,7 +658,7 @@ export class ImageCompression {
     if (width !== undefined || height !== undefined) {
       // Exact resize: use helper
       const { resizeExact } = await import('./worker-helpers');
-      const resized = resizeExact(bitmap, width ?? outWidth, height, keepAspectRatio ?? false);
+      const resized = await resizeExact(bitmap, width ?? outWidth, height, keepAspectRatio ?? false);
       bitmap.close();
       bitmap = resized.bitmap as unknown as ImageBitmap;
       targetW = resized.width;
@@ -646,7 +676,7 @@ export class ImageCompression {
         }
         // Apply via OffscreenCanvas helper for consistency
         const { resizeExact } = await import('./worker-helpers');
-        const resized = resizeExact(bitmap, targetW, targetH, false);
+        const resized = await resizeExact(bitmap, targetW, targetH, false);
         bitmap.close();
         bitmap = resized.bitmap as unknown as ImageBitmap;
         targetW = resized.width;

@@ -20,7 +20,7 @@ describe('applyTransforms() — single-canvas optimization', () => {
 
   it('fast path: no transforms returns same bitmap', async () => {
     const bitmap = await makeTestBitmap();
-    const result = applyTransforms(bitmap, {});
+    const result = await applyTransforms(bitmap, {});
     expect(result.bitmap).toBe(bitmap);
     expect(result.width).toBe(100);
     expect(result.height).toBe(50);
@@ -28,21 +28,21 @@ describe('applyTransforms() — single-canvas optimization', () => {
 
   it('rotate=90 swaps dimensions', async () => {
     const bitmap = await makeTestBitmap(100, 50);
-    const result = applyTransforms(bitmap, { rotate: 90 });
+    const result = await applyTransforms(bitmap, { rotate: 90 });
     expect(result.width).toBe(50);
     expect(result.height).toBe(100);
   });
 
   it('width only: height auto-computed', async () => {
     const bitmap = await makeTestBitmap(200, 100); // 2:1
-    const result = applyTransforms(bitmap, { width: 100 });
+    const result = await applyTransforms(bitmap, { width: 100 });
     expect(result.width).toBe(100);
     expect(result.height).toBe(50);
   });
 
   it('combined rotate + width override in single draw', async () => {
     const bitmap = await makeTestBitmap(200, 100);
-    const result = applyTransforms(bitmap, { rotate: 90, width: 50 });
+    const result = await applyTransforms(bitmap, { rotate: 90, width: 50 });
     // After rotate 90: 100x200. After width=50: 50x100 (preserve aspect)
     expect(result.width).toBe(50);
     expect(result.height).toBe(100);
@@ -50,7 +50,7 @@ describe('applyTransforms() — single-canvas optimization', () => {
 
   it('mirror + exact width in single draw', async () => {
     const bitmap = await makeTestBitmap(100, 50);
-    const result = applyTransforms(bitmap, { mirror: 'horizontal', width: 200 });
+    const result = await applyTransforms(bitmap, { mirror: 'horizontal', width: 200 });
     expect(result.width).toBe(200);
     expect(result.height).toBe(100);
   });
@@ -58,7 +58,7 @@ describe('applyTransforms() — single-canvas optimization', () => {
   it('all transforms in one draw (no extra bitmaps)', async () => {
     const bitmap = await makeTestBitmap(200, 100);
     const before = bitmap; // Same reference = single draw
-    const result = applyTransforms(before, {
+    const result = await applyTransforms(before, {
       rotate: 90,
       mirror: 'vertical',
       width: 150,

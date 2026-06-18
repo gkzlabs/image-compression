@@ -37,7 +37,7 @@ describe('applyExifOrientation()', () => {
 
   it('orientation 1 returns original unchanged (no-op fast path)', async () => {
     const bitmap = await makeTestBitmap(100, 50);
-    const result = applyExifOrientation(bitmap, 1);
+    const result = await applyExifOrientation(bitmap, 1);
     expect(result.width).toBe(100);
     expect(result.height).toBe(50);
     expect(result.bitmap).toBe(bitmap); // Same reference
@@ -45,7 +45,7 @@ describe('applyExifOrientation()', () => {
 
   it('orientation 3 (180°) swaps width/height = false', async () => {
     const bitmap = await makeTestBitmap(100, 50);
-    const result = applyExifOrientation(bitmap, 3);
+    const result = await applyExifOrientation(bitmap, 3);
     expect(result.width).toBe(100);
     expect(result.height).toBe(50);
   });
@@ -53,7 +53,7 @@ describe('applyExifOrientation()', () => {
   [5, 6, 7, 8].forEach((orientation) => {
     it(`orientation ${orientation} swaps width and height`, async () => {
       const bitmap = await makeTestBitmap(100, 50);
-      const result = applyExifOrientation(bitmap, orientation as ExifOrientation);
+      const result = await applyExifOrientation(bitmap, orientation as ExifOrientation);
       expect(result.width).toBe(50);  // swapped
       expect(result.height).toBe(100);
     });
@@ -62,7 +62,7 @@ describe('applyExifOrientation()', () => {
   [2, 3, 4, 5, 6, 7, 8].forEach((orientation) => {
     it(`orientation ${orientation} produces a valid bitmap (not throwing)`, async () => {
       const bitmap = await makeTestBitmap(80, 60);
-      const result = applyExifOrientation(bitmap, orientation as ExifOrientation);
+      const result = await applyExifOrientation(bitmap, orientation as ExifOrientation);
       expect(result.bitmap).toBeDefined();
       expect(result.bitmap.width).toBeGreaterThan(0);
       expect(result.bitmap.height).toBeGreaterThan(0);
@@ -71,7 +71,7 @@ describe('applyExifOrientation()', () => {
 
   it('orientation 6 (90° CW) produces correctly rotated output', async () => {
     const bitmap = await makeTestBitmap(100, 50);
-    const result = applyExifOrientation(bitmap, 6);
+    const result = await applyExifOrientation(bitmap, 6);
 
     // After 90° CW rotation:
     // - Dimensions swap: 50 x 100
@@ -100,12 +100,12 @@ describe('applyExifOrientation()', () => {
 
   it('out-of-range orientation returns original unchanged', async () => {
     const bitmap = await makeTestBitmap(100, 50);
-    const result = applyExifOrientation(bitmap, 0 as ExifOrientation);
+    const result = await applyExifOrientation(bitmap, 0 as ExifOrientation);
     expect(result.bitmap).toBe(bitmap);
     expect(result.width).toBe(100);
     expect(result.height).toBe(50);
 
-    const result9 = applyExifOrientation(bitmap, 9 as ExifOrientation);
+    const result9 = await applyExifOrientation(bitmap, 9 as ExifOrientation);
     expect(result9.bitmap).toBe(bitmap);
   });
 });

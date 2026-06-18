@@ -257,13 +257,20 @@ export interface ImageWorkerApi {
   /**
    * Compress an image File/Blob.
    * @param file Source image
-   * @param options Compression options
+   * @param options Compression options (NO onProgress — passed as 3rd arg)
+   * @param onProgress Progress callback (Comlink proxy — top-level for serialization)
    * @returns Compressed Blob + dimensions
    */
   compress(
     file: File | Blob,
     options: CompressionOptions,
-  ): Promise<{ blob: Blob; width: number; height: number; mimeType: string }>;
+    onProgress?: (e: CompressionProgress) => void,
+  ): Promise<{
+    blob: Blob;
+    width: number;
+    height: number;
+    mimeType: string;
+  }>;
 
   /**
    * Check if HEIC can be decoded natively (iOS Safari only).
