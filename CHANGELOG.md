@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.3] - 2026-06-18
 
+## [0.3.0] - 2026-06-18
+
+### Added
+- **`applyTransforms()`** — new worker-helpers function that does manual rotation + mirror + exact resize in a SINGLE OffscreenCanvas draw. Replaces 3 separate bitmap operations with 1. Saves 2 ImageBitmap allocations per compression.
+- **`continueOnError` option** in `CompressionOptions` — when true, `compressAll()` continues processing files even if individual files fail. Failed files are reported via `console.warn` instead of rejecting the whole batch. Inspired by `Promise.allSettled()`. Default: `false`.
+
+### Performance
+- **Single-canvas optimization (worker)** — transforms pipeline now does decode+max-resize (1 draw) → EXIF (1 draw) → combined manual+mirror+resize (1 draw) = 3 draws instead of up to 4. Big memory savings on mobile.
+- **img.src cleanup** — `HTMLImageElement.src = ''` is now set in the canvas-main fallback path (after `createImageBitmap` succeeds) so the browser can garbage-collect the image data promptly instead of waiting for the page-level GC.
+
+### Internal
+- Refactored `worker.ts` to use the new `applyTransforms()` helper
+- Refactored `compressAll()` to support `continueOnError`
+- Updated `capabilities.spec.ts` to use new optional worker-side capability fields
+
+### Notes
+- Total tests: 95 passing (up from 87), 10 skipped.
+- Backward compatible: existing consumers see no behavior change.
+- Bundle size: unchanged.
+
+## [0.2.5] - 2026-06-18
+
+### Fixed
+- **CRITICAL: Demo hung due to worker probe hang** — `probeWorkerCapabilities()` in v0.2.3 could hang indefinitely, blocking `getCapabilities()` which blocked the entire demo (Device Capabilities section missing, compression stuck). v0.2.4 added a 2s timeout to the probe — on timeout, falls back to main-thread caps (the old v0.2.2 behavior).
+
 ### Fixed
 - **Worker paths failing when main-thread has OffscreenCanvas but Worker doesn't** — The cascade previously filtered Worker paths based on main-thread capability detection, which gave false positives on browsers where main-thread OffscreenCanvas is available but Worker-context OffscreenCanvas is not (Safari iOS, some Firefox configs, headless Chrome). The service now queries the Worker's own `getWorkerCapabilities()` and uses those for the cascade filter. The user's environment: main thread has OffscreenCanvas + Web Worker, but Worker context lacks OffscreenCanvas → cascade correctly skips `offscreen-worker` and `webcodecs-worker` paths, going straight to `canvas-main`.
 - **Progress events always labeled `webcodecs-worker`** — Even when the actual path was `offscreen-worker`, the worker's emit() function and the service's "Loading worker" event always said `webcodecs-worker`. Now both reflect the actual path being tried.
