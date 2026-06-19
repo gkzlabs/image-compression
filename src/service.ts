@@ -207,6 +207,21 @@ export class ImageCompression {
    * period of inactivity to free memory. Set to 0 to disable. Default: 30s. */
   private static readonly WORKER_IDLE_TIMEOUT_MS = 30_000;
 
+  /**
+   * Files smaller than this (in bytes) skip Worker paths entirely.
+   *
+   * Why: Worker spawn + structured-clone of the Blob is ~30-100ms of overhead.
+   * For files under 100KB, the entire compression pipeline runs in <50ms on
+   * the main thread, so the Worker overhead would be a net loss.
+   *
+   * Tuned empirically: 100KB is the sweet spot where:
+   * - Smaller files: canvas-main is faster end-to-end
+   * - Larger files: Worker wins because it doesn't block the UI thread
+   *
+   * Exposed for testing. Not part of the public API.
+   */
+  protected static readonly WORKER_SIZE_THRESHOLD_BYTES = 100_000;
+
   private capabilities: DeviceCapabilities | null = null;
   private capabilitiesPromise: Promise<DeviceCapabilities> | null = null;
   private worker: Comlink.Remote<ImageWorkerApi> | null = null;
@@ -518,7 +533,12 @@ export class ImageCompression {
 
     // Try paths in cascade order
     const tried: CompressionPath[] = [];
-    const paths = this.selectPaths(caps, options);
+    // Inject originalSize into options so selectPaths() can apply the
+    // WORKER_SIZE_THRESHOLD_BYTES gate. Not part of the public API.
+    const paths = this.selectPaths(caps, {
+      ...options,
+      originalSize,
+    } as CompressionOptions);
     // Once the cascade plan is known, set totalPaths so every subsequent
     // emit() can include it. UIs display this as "[N/M]" prefix.
     totalPaths = paths.length;
@@ -663,13 +683,25 @@ export class ImageCompression {
    * Decide which paths to try and in what order.
    * Returns an ordered array of CompressionPath.
    *
-   * Worker paths are gated on `caps.workerPathsReliable`:
-   * - Default true (assume reliable)
-   * - Set to false by `probeWorkerCapabilities()` if the actual worker test
-   *   failed at runtime (e.g. Chrome bitmap detach bug, transferToImageBitmap
-   *   returning detached bitmap, etc.). This way the cascade auto-skips
-   *   worker paths in broken environments without a hard-coded browser list,
-   *   and auto-re-enables when the underlying bug is fixed.
+   * **v0.10.0 change (Worker-first default)**: Paths are ordered with Worker
+   * first, falling back to main thread. This matches the behavior of the
+   * v0.5.7 Angular wrapper.
+   *
+   * **Capability strategy**:
+   * - Use main-thread capability detection as the **optimistic default** —
+   *   it can have false positives (e.g. OffscreenCanvas in main thread but
+   *   not in Worker context on Safari iOS), but the cascade's try/catch
+   *   fallback handles actual runtime failures gracefully.
+   * - If the background worker probe completes with `roundtripOk: false`,
+   *   the runtime gate (`caps.workerPathsReliable === false`) skips Worker
+   *   paths automatically.
+   * - The cascade will fall through to `canvas-main` for files that fail
+   *   in Worker context, so the optimistic default is safe.
+   *
+   * **Size threshold**: For files smaller than `WORKER_SIZE_THRESHOLD_BYTES`,
+   *   skip Worker paths. Worker spawn + structured-clone overhead is
+   *   ~30-100ms, which is more than the entire compression takes for
+   *   small files. Canvas-main is faster for these.
    */
   protected selectPaths(
     caps: DeviceCapabilities,
@@ -686,15 +718,24 @@ export class ImageCompression {
 
     // Runtime gate: skip Worker paths if a real probe found them broken.
     // `workerPathsReliable` is set by `probeWorkerCapabilities()` in service.ts.
-    // Default to true (probe hasn't run yet, or was successful).
-    const workerReliable = caps.workerPathsReliable ?? true;
+    // - undefined → probe not finished yet, trust main-thread caps (optimistic)
+    // - true → probe succeeded
+    // - false → probe failed, skip Worker paths
+    const workerProbeFailed = caps.workerPathsReliable === false;
+    const workerReliable = !workerProbeFailed;
+
+    // Size threshold: skip Worker for small files (overhead > savings).
+    // Use the originalSize from options if available (set by compress() before
+    // calling selectPaths), otherwise assume non-small (don't gate on unknown).
+    const fileSize = (options as { originalSize?: number }).originalSize ?? Infinity;
+    const smallFile = fileSize < ImageCompression.WORKER_SIZE_THRESHOLD_BYTES;
 
     // 'webcodecs-worker' = use ImageDecoder (for HEIC) inside Worker context.
-    if (workerReliable && workerWC && workerOC && workerCIB && caps.hasWorker) {
+    if (!smallFile && workerReliable && workerWC && workerOC && workerCIB && caps.hasWorker) {
       paths.push('webcodecs-worker');
     }
     // 'offscreen-worker' = Canvas2D + createImageBitmap in Worker context.
-    if (workerReliable && workerOC && workerCIB && caps.hasWorker) {
+    if (!smallFile && workerReliable && workerOC && workerCIB && caps.hasWorker) {
       paths.push('offscreen-worker');
     }
     if (caps.hasCanvas2D) {

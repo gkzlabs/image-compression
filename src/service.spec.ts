@@ -1,6 +1,6 @@
 import { ImageCompression } from './service';
 import { CompressionError } from './types';
-import type { CompressionProgress } from './types';
+import type { CompressionProgress, DeviceCapabilities } from './types';
 
 /**
  * Tests for ImageCompression — focus on control flow + error handling
@@ -96,6 +96,201 @@ describe('ImageCompression', () => {
       const cause = new Error('original');
       const err = new CompressionError('ABORTED', 'aborted', { cause });
       expect(err.cause).toBe(cause);
+    });
+  });
+});
+
+/**
+ * Tests for selectPaths() — the cascade planner.
+ *
+ * v0.10.0 contract:
+ * 1. Worker paths come FIRST in the array (when available + file is large enough)
+ * 2. Main-thread caps are trusted optimistically (probe not finished = assume reliable)
+ * 3. Files smaller than WORKER_SIZE_THRESHOLD_BYTES (100KB) skip Worker paths
+ * 4. If workerPathsReliable === false (probe failed), Worker paths are skipped
+ * 5. canvas-main is always present if hasCanvas2D (fallback for everything)
+ */
+describe('ImageCompression.selectPaths()', () => {
+  // Build a "high tier" caps object with all Worker features available.
+  const highTierCaps: DeviceCapabilities = {
+    hasWebCodecs: true,
+    hasImageDecoder: true,
+    hasVideoEncoder: true,
+    hasOffscreenCanvas: true,
+    hasWorker: true,
+    hasCreateImageBitmap: true,
+    hasCanvas2D: true,
+    supportsHEIC: true,
+    hardwareConcurrency: 10,
+    deviceMemory: 16,
+    saveData: false,
+    effectiveType: '4g',
+    isSafari: false,
+    isIOS: false,
+    tier: 'high',
+  };
+
+  describe('Worker-first ordering (v0.10.0)', () => {
+    it('puts webcodecs-worker FIRST when all capabilities are present', () => {
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](highTierCaps, {
+          originalSize: 500_000, // > 100KB threshold
+        } as never);
+        expect(paths[0]).toBe('webcodecs-worker');
+        expect(paths).toContain('offscreen-worker');
+        expect(paths).toContain('canvas-main');
+        // Order: webcodecs → offscreen → canvas
+        expect(paths.indexOf('webcodecs-worker')).toBeLessThan(paths.indexOf('offscreen-worker'));
+        expect(paths.indexOf('offscreen-worker')).toBeLessThan(paths.indexOf('canvas-main'));
+      } finally {
+        svc.dispose();
+      }
+    });
+
+    it('omits webcodecs-worker when WebCodecs is missing', () => {
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](
+          { ...highTierCaps, hasWebCodecs: false },
+          { originalSize: 500_000 } as never,
+        );
+        expect(paths).not.toContain('webcodecs-worker');
+        expect(paths[0]).toBe('offscreen-worker');
+        expect(paths).toContain('canvas-main');
+      } finally {
+        svc.dispose();
+      }
+    });
+  });
+
+  describe('Size threshold (v0.10.0)', () => {
+    it('skips Worker paths for files smaller than 100KB', () => {
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](highTierCaps, {
+          originalSize: 50_000, // 50KB < 100KB threshold
+        } as never);
+        expect(paths).not.toContain('webcodecs-worker');
+        expect(paths).not.toContain('offscreen-worker');
+        expect(paths).toEqual(['canvas-main']);
+      } finally {
+        svc.dispose();
+      }
+    });
+
+    it('uses Worker paths for files at exactly 100KB', () => {
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](highTierCaps, {
+          originalSize: 100_000, // boundary: should be INCLUDED (>= threshold)
+        } as never);
+        expect(paths[0]).toBe('webcodecs-worker');
+      } finally {
+        svc.dispose();
+      }
+    });
+
+    it('uses Worker paths for files larger than 100KB', () => {
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](highTierCaps, {
+          originalSize: 200_000,
+        } as never);
+        expect(paths[0]).toBe('webcodecs-worker');
+      } finally {
+        svc.dispose();
+      }
+    });
+
+    it('falls back to canvas-main when originalSize is unknown (Infinity)', () => {
+      // Without the inject, originalSize is undefined → defaults to Infinity
+      // → smallFile is false → Worker paths are tried
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](highTierCaps, {} as never);
+        expect(paths[0]).toBe('webcodecs-worker');
+      } finally {
+        svc.dispose();
+      }
+    });
+  });
+
+  describe('Probe-based reliability gate (v0.10.0)', () => {
+    it('skips Worker paths when workerPathsReliable === false', () => {
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](
+          { ...highTierCaps, workerPathsReliable: false },
+          { originalSize: 500_000 } as never,
+        );
+        expect(paths).not.toContain('webcodecs-worker');
+        expect(paths).not.toContain('offscreen-worker');
+        expect(paths).toEqual(['canvas-main']);
+      } finally {
+        svc.dispose();
+      }
+    });
+
+    it('trusts main-thread caps when probe is undefined (optimistic default)', () => {
+      // Probe hasn't run yet (workerPathsReliable is undefined)
+      // → trust main-thread caps
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](highTierCaps, {
+          originalSize: 500_000,
+        } as never);
+        expect(paths[0]).toBe('webcodecs-worker');
+      } finally {
+        svc.dispose();
+      }
+    });
+
+    it('uses Worker paths when probe succeeded (workerPathsReliable === true)', () => {
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](
+          { ...highTierCaps, workerPathsReliable: true },
+          { originalSize: 500_000 } as never,
+        );
+        expect(paths[0]).toBe('webcodecs-worker');
+      } finally {
+        svc.dispose();
+      }
+    });
+  });
+
+  describe('canvas-main always present as fallback', () => {
+    it('includes canvas-main even when all Worker features are missing', () => {
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](
+          {
+            ...highTierCaps,
+            hasWorker: false,
+            hasOffscreenCanvas: false,
+            hasWebCodecs: false,
+            hasCreateImageBitmap: false,
+          },
+          { originalSize: 500_000 } as never,
+        );
+        expect(paths).toEqual(['canvas-main']);
+      } finally {
+        svc.dispose();
+      }
+    });
+
+    it('omits canvas-main only when hasCanvas2D is false', () => {
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](
+          { ...highTierCaps, hasCanvas2D: false, hasWorker: false },
+          { originalSize: 500_000 } as never,
+        );
+        expect(paths).not.toContain('canvas-main');
+      } finally {
+        svc.dispose();
+      }
     });
   });
 });

@@ -69,6 +69,10 @@ export interface CompressionOptions {
    *  Used by the worker to include the correct path in its progress events.
    *  @internal Not intended for public use. */
   __path?: CompressionPath;
+  /** Internal: original file size in bytes. Tagged by the service so
+   *  `selectPaths()` can apply the `WORKER_SIZE_THRESHOLD_BYTES` gate
+   *  (skip Worker for small files). @internal Not intended for public use. */
+  originalSize?: number;
   /**
    * If true, batch compression continues even if individual files fail.
    * Failed files are reported via console.warn instead of rejecting the

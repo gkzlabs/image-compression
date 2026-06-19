@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-06-19
+
+### Changed
+- **Worker-first path ordering (matches v0.5.7 Angular wrapper behavior)**:
+  The cascade now tries `webcodecs-worker` → `offscreen-worker` → `canvas-main`
+  for files ≥ 100KB, instead of `canvas-main` → `webcodecs-worker` →
+  `offscreen-worker`. The `canvas-main` path is still always present as the
+  final fallback.
+
+  Rationale: Heavy decode + resize no longer block the UI thread when the
+  browser has a working Worker context. The cascade's try/catch fallback
+  ensures we still degrade gracefully if a Worker path fails at runtime.
+
+- **Optimistic Worker path selection (trust main-thread caps)**: When the
+  background Worker probe hasn't finished yet (or the probe timed out),
+  `selectPaths()` trusts the main-thread capability detection rather than
+  disabling Worker paths by default. The `workerPathsReliable === false`
+  gate still skips Worker paths if a real probe confirms they're broken
+  (e.g. Chrome bitmap detach bug, Firefox broken transferToImageBitmap).
+
+### Added
+- **`WORKER_SIZE_THRESHOLD_BYTES` constant (100KB)**: Files smaller than
+  this skip Worker paths entirely. Worker spawn + structured-clone
+  overhead (~30-100ms) exceeds the entire compression time for small
+  files, so canvas-main is faster for these.
+- **Internal `originalSize` field on `CompressionOptions`**: Tagged by the
+  service so `selectPaths()` can apply the size threshold. Not part of
+  the public API.
+
+### Tests
+- 11 new tests for `selectPaths()` covering:
+  - Worker-first ordering with all capabilities
+  - Omission of `webcodecs-worker` when WebCodecs is missing
+  - Size threshold boundary (50KB, 100KB, 200KB)
+  - Probe-based reliability gate (true / false / undefined)
+  - `canvas-main` fallback when Worker features are missing
+- Total: 151/151 tests pass (was 140/140)
+
+### Migration Notes
+- Users who relied on canvas-first ordering may notice the first large
+  file compression takes slightly longer (Worker spawn) but doesn't
+  block the UI.
+- Users with broken Worker contexts (rare) still see the same fallback
+  to `canvas-main` — no behavior change.
+- Users with `forcePath: 'canvas-main'` are unaffected.
+
 ## [0.9.0] - 2026-06-19
 
 ### Fixed
