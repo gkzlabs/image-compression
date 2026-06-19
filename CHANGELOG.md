@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.7] - 2026-06-19
+
+### Fixed
+- **CRITICAL: `InvalidStateError: image source is detached` in webcodecs-worker path**:
+  Removed the v0.3.0+ optimization helpers (`applyTransforms`, `applyRotation`,
+  `resizeExact`) from `worker-helpers.ts` and the corresponding `applyTransforms`
+  call from `worker.ts`. The core lib's `worker.ts` now matches v0.5.7's
+  INLINE worker exactly:
+    - HEIC: `tryDecodeHEIC` → `encodeViaOffscreenCanvas` → `bitmap.close()`
+    - Non-HEIC: `resizeOffscreen` → (maybe) `applyExifOrientation` → `encodeViaOffscreenCanvas` → `bitmap.close()`
+
+  Manual rotate/mirror/exact-resize options are still supported by the
+  `canvas-main` path (which now inlines the rotate/resize logic directly
+  using `OffscreenCanvas` + `transferToImageBitmap`).
+
+  The v0.3.0 optimization (combined rotate+mirror+resize in single draw)
+  is dropped to match v0.5.7. This is the most conservative fix — if
+  v0.5.7 worked, v0.10.7 should work because the code paths are now
+  identical.
+
 ## [0.10.6] - 2026-06-19
 
 ### Fixed

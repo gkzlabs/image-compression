@@ -865,50 +865,80 @@ export class ImageCompression {
       }
     }
 
-    // Manual rotation / mirror
+    // Manual rotation / mirror (inlined — applyRotation helper was removed in v0.10.7)
     if (rotate !== undefined || mirror !== undefined) {
-      const { applyRotation } = await import('./worker-helpers');
-      // v0.10.2: applyRotation is sync again (uses transferToImageBitmap)
-      const rotated = applyRotation(bitmap, rotate ?? 0, mirror);
-      bitmap.close();
-      bitmap = rotated.bitmap as unknown as ImageBitmap;
-      outWidth = rotated.width;
-      outHeight = rotated.height;
+      const swapDims = rotate === 90 || rotate === 270;
+      const w = swapDims ? outHeight : outWidth;
+      const h = swapDims ? outWidth : outHeight;
+      const canvas = new OffscreenCanvas(w, h);
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
+        ctx.translate(w / 2, h / 2);
+        if (rotate !== undefined && rotate !== 0) ctx.rotate((rotate * Math.PI) / 180);
+        if (mirror === 'horizontal') ctx.scale(-1, 1);
+        else if (mirror === 'vertical') ctx.scale(1, -1);
+        ctx.translate(-outWidth / 2, -outHeight / 2);
+        ctx.drawImage(bitmap, 0, 0);
+        const newBitmap = canvas.transferToImageBitmap();
+        bitmap.close();
+        bitmap = newBitmap as unknown as ImageBitmap;
+        outWidth = w;
+        outHeight = h;
+      }
       onProgress?.({ stage: 'resizing', percent: 65, path: 'canvas-main', message: 'Rotating...' });
     }
 
-    // Resize (maxWidthOrHeight or exact width/height)
+    // Resize (maxWidthOrHeight or exact width/height) — inlined since resizeExact helper was removed
     onProgress?.({ stage: 'resizing', percent: 70, path: 'canvas-main', message: 'Resizing...' });
     let targetW = outWidth;
     let targetH = outHeight;
+    let needsResize = false;
     if (width !== undefined || height !== undefined) {
-      // Exact resize: use helper
-      const { resizeExact } = await import('./worker-helpers');
-      // v0.10.2: resizeExact is sync again (uses transferToImageBitmap)
-      const resized = resizeExact(bitmap, width ?? outWidth, height, keepAspectRatio ?? false);
-      bitmap.close();
-      bitmap = resized.bitmap as unknown as ImageBitmap;
-      targetW = resized.width;
-      targetH = resized.height;
-    } else {
-      // Fit-within-box resize
-      if (outWidth > maxWidthOrHeight || outHeight > maxWidthOrHeight) {
+      if (width !== undefined && height !== undefined && !keepAspectRatio) {
+        targetW = width;
+        targetH = height;
+      } else if (width !== undefined && height === undefined) {
+        targetW = width;
+        targetH = Math.round((width * outHeight) / outWidth);
+      } else if (height !== undefined && width === undefined) {
+        targetH = height;
+        targetW = Math.round((height * outWidth) / outHeight);
+      } else if (keepAspectRatio) {
         const ratio = outWidth / outHeight;
-        if (outWidth >= outHeight) {
-          targetW = Math.min(maxWidthOrHeight, outWidth);
-          targetH = Math.round(targetW / ratio);
+        if (width! / height! > ratio) {
+          targetH = height!;
+          targetW = Math.round(height! * ratio);
         } else {
-          targetH = Math.min(maxWidthOrHeight, outHeight);
-          targetW = Math.round(targetH * ratio);
+          targetW = width!;
+          targetH = Math.round(width! / ratio);
         }
-        // Apply via OffscreenCanvas helper for consistency
-        const { resizeExact } = await import('./worker-helpers');
-        // v0.10.2: resizeExact is sync again (uses transferToImageBitmap)
-        const resized = resizeExact(bitmap, targetW, targetH, false);
+      }
+      needsResize = targetW !== outWidth || targetH !== outHeight;
+    } else if (outWidth > maxWidthOrHeight || outHeight > maxWidthOrHeight) {
+      const ratio = outWidth / outHeight;
+      if (outWidth >= outHeight) {
+        targetW = Math.min(maxWidthOrHeight, outWidth);
+        targetH = Math.round(targetW / ratio);
+      } else {
+        targetH = Math.min(maxWidthOrHeight, outHeight);
+        targetW = Math.round(targetH * ratio);
+      }
+      needsResize = true;
+    }
+    if (needsResize) {
+      const canvas = new OffscreenCanvas(targetW, targetH);
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(bitmap, 0, 0, targetW, targetH);
+        const newBitmap = canvas.transferToImageBitmap();
         bitmap.close();
-        bitmap = resized.bitmap as unknown as ImageBitmap;
-        targetW = resized.width;
-        targetH = resized.height;
+        bitmap = newBitmap as unknown as ImageBitmap;
+        outWidth = targetW;
+        outHeight = targetH;
       }
     }
 

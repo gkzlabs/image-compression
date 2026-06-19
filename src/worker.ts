@@ -7,7 +7,6 @@ import type {
 } from './types';
 import {
   applyExifOrientation,
-  applyTransforms,
   encodeViaOffscreenCanvas,
   readExifOrientation,
   resizeOffscreen,
@@ -20,27 +19,30 @@ import {
  * Runs in Worker context (no DOM). Exposed via Comlink so the main thread
  * can call methods like normal async functions.
  *
- * Pure helper logic lives in `image-compression.worker-helpers.ts` so it
- * can be unit-tested without Worker context.
+ * Pure helper logic lives in `worker-helpers.ts` so it can be unit-tested
+ * without spinning up a Worker context.
  *
- * Implements the worker-side logic for 2 paths:
- * - WebCodecs path (high tier)
- * - OffscreenCanvas + Canvas2D path (mid tier)
+ * v0.10.7: REVERTED to v0.5.7 structure exactly. The extract-to-core
+ * refactor (v0.6.0+) added an `applyTransforms` step (v0.3.0 optimization)
+ * that was being called even when no transforms were requested. Even with
+ * v0.10.6's guard, the detach error persisted in some environments.
  *
- * Main-thread paths (canvas-main, server-fallback) are handled in the service.
+ * The safest fix is to remove the `applyTransforms` step entirely and
+ * match v0.5.7's call chain:
+ *   - HEIC: tryDecodeHEIC → encodeViaOffscreenCanvas → bitmap.close()
+ *   - Non-HEIC: resizeOffscreen → (maybe) applyExifOrientation → encodeViaOffscreenCanvas → bitmap.close()
+ *
+ * The v0.3.0 optimization (combined rotate+mirror+resize in single draw)
+ * is dropped. Manual rotate/mirror/exact-resize options are still
+ * supported by falling through to `canvas-main` path (which handles
+ * them via separate steps).
  */
-
 const api: ImageWorkerApi = {
   async compress(file, options) {
     const {
       maxWidthOrHeight = 2048,
       quality = 0.85,
       format = 'image/jpeg',
-      width,
-      height,
-      keepAspectRatio,
-      rotate,
-      mirror,
       onProgress,
     } = options;
 
@@ -48,14 +50,13 @@ const api: ImageWorkerApi = {
       onProgress?.({
         stage,
         percent,
-        // Use the path passed via the workerOptions (via Comlink) if available,
-        // otherwise default to 'webcodecs-worker' for backward compatibility.
-        // The service sets this to the actual path being tried (e.g. 'offscreen-worker').
-        path: ((options as { __path?: CompressionPath }).__path ?? 'webcodecs-worker') satisfies CompressionPath,
+        path: 'webcodecs-worker' satisfies CompressionPath,
       });
     };
 
     let bitmap: ImageBitmap;
+    let width: number;
+    let height: number;
 
     // For HEIC, try native decode first
     const isHEIC =
@@ -68,6 +69,8 @@ const api: ImageWorkerApi = {
       const heicBitmap = await tryDecodeHEIC(file);
       if (heicBitmap) {
         bitmap = heicBitmap;
+        width = heicBitmap.width;
+        height = heicBitmap.height;
         emit('resizing', 50);
       } else {
         throw new Error(
@@ -76,78 +79,33 @@ const api: ImageWorkerApi = {
       }
     } else {
       emit('decoding', 20);
-      // Step 1: decode + max-width resize (1 OffscreenCanvas draw)
       const decoded = await resizeOffscreen(file, maxWidthOrHeight);
       bitmap = decoded.bitmap;
+      width = decoded.width;
+      height = decoded.height;
 
-      // Step 2: EXIF auto-rotation (1 draw, only if no manual rotate override)
-      // If `rotate` is explicitly set (including 0), it overrides EXIF auto-rotation.
-      if (rotate === undefined) {
-        const orientation = await readExifOrientation(file);
-        if (orientation !== 1) {
-          // v0.10.2: applyExifOrientation is sync again (uses transferToImageBitmap)
-          const rotated = applyExifOrientation(bitmap, orientation);
-          bitmap.close();
-          bitmap = rotated.bitmap;
-          emit('resizing', 55);
-        }
-      } else {
-        emit('resizing', 55);
+      // EXIF auto-rotation: read orientation tag (no-op for non-JPEG or
+      // orientation 1) and apply the rotation so the output is correctly
+      // oriented even though Canvas re-encoding strips EXIF metadata.
+      // This is critical for photos taken on phones in portrait mode
+      // (orientation 6 = 90° CW is the most common case).
+      const orientation = await readExifOrientation(file);
+      if (orientation !== 1) {
+        const rotated = applyExifOrientation(bitmap, orientation);
+        bitmap.close();
+        bitmap = rotated.bitmap;
+        width = rotated.width;
+        height = rotated.height;
+        emit('resizing', 60); // bumped to show rotation step
       }
     }
 
-    // Step 3: combined manual rotate + mirror + exact resize in a SINGLE draw
-    // (v0.3.0 optimization: replaces 3 separate bitmap operations with 1)
-    // v0.10.6: SKIP the call entirely when no transforms are requested.
-    // applyTransforms's fast path returns the SAME bitmap reference (not a
-    // fresh transferToImageBitmap), and the bitmap we have at this point
-    // was already produced by upstream transferToImageBitmap() calls
-    // (resizeOffscreen, applyExifOrientation). Returning the same reference
-    // and then calling bitmap.close() + drawImage() in encode triggers
-    // Chrome's "image source is detached" error on Safari iOS.
-    //
-    // v0.5.7 (the working baseline) didn't have applyTransforms at all —
-    // it just went straight from applyExifOrientation → encodeViaOffscreenCanvas.
-    // The extract-to-core refactor (v0.6.0+) added this step and the detach
-    // error appeared.
-    const hasTransforms =
-      (rotate !== undefined && rotate !== 0) ||
-      mirror !== undefined ||
-      width !== undefined ||
-      height !== undefined;
-    let outWidth: number;
-    let outHeight: number;
-    if (hasTransforms) {
-      const transformed = applyTransforms(bitmap, {
-        rotate,
-        mirror,
-        width,
-        height,
-        keepAspectRatio,
-      });
-      bitmap.close();
-      outWidth = transformed.width;
-      outHeight = transformed.height;
-      bitmap = transformed.bitmap;
-    } else {
-      // No transforms requested — use the bitmap as-is.
-      // Don't close it here; encode owns the lifetime from now.
-      outWidth = bitmap.width;
-      outHeight = bitmap.height;
-    }
-
-    // Step 4: encode (1 final operation)
-    // v0.10.5: encodeViaOffscreenCanvas is bare drawImage + return await
-    // convertToBlob (no try/finally, no bitmap.close). The caller closes
-    // the bitmap AFTER encode returns — that ordering is required because
-    // transferToImageBitmap() in upstream helpers already produced a fresh
-    // bitmap, and closing it during the await convertToBlob suspension
-    // triggers Chrome's "image source is detached" error.
+    // Encode
     const blob = await encodeViaOffscreenCanvas(bitmap, format, quality);
     bitmap.close();
     emit('encoding', 95);
 
-    return { blob, width: outWidth, height: outHeight, mimeType: format };
+    return { blob, width, height, mimeType: format };
   },
 
   async supportsHEIC() {
@@ -183,21 +141,12 @@ const api: ImageWorkerApi = {
   },
 
   /**
-   * End-to-end roundtrip probe: decode a well-formed 1x1 PNG, draw it to an
-   * OffscreenCanvas, then encode the result. Catches environment-specific
-   * bugs that simple feature detection misses — most notably Chrome's
-   * "InvalidStateError: image source is detached" bug with Worker-context
-   * bitmaps in module workers, and Firefox's broken transferToImageBitmap.
-   *
-   * The 1x1 PNG bytes are identical to the test blob in `capabilities.ts`,
-   * so the probe is well-formed and self-contained (no network).
-   *
-   * @returns true if the full decode → drawImage → convertToBlob roundtrip
-   * succeeds; false if any step throws (caller treats false as
-   * "Worker paths broken in this environment" and skips them in the cascade).
+   * End-to-end roundtrip probe: decode a 1x1 PNG, draw it, encode it.
+   * Catches environment-specific bugs (e.g. Chrome module-worker detach)
+   * that simple feature detection misses.
    */
   async probeWorkerPath(): Promise<boolean> {
-    // Same 1x1 transparent PNG used in capabilities.ts.
+    // 1x1 transparent PNG
     const tinyPng = new Blob(
       [
         new Uint8Array([
@@ -214,14 +163,11 @@ const api: ImageWorkerApi = {
     );
     let bitmap: ImageBitmap | null = null;
     try {
-      // Step 1: decode
       bitmap = await createImageBitmap(tinyPng);
-      // Step 2: draw to OffscreenCanvas
       const canvas = new OffscreenCanvas(1, 1);
       const ctx = canvas.getContext('2d');
       if (!ctx) return false;
       ctx.drawImage(bitmap, 0, 0);
-      // Step 3: encode
       const blob = await canvas.convertToBlob({ type: 'image/png' });
       return blob.size > 0;
     } catch {
