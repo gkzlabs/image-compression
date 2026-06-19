@@ -716,13 +716,18 @@ export class ImageCompression {
     const workerWC = caps.hasWebCodecsInWorker ?? caps.hasWebCodecs;
     const workerCIB = caps.hasCreateImageBitmapInWorker ?? caps.hasCreateImageBitmap;
 
-    // Runtime gate: skip Worker paths if a real probe found them broken.
-    // `workerPathsReliable` is set by `probeWorkerCapabilities()` in service.ts.
-    // - undefined → probe not finished yet, trust main-thread caps (optimistic)
-    // - true → probe succeeded
-    // - false → probe failed, skip Worker paths
-    const workerProbeFailed = caps.workerPathsReliable === false;
-    const workerReliable = !workerProbeFailed;
+    // Runtime gate: skip Worker paths ONLY if main-thread doesn't have the
+    // capability. The background probe's `roundtripOk: false` is a soft warning
+    // (e.g. Chrome bitmap detach bug) but the cascade's try/catch fallback
+    // handles actual runtime failures gracefully. We trust main-thread caps
+    // optimistically (matches v0.5.7 Angular wrapper behavior).
+    //
+    // Note: Previously, `workerPathsReliable === false` would skip Worker
+    // paths entirely. That was too aggressive — a single probe failure
+    // disabled Worker paths for the entire session, even though the cascade
+    // could have recovered. Now we only skip if the main thread itself
+    // doesn't support Worker features.
+    const workerReliable = true;
 
     // Size threshold: skip Worker for small files (overhead > savings).
     // Use the originalSize from options if available (set by compress() before

@@ -217,16 +217,19 @@ describe('ImageCompression.selectPaths()', () => {
   });
 
   describe('Probe-based reliability gate (v0.10.0)', () => {
-    it('skips Worker paths when workerPathsReliable === false', () => {
+    it('still uses Worker paths when workerPathsReliable === false (v0.10.0: trust main-thread caps)', () => {
+      // v0.10.0: The probe's roundtripOk: false is a soft warning. We trust
+      // main-thread caps and let the cascade's try/catch fallback handle
+      // actual runtime failures. This restores the v0.5.7 behavior.
       const svc = new ImageCompression();
       try {
         const paths = svc['selectPaths'](
           { ...highTierCaps, workerPathsReliable: false },
           { originalSize: 500_000 } as never,
         );
-        expect(paths).not.toContain('webcodecs-worker');
-        expect(paths).not.toContain('offscreen-worker');
-        expect(paths).toEqual(['canvas-main']);
+        expect(paths[0]).toBe('webcodecs-worker');
+        expect(paths).toContain('offscreen-worker');
+        expect(paths).toContain('canvas-main');
       } finally {
         svc.dispose();
       }
