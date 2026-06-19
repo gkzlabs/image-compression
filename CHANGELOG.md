@@ -5,7 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.3] - 2026-06-18
+## [0.4.0] - 2026-06-19
+
+### Added
+- **`workerPathsReliable` field** in `DeviceCapabilities` — runtime gate that controls whether the cascade includes Worker paths. Default `true` (assume reliable). Set to `false` by `probeWorkerCapabilities()` when the actual decode→draw→encode roundtrip fails in the Worker.
+- **`probeWorkerPath()` method** in `ImageWorkerApi` — runs an end-to-end roundtrip (decode 1x1 PNG → draw to OffscreenCanvas → convertToBlob) inside the Worker. Catches environment-specific bugs that simple feature detection misses (Chrome "InvalidStateError: image source is detached" in module workers, Firefox broken transferToImageBitmap, etc.).
+- **`probeWorkerCapabilities()` now runs both probes in parallel** — `getWorkerCapabilities()` (fast static check) and `probeWorkerPath()` (roundtrip) fire together, bounded by the same 1s timeout. This means Worker capabilities + reliability are both known before the cascade picks paths.
+
+### Changed
+- **BREAKING-ish: Worker cascade paths are re-enabled.** `selectPaths()` now includes `webcodecs-worker` and `offscreen-worker` when capabilities match AND `workerPathsReliable` is `true`. The runtime probe auto-disables them on broken browsers (e.g. affected Chrome builds) without hardcoding browser/UA lists, and auto-re-enables when the underlying bug is fixed.
+- **`selectPaths()` is now `protected`** (was `private`) so subclasses (e.g. Angular wrapper, custom builds) can override the cascade logic.
+- **`createWorker()` now tries `new URL('./worker', import.meta.url)` first** (modern bundler pattern — works in Vite, esbuild, Angular CLI 17+). Falls back to the hard-coded `/image-compression.worker.js?v=2` for consumers that bundle the worker to a stable URL via a postbuild script. The `window.__IC_WORKER_URL` escape hatch is still honored.
+- **iOS detection in `capabilities.ts` is now SSR-safe** — guards `'ontouchend' in document` with `typeof document !== 'undefined'`. This was previously a hard crash in Next.js, Nuxt, Angular SSR, and any other SSR framework that imported `detectCapabilities()`.
+
+### Performance
+- **Worker roundtrip probe runs in parallel with the static capability probe** — both fire in the same `Promise.all`, so the combined probe takes the same wall time as the slower of the two (not the sum).
+
+### Internal
+- Refactored `createWorker()` into a separate `resolveWorker()` method for clarity (user override → standard `import.meta.url` pattern → hard-coded fallback).
+- Refactored `selectPaths()` to use a `workerReliable` const for clarity.
+
+### Notes
+- Total tests: 99 passing (up from 95), 10 skipped.
+- **Backward compatible**: existing consumers see no behavior change in the happy path (Worker paths now active when working, same `canvas-main` fallback when not).
+- Bundle size: main 39.4 KB → unchanged. Worker: 4.6 KB → ~5.2 KB (added `probeWorkerPath`).
+- **Not a breaking change** in the SemVer sense — `selectPaths` is protected (not public API), `workerPathsReliable` is optional, and the cascade still ends in `canvas-main` for broken environments. The default behavior is more permissive (Worker paths active when reliable) but no consumer code changes are required.
 
 ## [0.3.0] - 2026-06-18
 

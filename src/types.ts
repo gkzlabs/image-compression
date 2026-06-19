@@ -247,6 +247,19 @@ export interface DeviceCapabilities {
   hasWebCodecsInWorker?: boolean;
   /** createImageBitmap() available in Worker context */
   hasCreateImageBitmapInWorker?: boolean;
+  /**
+   * Whether the Worker paths (webcodecs-worker, offscreen-worker) actually work
+   * end-to-end in this environment. Set by `probeWorkerCapabilities()`:
+   * - true: probe succeeded (default — probe hasn't run yet, or was successful)
+   * - false: probe failed at runtime (e.g. Chrome bitmap detach bug, broken
+   *   transferToImageBitmap, etc.). The cascade will skip Worker paths.
+   *
+   * The runtime probe does an actual decode→draw→encode roundtrip in the Worker
+   * to detect subtle environment-specific bugs that simple feature detection
+   * misses. This way, the library auto-disables Worker paths on broken browsers
+   * without hardcoding browser/UA lists, and auto-re-enables when the bug is fixed.
+   */
+  workerPathsReliable?: boolean;
 }
 
 /**
@@ -286,6 +299,16 @@ export interface ImageWorkerApi {
     hasWebCodecs: boolean;
     hasCreateImageBitmap: boolean;
   }>;
+  /**
+   * End-to-end roundtrip probe: decode → drawImage → encode.
+   * Catches environment-specific bugs that simple feature detection misses
+   * (e.g. Chrome "image source is detached" bug in module workers, broken
+   * transferToImageBitmap in Firefox, etc.). The cascade uses this to
+   * auto-skip Worker paths in broken environments.
+   *
+   * @returns true if a full decode+draw+encode roundtrip succeeds, false otherwise.
+   */
+  probeWorkerPath(): Promise<boolean>;
 }
 
 // =============================================================================

@@ -76,9 +76,16 @@ export async function detectCapabilities(): Promise<DeviceCapabilities> {
   // Browser quirks detection
   const ua = navigator.userAgent;
   const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+  // iOS detection: prefer the explicit UA check. The "Mac + ontouchend"
+  // heuristic is for iPads that report as Mac in Safari's request desktop
+  // mode. Guard with `typeof document !== 'undefined'` so this file is
+  // safe to import in SSR / Node environments (e.g. Next.js, Nuxt, Angular
+  // SSR) where `document` is undefined.
   const isIOS =
     /iPad|iPhone|iPod/.test(ua) ||
-    (ua.includes('Mac') && 'ontouchend' in document);
+    (typeof document !== 'undefined' &&
+      ua.includes('Mac') &&
+      'ontouchend' in document);
 
   // Hardware / network info
   const hardwareConcurrency = nav.hardwareConcurrency || 2;

@@ -148,6 +148,55 @@ const api: ImageWorkerApi = {
 
     return { hasOffscreenCanvas, hasWebCodecs, hasCreateImageBitmap };
   },
+
+  /**
+   * End-to-end roundtrip probe: decode a well-formed 1x1 PNG, draw it to an
+   * OffscreenCanvas, then encode the result. Catches environment-specific
+   * bugs that simple feature detection misses — most notably Chrome's
+   * "InvalidStateError: image source is detached" bug with Worker-context
+   * bitmaps in module workers, and Firefox's broken transferToImageBitmap.
+   *
+   * The 1x1 PNG bytes are identical to the test blob in `capabilities.ts`,
+   * so the probe is well-formed and self-contained (no network).
+   *
+   * @returns true if the full decode → drawImage → convertToBlob roundtrip
+   * succeeds; false if any step throws (caller treats false as
+   * "Worker paths broken in this environment" and skips them in the cascade).
+   */
+  async probeWorkerPath(): Promise<boolean> {
+    // Same 1x1 transparent PNG used in capabilities.ts.
+    const tinyPng = new Blob(
+      [
+        new Uint8Array([
+          0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00,
+          0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+          0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89,
+          0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63,
+          0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4,
+          0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60,
+          0x82,
+        ]),
+      ],
+      { type: 'image/png' },
+    );
+    let bitmap: ImageBitmap | null = null;
+    try {
+      // Step 1: decode
+      bitmap = await createImageBitmap(tinyPng);
+      // Step 2: draw to OffscreenCanvas
+      const canvas = new OffscreenCanvas(1, 1);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return false;
+      ctx.drawImage(bitmap, 0, 0);
+      // Step 3: encode
+      const blob = await canvas.convertToBlob({ type: 'image/png' });
+      return blob.size > 0;
+    } catch {
+      return false;
+    } finally {
+      bitmap?.close();
+    }
+  },
 };
 
 Comlink.expose(api);

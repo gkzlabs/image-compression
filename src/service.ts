@@ -79,6 +79,12 @@ export class ImageCompression {
                 hasOffscreenCanvasInWorker: workerCaps?.hasOffscreenCanvas ?? false,
                 hasWebCodecsInWorker: workerCaps?.hasWebCodecs ?? false,
                 hasCreateImageBitmapInWorker: workerCaps?.hasCreateImageBitmap ?? false,
+                // `roundtripOk` is the result of the actual decode→draw→encode
+                // test in the worker. If false, the cascade skips Worker paths
+                // (Chrome bitmap detach bug, broken transferToImageBitmap, etc.).
+                // workerCaps is null on probe timeout — treat as "reliable" (default)
+                // so a slow probe doesn't break the cascade.
+                workerPathsReliable: workerCaps ? workerCaps.roundtripOk : true,
               };
             }
           })
@@ -90,6 +96,11 @@ export class ImageCompression {
                 hasOffscreenCanvasInWorker: false,
                 hasWebCodecsInWorker: false,
                 hasCreateImageBitmapInWorker: false,
+                // Probe threw — assume paths are reliable (default) and let
+                // the cascade's try/catch fallback handle any actual runtime
+                // failure. Being too aggressive here would disable Worker
+                // paths on transient errors.
+                workerPathsReliable: true,
               };
             }
           });
@@ -160,22 +171,8 @@ export class ImageCompression {
     // Verify worker context will have what we need
     if (typeof Worker === 'undefined') return null;
     try {
-      // Use the bundled worker at a stable URL. The postbuild script
-      // (scripts/build-worker.js) bundles the @GKz/image-compression
-      // worker to /image-compression.worker.js in the dist directory.
-      // The standard `new URL('./...', import.meta.url)` pattern doesn't
-      // work reliably in Angular CLI's esbuild bundler — the URL stays
-      // as the raw file name and the browser gets a 404 (or HTML SPA
-      // fallback). Using a stable URL is the most portable approach.
-      //
-      // The `?v=2` cache buster is a workaround for Cloudflare Tunnel
-      // caching the SPA fallback (HTML) response. Without it, the
-      // first request when the file didn't exist cached the HTML 200
-      // response and now Cloudflare returns HTML for the worker URL.
-      const workerUrl =
-        (typeof window !== 'undefined' && (window as { __IC_WORKER_URL?: string }).__IC_WORKER_URL) ||
-        '/image-compression.worker.js?v=2';
-      const worker = new Worker(workerUrl, { type: 'module' });
+      const worker = await this.resolveWorker();
+      if (!worker) return null;
       // Keep raw reference so terminate() can actually kill the worker
       this.rawWorker = worker;
       return Comlink.wrap<ImageWorkerApi>(worker);
@@ -186,13 +183,70 @@ export class ImageCompression {
   }
 
   /**
-   * Query the Web Worker for its own runtime capabilities.
-   * Returns null if the worker can't be created or probed.
+   * Resolve the Worker URL using the best available strategy.
+   * Order of preference:
+   * 1. User-provided `window.__IC_WORKER_URL` (escape hatch for bundlers that
+   *    don't rewrite `new URL('./worker', import.meta.url)`)
+   * 2. Standard `new URL('./worker', import.meta.url)` (works in vanilla JS,
+   *    Vite, esbuild, and Angular CLI 17+ when the import resolves to a file
+   *    the bundler can locate)
+   * 3. Hard-coded fallback `/image-compression.worker.js?v=2` for consumers
+   *    that bundle the worker to a stable URL via a postbuild script.
+   *
+   * The standard `new URL('./worker', import.meta.url)` pattern is the
+   * recommended path. It enables the bundler (esbuild, Vite, Angular CLI 17+)
+   * to emit a separate worker chunk with proper cache-busting hash.
+   *
+   * The legacy `__IC_WORKER_URL` escape hatch is kept for backwards
+   * compatibility with consumers on older bundlers.
+   */
+  private async resolveWorker(): Promise<Worker | null> {
+    if (typeof window !== 'undefined') {
+      const overrideUrl = (window as { __IC_WORKER_URL?: string }).__IC_WORKER_URL;
+      if (overrideUrl) {
+        return new Worker(overrideUrl, { type: 'module' });
+      }
+    }
+
+    // Strategy 2: Standard `new URL('./worker', import.meta.url)` pattern.
+    // Works in:
+    // - Vanilla JS (import.meta.url = dist/index.js location)
+    // - Vite, esbuild, Webpack 5, Angular CLI 17+ (when they can resolve the file)
+    try {
+      return new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+    } catch (err) {
+      // Strategy 3: Hard-coded fallback for bundlers that don't rewrite
+      // `new URL('./...', import.meta.url)`. Angular CLI 17's esbuild has
+      // known issues with this pattern when the import is from node_modules —
+      // the URL stays as the raw file name and the browser gets a 404.
+      // The `?v=2` cache buster works around Cloudflare Tunnel caching the
+      // SPA fallback (HTML) response for the worker URL.
+      console.warn(
+        '[ImageCompression] new URL("./worker", import.meta.url) failed, falling back to hard-coded URL:',
+        err,
+      );
+      return new Worker('/image-compression.worker.js?v=2', { type: 'module' });
+    }
+  }
+
+  /**
+   * Query the Web Worker for its own runtime capabilities AND a roundtrip
+   * probe. Returns null if the worker can't be created or probed.
+   *
+   * Two probes run together (each in parallel, bounded by a 1s timeout):
+   * 1. `getWorkerCapabilities()` — fast static checks (OffscreenCanvas,
+   *    WebCodecs, createImageBitmap). Used to detect false positives where
+   *    main-thread has the API but Worker context doesn't (Safari iOS).
+   * 2. `probeWorkerPath()` — actual decode→draw→encode roundtrip. Catches
+   *    environment-specific bugs that simple feature detection misses
+   *    (Chrome "image source is detached", Firefox broken transferToImageBitmap,
+   *    etc.). Used to auto-skip Worker paths in broken environments.
    */
   private async probeWorkerCapabilities(): Promise<{
     hasOffscreenCanvas: boolean;
     hasWebCodecs: boolean;
     hasCreateImageBitmap: boolean;
+    roundtripOk: boolean;
   } | null> {
     try {
       // Race the probe against a 1s timeout. If the worker probe hangs
@@ -202,7 +256,12 @@ export class ImageCompression {
       const probePromise = (async () => {
         const worker = await this.getWorker();
         if (!worker) return null;
-        return await worker.getWorkerCapabilities();
+        // Run both probes in parallel — they're independent.
+        const [caps, roundtripOk] = await Promise.all([
+          worker.getWorkerCapabilities(),
+          worker.probeWorkerPath().catch(() => false),
+        ]);
+        return { ...caps, roundtripOk };
       })();
       const timeoutPromise = new Promise<null>((resolve) =>
         setTimeout(() => resolve(null), 1000),
@@ -481,8 +540,16 @@ export class ImageCompression {
   /**
    * Decide which paths to try and in what order.
    * Returns an ordered array of CompressionPath.
+   *
+   * Worker paths are gated on `caps.workerPathsReliable`:
+   * - Default true (assume reliable)
+   * - Set to false by `probeWorkerCapabilities()` if the actual worker test
+   *   failed at runtime (e.g. Chrome bitmap detach bug, transferToImageBitmap
+   *   returning detached bitmap, etc.). This way the cascade auto-skips
+   *   worker paths in broken environments without a hard-coded browser list,
+   *   and auto-re-enables when the underlying bug is fixed.
    */
-  private selectPaths(
+  protected selectPaths(
     caps: DeviceCapabilities,
     options: CompressionOptions,
   ): CompressionPath[] {
@@ -495,18 +562,19 @@ export class ImageCompression {
     const workerWC = caps.hasWebCodecsInWorker ?? caps.hasWebCodecs;
     const workerCIB = caps.hasCreateImageBitmapInWorker ?? caps.hasCreateImageBitmap;
 
+    // Runtime gate: skip Worker paths if a real probe found them broken.
+    // `workerPathsReliable` is set by `probeWorkerCapabilities()` in service.ts.
+    // Default to true (probe hasn't run yet, or was successful).
+    const workerReliable = caps.workerPathsReliable ?? true;
+
     // 'webcodecs-worker' = use ImageDecoder (for HEIC) inside Worker context.
-    // 'webcodecs-worker' = use ImageDecoder (for HEIC) inside Worker context.
-    // DISABLED: Chrome has a "image source is detached" bug with Worker-context
-    // bitmaps in this environment. Re-enable when Chrome fixes the issue.
-    // if (workerWC && workerOC && workerCIB && caps.hasWorker) {
-    //   paths.push('webcodecs-worker');
-    // }
+    if (workerReliable && workerWC && workerOC && workerCIB && caps.hasWorker) {
+      paths.push('webcodecs-worker');
+    }
     // 'offscreen-worker' = Canvas2D + createImageBitmap in Worker context.
-    // DISABLED: same Chrome bitmap detachment bug.
-    // if (workerOC && workerCIB && caps.hasWorker) {
-    //   paths.push('offscreen-worker');
-    // }
+    if (workerReliable && workerOC && workerCIB && caps.hasWorker) {
+      paths.push('offscreen-worker');
+    }
     if (caps.hasCanvas2D) {
       paths.push('canvas-main');
     }
