@@ -55,4 +55,9 @@ export { isCompressionResult, isBatchResult } from './types';
 export { detectCapabilities, calculateTier } from './capabilities';
 export { readExifOrientation } from './exif';
 export { extensionForMimeType } from './types';
-export { applyExifOrientation } from './worker-helpers';
+export {
+  applyExifOrientation,
+  applyRotation,
+  resizeExact,
+  applyTransforms,
+} from './worker-helpers';

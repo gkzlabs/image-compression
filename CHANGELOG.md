@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.8] - 2026-06-19
+
+### Restored
+- **Brought back the v0.3.0 optimization helpers** — `applyTransforms`,
+  `applyRotation`, `resizeExact` — that were removed in v0.10.7 as a
+  paranoid hotfix. v0.10.7 root cause turned out to be the **worker
+  loading context** (relative vs. absolute URL), not the helper code
+  itself. With v0.10.7's URL fix in place, the helpers are safe to use
+  on the main-thread path (where Chrome's module-worker bitmap detach
+  race never fires).
+
+  - `worker-helpers.ts`: re-exports `applyRotation`, `resizeExact`,
+    `applyTransforms` — same signatures as v0.10.6.
+  - `service.ts`: `canvas-main` path now calls the helpers instead of
+    inlining the rotation/mirror/resize logic (~40 lines removed).
+  - `index.ts`: re-exports the 3 helpers for advanced consumers.
+  - `applyTransforms.spec.ts`: 11 unit tests (fast paths, 90/180/270,
+    mirror, rotation+exact-resize combinations). Uses the existing
+    `@napi-rs/canvas` polyfill from `vitest.setup.ts`.
+
+### Notes
+- `worker.ts` is **unchanged** from v0.10.7 — still matches v0.5.7
+  structure exactly. The worker thread never calls `applyTransforms`,
+  so the detach race is never triggered.
+- The main-thread `canvas-main` path is where manual rotate/mirror/
+  exact-resize options are processed, and that's where the helpers
+  are now used. This is the same arrangement as v0.10.0-v0.10.6,
+  minus the worker.ts bug.
+
 ## [0.10.7] - 2026-06-19
 
 ### Fixed

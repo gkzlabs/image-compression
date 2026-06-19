@@ -1,6 +1,7 @@
 import * as Comlink from 'comlink';
 import { detectCapabilities } from './capabilities';
 import { CompressionError, CompressionErrorCode, extensionForMimeType } from './types';
+import { applyExifOrientation, applyRotation, resizeExact } from './worker-helpers';
 import type {
   CompressionOptions,
   CompressionPath,
@@ -865,32 +866,21 @@ export class ImageCompression {
       }
     }
 
-    // Manual rotation / mirror (inlined — applyRotation helper was removed in v0.10.7)
+    // Manual rotation / mirror (v0.10.8: restored applyRotation helper)
     if (rotate !== undefined || mirror !== undefined) {
-      const swapDims = rotate === 90 || rotate === 270;
-      const w = swapDims ? outHeight : outWidth;
-      const h = swapDims ? outWidth : outHeight;
-      const canvas = new OffscreenCanvas(w, h);
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, w, h);
-        ctx.translate(w / 2, h / 2);
-        if (rotate !== undefined && rotate !== 0) ctx.rotate((rotate * Math.PI) / 180);
-        if (mirror === 'horizontal') ctx.scale(-1, 1);
-        else if (mirror === 'vertical') ctx.scale(1, -1);
-        ctx.translate(-outWidth / 2, -outHeight / 2);
-        ctx.drawImage(bitmap, 0, 0);
-        const newBitmap = canvas.transferToImageBitmap();
-        bitmap.close();
-        bitmap = newBitmap as unknown as ImageBitmap;
-        outWidth = w;
-        outHeight = h;
-      }
+      const rotated = applyRotation(
+        bitmap as unknown as ImageBitmap,
+        (rotate as 0 | 90 | 180 | 270 | undefined) ?? 0,
+        mirror,
+      );
+      bitmap.close();
+      bitmap = rotated.bitmap as unknown as ImageBitmap;
+      outWidth = rotated.width;
+      outHeight = rotated.height;
       onProgress?.({ stage: 'resizing', percent: 65, path: 'canvas-main', message: 'Rotating...' });
     }
 
-    // Resize (maxWidthOrHeight or exact width/height) — inlined since resizeExact helper was removed
+    // Resize (maxWidthOrHeight or exact width/height) — v0.10.8: restored resizeExact helper
     onProgress?.({ stage: 'resizing', percent: 70, path: 'canvas-main', message: 'Resizing...' });
     let targetW = outWidth;
     let targetH = outHeight;
@@ -928,18 +918,12 @@ export class ImageCompression {
       needsResize = true;
     }
     if (needsResize) {
-      const canvas = new OffscreenCanvas(targetW, targetH);
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(bitmap, 0, 0, targetW, targetH);
-        const newBitmap = canvas.transferToImageBitmap();
-        bitmap.close();
-        bitmap = newBitmap as unknown as ImageBitmap;
-        outWidth = targetW;
-        outHeight = targetH;
-      }
+      const resized = resizeExact(bitmap as unknown as ImageBitmap, targetW, targetH);
+      bitmap.close();
+      bitmap = resized.bitmap as unknown as ImageBitmap;
+      outWidth = resized.width;
+      outHeight = resized.height;
+      onProgress?.({ stage: 'resizing', percent: 80, path: 'canvas-main', message: 'Resized' });
     }
 
     // Encode

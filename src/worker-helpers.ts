@@ -252,5 +252,162 @@ export async function tryDecodeHEIC(file: File | Blob): Promise<ImageBitmap | nu
   }
 }
 
+/**
+ * Apply manual rotation and/or mirroring to an image bitmap.
+ *
+ * Used when the caller wants to override EXIF auto-rotation or apply
+ * additional transforms (e.g., rotate a vertical photo 90° for landscape).
+ *
+ * NOTE (v0.10.8): Restored from v0.10.6 — safe because v0.10.7's worker.ts
+ * no longer calls applyTransforms (detach root cause was worker URL loading
+ * context, fixed via `new URL(path, document.baseURI).href` in main.ts).
+ * These functions are now used by service.ts **main-thread path only**,
+ * which never hits the Chrome module-worker bitmap detach race.
+ *
+ * @param bitmap  Source image
+ * @param rotate  Rotation in degrees clockwise (0 | 90 | 180 | 270)
+ * @param mirror  Optional mirror ('horizontal' or 'vertical') applied AFTER rotation
+ * @returns New bitmap with transforms applied
+ */
+export function applyRotation(
+  bitmap: ImageBitmap,
+  rotate: 0 | 90 | 180 | 270 = 0,
+  mirror?: 'horizontal' | 'vertical',
+): { bitmap: ImageBitmap; width: number; height: number } {
+  // Fast path: no rotation, no mirror → return as-is
+  if (rotate === 0 && !mirror) {
+    return { bitmap, width: bitmap.width, height: bitmap.height };
+  }
+
+  // 90° and 270° rotations swap dimensions
+  const swap = rotate === 90 || rotate === 270;
+  const dstW = swap ? bitmap.height : bitmap.width;
+  const dstH = swap ? bitmap.width : bitmap.height;
+
+  const canvas = new OffscreenCanvas(dstW, dstH);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('OffscreenCanvas 2D context unavailable for rotation');
+
+  ctx.translate(dstW / 2, dstH / 2);
+  if (rotate !== 0) ctx.rotate((rotate * Math.PI) / 180);
+  if (mirror === 'horizontal') ctx.scale(-1, 1);
+  else if (mirror === 'vertical') ctx.scale(1, -1);
+  ctx.translate(-bitmap.width / 2, -bitmap.height / 2);
+  ctx.drawImage(bitmap, 0, 0);
+
+  return {
+    bitmap: canvas.transferToImageBitmap(),
+    width: dstW,
+    height: dstH,
+  };
+}
+
+/**
+ * Resize an image bitmap to exact target dimensions (no aspect-ratio lock).
+ *
+ * Used by applyTransforms when the caller explicitly requests a non-preserving
+ * resize (i.e., width AND height both specified independently).
+ *
+ * @param bitmap  Source image
+ * @param width   Target width in pixels
+ * @param height  Target height in pixels
+ * @returns New bitmap resized to exact dimensions
+ */
+export function resizeExact(
+  bitmap: ImageBitmap,
+  width: number,
+  height: number,
+): { bitmap: ImageBitmap; width: number; height: number } {
+  if (width === bitmap.width && height === bitmap.height) {
+    return { bitmap, width, height };
+  }
+
+  const canvas = new OffscreenCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('OffscreenCanvas 2D context unavailable for resize');
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bitmap, 0, 0, width, height);
+
+  return {
+    bitmap: canvas.transferToImageBitmap(),
+    width,
+    height,
+  };
+}
+
+/**
+ * Apply arbitrary transform pipeline: rotation + mirror + resize.
+ *
+ * Composes `applyRotation` and `resizeExact` into one optimized step that
+ * avoids intermediate OffscreenCanvas allocations when possible. Used by the
+ * main-thread `service.ts` path to handle user-specified `fileType`,
+ * `rotate`, `mirror`, and exact `width`/`height` options.
+ *
+ * NOTE (v0.10.8): Restored from v0.10.6. Worker path no longer calls this
+ * function (worker.ts reverts to v0.5.7 structure). Only main-thread code
+ * invokes applyTransforms.
+ *
+ * @param bitmap  Source image
+ * @param opts    Transform options (rotate, mirror, exact width/height)
+ * @returns New bitmap with all transforms applied in single draw
+ */
+export function applyTransforms(
+  bitmap: ImageBitmap,
+  opts: {
+    rotate?: 0 | 90 | 180 | 270;
+    mirror?: 'horizontal' | 'vertical';
+    width?: number;
+    height?: number;
+  } = {},
+): { bitmap: ImageBitmap; width: number; height: number } {
+  const rotate = opts.rotate ?? 0;
+  const mirror = opts.mirror;
+  const exactW = opts.width;
+  const exactH = opts.height;
+
+  const hasRotation = rotate !== 0 || !!mirror;
+  const hasExactResize = exactW !== undefined && exactH !== undefined;
+  const needsTransform = hasRotation || hasExactResize;
+
+  // Fast path: nothing to do
+  if (!needsTransform) {
+    return { bitmap, width: bitmap.width, height: bitmap.height };
+  }
+
+  // 1. Compute target dimensions
+  //    Rotation swaps dims; then user may override with exact width/height.
+  const swap = rotate === 90 || rotate === 270;
+  const srcW = bitmap.width;
+  const srcH = bitmap.height;
+  const afterRotateW = swap ? srcH : srcW;
+  const afterRotateH = swap ? srcW : srcH;
+
+  const finalW = hasExactResize ? exactW! : afterRotateW;
+  const finalH = hasExactResize ? exactH! : afterRotateH;
+
+  // 2. Create canvas with final dimensions
+  const canvas = new OffscreenCanvas(finalW, finalH);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('OffscreenCanvas 2D context unavailable for transforms');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  // 3. Apply all transforms in single draw
+  ctx.translate(finalW / 2, finalH / 2);
+  if (rotate !== 0) ctx.rotate((rotate * Math.PI) / 180);
+  if (mirror === 'horizontal') ctx.scale(-1, 1);
+  else if (mirror === 'vertical') ctx.scale(1, -1);
+  ctx.translate(-srcW / 2, -srcH / 2);
+  ctx.drawImage(bitmap, 0, 0);
+
+  return {
+    bitmap: canvas.transferToImageBitmap(),
+    width: finalW,
+    height: finalH,
+  };
+}
+
 export type { ExifOrientation } from './exif';
 export { readExifOrientation } from './exif';
