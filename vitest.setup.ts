@@ -97,3 +97,66 @@ if (typeof globalThis.createImageBitmap === 'undefined') {
     return new ImageBitmapPolyfill(w, h) as unknown as ImageBitmap;
   };
 }
+
+// v0.10.9: HTMLCanvasElement.getContext polyfill.
+//
+// happy-dom's HTMLCanvasElement.getContext('2d') returns null — it doesn't
+// actually implement Canvas2D. This means any code path that does
+// `document.createElement('canvas').getContext('2d')` (including service.ts's
+// canvas-main and applyTransformsIfRequested re-encode steps) fails silently
+// in the test environment.
+//
+// We patch getContext on the happy-dom HTMLCanvasElement prototype to return
+// a real @napi-rs/canvas 2D context. This:
+//   1. Unblocks tests of code paths that use document.createElement('canvas')
+//   2. Closes a pre-existing test gap (canvas-main path was untested)
+//   3. Is test-only — production code runs in real browsers with native canvas
+if (typeof HTMLCanvasElement !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const proto = (HTMLCanvasElement.prototype as any) as {
+    getContext: (type: string) => unknown;
+  };
+  const originalGetContext = proto.getContext;
+  proto.getContext = function (this: HTMLCanvasElement, type: string): unknown {
+    if (type !== '2d') {
+      return originalGetContext?.call(this, type) ?? null;
+    }
+    // Reuse the same napi-rs/canvas instance when width/height are set.
+    // We store the backing canvas on a hidden property; recreate on resize.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const self = this as any;
+    const w = this.width || 1;
+    const h = this.height || 1;
+    if (!self.__napiCanvas || self.__napiCanvasW !== w || self.__napiCanvasH !== h) {
+      self.__napiCanvas = createCanvas(w, h);
+      self.__napiCanvasW = w;
+      self.__napiCanvasH = h;
+    }
+    return self.__napiCanvas.getContext('2d');
+  };
+  // toBlob polyfill — happy-dom also doesn't implement this. We add a
+  // minimal version that serializes the backing canvas to a buffer.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (HTMLCanvasElement.prototype as any).toBlob = function (
+    this: HTMLCanvasElement,
+    callback: (blob: Blob | null) => void,
+    type?: string,
+    quality?: number,
+  ): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const self = this as any;
+    const canvas = self.__napiCanvas;
+    if (!canvas) {
+      callback(null);
+      return;
+    }
+    try {
+      // @napi-rs/canvas supports 'image/jpeg' | 'image/webp' | 'image/png' | 'image/avif' | 'image/gif'
+      const mime = (type ?? 'image/png') as 'image/jpeg' | 'image/webp' | 'image/png' | 'image/avif' | 'image/gif';
+      const buffer = canvas.toBuffer(mime, quality);
+      callback(new Blob([new Uint8Array(buffer)], { type: mime }));
+    } catch (e) {
+      callback(null);
+    }
+  };
+}

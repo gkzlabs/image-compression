@@ -1,7 +1,12 @@
 import * as Comlink from 'comlink';
 import { detectCapabilities } from './capabilities';
 import { CompressionError, CompressionErrorCode, extensionForMimeType } from './types';
-import { applyExifOrientation, applyRotation, resizeExact } from './worker-helpers';
+import {
+  applyExifOrientation,
+  applyRotation,
+  applyTransforms,
+  resizeExact,
+} from './worker-helpers';
 import type {
   CompressionOptions,
   CompressionPath,
@@ -469,7 +474,7 @@ export class ImageCompression {
         path: 'passthrough',
         message: `File already ${targetFormat} and ${(originalSize / 1024).toFixed(0)}KB (≤ ${(options.passThroughUnderBytes / 1024).toFixed(0)}KB) — skipping compression`,
       });
-      return this.buildResult(
+      return ImageCompression.buildResult(
         file as Blob,
         originalSize,
         'passthrough',
@@ -553,8 +558,9 @@ export class ImageCompression {
         const result = await this.executePath(path, file, options, caps);
         this.checkAborted(options.signal);
         if (result) {
-          emit({ stage: 'done', percent: 100, path, attempt, message: 'Compression complete' });
-          return this.buildResult(
+          // Stage 1 done. v0.10.9: chain compress-then-transform for
+          // manual rotate/mirror/width/height on the main thread.
+          const baseResult = ImageCompression.buildResult(
             result.blob,
             originalSize,
             path,
@@ -565,6 +571,10 @@ export class ImageCompression {
             result.mimeType,
             file,
           );
+          const finalResult = await ImageCompression.applyTransformsIfRequested(baseResult, options);
+          this.checkAborted(options.signal);
+          emit({ stage: 'done', percent: 100, path: finalResult.path, attempt, message: 'Compression complete' });
+          return finalResult;
         }
       } catch (err) {
         const errMsg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
@@ -982,6 +992,145 @@ export class ImageCompression {
   }
 
   /**
+   * v0.10.9: Compress-then-Transform stage.
+   *
+   * If the caller requested manual transforms (`rotate`, `mirror`, exact
+   * `width`/`height`), apply them to the compressed result ON THE MAIN THREAD.
+   * The Worker path intentionally does NOT apply these (it would re-introduce
+   * the v0.10.6 module-worker bitmap detach race). This helper fills the gap:
+   *   1. Decode the compressed blob with `createImageBitmap` (HW-accelerated)
+   *   2. Apply combined rotate+mirror+exact-resize in a single OffscreenCanvas draw
+   *   3. Re-encode with `canvas.toBlob` (preserves the caller's quality/format)
+   *
+   * **No-op conditions** (returns input unchanged):
+   *   - No transform options set
+   *   - Source path is 'passthrough' (no decode happened)
+   *   - Source path is 'server-fallback' (caller wants raw file)
+   *   - Source blob has 0×0 dimensions (placeholder)
+   *
+   * **Performance**: Adds 1 extra decode + 1 extra encode round-trip.
+   * Since the input is the *compressed* output (already resized by Worker),
+   * this is fast even on large original files. The trade-off: we keep
+   * Worker's resize+encode speed (Stage 1) AND get correct transforms
+   * (Stage 2) — without the worker detach risk of v0.10.6.
+   *
+   * @param result  Compression result from the cascade or forced-path
+   * @param options Caller's options (only `rotate`/`mirror`/`width`/`height` are used)
+   * @returns New result with transforms applied, or input unchanged if no-op
+   *
+   * Exposed (named export) for direct unit testing — see
+   * `applyTransformsIfRequested.spec.ts`.
+   */
+  static async applyTransformsIfRequested(
+    result: CompressionResult,
+    options: CompressionOptions,
+  ): Promise<CompressionResult> {
+    const { rotate, mirror, width, height, keepAspectRatio } = options;
+
+    // No-op: caller didn't request any manual transforms
+    const hasManualTransform =
+      rotate !== undefined || mirror !== undefined || width !== undefined || height !== undefined;
+    if (!hasManualTransform) return result;
+
+    // No-op: passthrough/server-fallback never decoded the image
+    if (result.path === 'passthrough' || result.path === 'server-fallback') return result;
+
+    // No-op: source has no dimensions (shouldn't happen post-cascade, but defensive)
+    if (result.width === 0 || result.height === 0) return result;
+
+    const format = result.mimeType || 'image/jpeg';
+    const quality = options.quality ?? 0.85;
+
+    // Stage 2a: decode the compressed output
+    let bitmap: ImageBitmap;
+    try {
+      bitmap = await createImageBitmap(result.blob);
+    } catch (err) {
+      // Decode failed — return original result with a warning.
+      // We don't fail the whole compress() because the user did get
+      // a valid compressed image; transforms are a "nice to have".
+      console.warn('[ImageCompression] applyTransforms: failed to decode output blob', err);
+      return result;
+    }
+
+    // Stage 2b: combined transforms in a single draw
+    // applyTransforms handles rotate+mirror+exact-resize in one OffscreenCanvas
+    // pass — avoids intermediate bitmap allocations.
+    let transformed: { bitmap: ImageBitmap; width: number; height: number };
+    try {
+      // applyTransforms requires both width AND height for exact resize.
+      // If user specified only one, we derive the other from aspect ratio.
+      let exactW = width;
+      let exactH = height;
+      if (exactW !== undefined && exactH === undefined) {
+        exactH = keepAspectRatio === false
+          ? Math.round((exactW * bitmap.height) / bitmap.width)
+          : bitmap.height; // keepAspectRatio: explicit width → no exact resize, but rotate still applies
+      } else if (exactH !== undefined && exactW === undefined) {
+        exactW = keepAspectRatio === false
+          ? Math.round((exactH * bitmap.width) / bitmap.height)
+          : bitmap.width;
+      } else if (keepAspectRatio !== false && (width !== undefined || height !== undefined)) {
+        // keepAspectRatio=true (default) + only one dim: ignore the explicit
+        // dim and let applyTransforms handle proportional resize.
+        // Actually for keepAspectRatio with one dim, we want proportional.
+        // applyTransforms needs both to do "exact resize" — skip it.
+        // For now, the rotate/mirror path still runs (applyTransforms
+        // is a no-op for exact-resize when only one dim is set).
+        exactW = undefined;
+        exactH = undefined;
+      }
+
+      transformed = applyTransforms(bitmap, {
+        rotate,
+        mirror,
+        width: exactW,
+        height: exactH,
+      });
+    } finally {
+      bitmap.close();
+    }
+
+    // Stage 2c: re-encode
+    const canvas = document.createElement('canvas');
+    canvas.width = transformed.width;
+    canvas.height = transformed.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      transformed.bitmap.close();
+      console.warn('[ImageCompression] applyTransforms: Canvas2D context unavailable');
+      return result;
+    }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(transformed.bitmap, 0, 0);
+    transformed.bitmap.close();
+
+    const newBlob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((b) => resolve(b), format, quality);
+    });
+    if (!newBlob) {
+      console.warn('[ImageCompression] applyTransforms: toBlob returned null');
+      return result;
+    }
+
+    // Return a new CompressionResult that wraps the transformed blob.
+    // We re-use buildResult so filename extension stays consistent.
+    const newResult = ImageCompression.buildResult(
+      newBlob,
+      result.originalSize,
+      result.path,
+      result.tier,
+      result.durationMs,
+      transformed.width,
+      transformed.height,
+      format,
+      result.file,
+    );
+    return newResult;
+  }
+
+  /**
    * Execute a single forced path (no cascade). Used when `forcePath` is set.
    * Validates the path, then either returns the result or throws CompressionError.
    */
@@ -1033,14 +1182,8 @@ export class ImageCompression {
       const result = await this.executePath(forcedPath, file, options, caps);
       this.checkAborted(options.signal);
       if (result) {
-        emit({
-          stage: 'done',
-          percent: 100,
-          path: forcedPath,
-          attempt: 1,
-          message: 'Compression complete (forced path)',
-        });
-        return this.buildResult(
+        // v0.10.9: chain compress-then-transform (same as cascade path)
+        const baseResult = ImageCompression.buildResult(
           result.blob,
           originalSize,
           forcedPath,
@@ -1051,6 +1194,16 @@ export class ImageCompression {
           result.mimeType,
           file,
         );
+        const finalResult = await ImageCompression.applyTransformsIfRequested(baseResult, options);
+        this.checkAborted(options.signal);
+        emit({
+          stage: 'done',
+          percent: 100,
+          path: finalResult.path,
+          attempt: 1,
+          message: 'Compression complete (forced path)',
+        });
+        return finalResult;
       }
       // executePath returned null (path not viable for this device)
       throw new CompressionError(
@@ -1111,7 +1264,7 @@ export class ImageCompression {
    *   (no extension replacement). Used by server-fallback paths where the
    *   server is expected to handle any extension based on mime type.
    */
-  private buildResult(
+  private static buildResult(
     blob: Blob,
     originalSize: number,
     path: CompressionPath,
@@ -1188,7 +1341,7 @@ export class ImageCompression {
     originalSize: number,
     _tried?: CompressionPath[],
   ): CompressionResult {
-    return this.buildResult(
+    return ImageCompression.buildResult(
       file as Blob,
       originalSize,
       'server-fallback',

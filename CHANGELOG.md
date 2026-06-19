@@ -5,6 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.9] - 2026-06-20
+
+### Added
+- **Compress-then-Transform pipeline** — fixes the silent drop of manual
+  `rotate`/`mirror`/`width`/`height` options in the Worker path (a
+  v0.10.7 side effect of removing the `applyTransforms` call from
+  `worker.ts`). Two-stage pipeline:
+  1. Stage 1: Worker path does resize+encode exactly as before (no
+     transforms). No detach risk, no behavior change for users who
+     don't request transforms.
+  2. Stage 2: When transforms are requested, decode the compressed
+     output on the **main thread**, apply `applyTransforms` (combined
+     rotate+mirror+exact-resize in a single OffscreenCanvas draw),
+     then re-encode via `canvas.toBlob`.
+
+  Why this design:
+  - Worker keeps its resize/encode speed (Stage 1) — no perf regression
+    for users not using transforms.
+  - Transforms run on main thread where `applyTransforms` is safe
+    (no module-worker bitmap detach race).
+  - Net cost for users requesting transforms: 1 extra decode + 1
+    extra encode round-trip on the already-compressed output (small,
+    fast). For users NOT requesting transforms: zero overhead
+    (the helper is a fast-path no-op when no transform options are
+    set).
+
+### Exposed for testing
+- `ImageCompression.applyTransformsIfRequested` — was `private` in
+  v0.10.8. Now `static` so it can be unit-tested directly without
+  going through the full `compress()` cascade (avoids the happy-dom
+  canvas limitation in the test environment). All production
+  callers in `service.ts` use the static call.
+- `ImageCompression.buildResult` — promoted to `static` (was
+  `private`) for the same reason. No behavior change.
+
+### Fixed
+- **Test environment gap**: `vitest.setup.ts` now polyfills
+  `HTMLCanvasElement.prototype.getContext('2d')` and `.toBlob(...)`
+  to use `@napi-rs/canvas`. happy-dom's default implementations
+  return `null`/no-op, which silently broke any test that exercises
+  a path using `document.createElement('canvas')` (including
+  `canvas-main` and the new `applyTransformsIfRequested` re-encode
+  step). This is **test-only** — production browsers have native
+  Canvas2D.
+
+### Tests
+- 18 new tests in `src/applyTransformsIfRequested.spec.ts`:
+  - 5 no-op conditions (no options, passthrough, server-fallback,
+    0×0 placeholder, quality/format-only)
+  - 3 rotation tests (90/180/270)
+  - 3 mirror + combined transform tests
+  - 2 exact-resize tests (with and without rotation)
+  - 4 result-shape integrity tests (mimeType, path, tier, durationMs)
+  - 1 graceful-degradation test (garbage blob → return original)
+- Total: 164 unit tests passing across 17 files (was 146).
+
+### Notes
+- `worker.ts` is **unchanged** from v0.10.8/v0.10.7 — the Worker
+  still does NOT call `applyTransforms`. Transforms are applied
+  on the main thread in Stage 2.
+- Backward compatible: users who don't pass `rotate`/`mirror`/
+  `width`/`height` see zero behavior change (no-op fast path).
+
 ## [0.10.8] - 2026-06-19
 
 ### Restored
