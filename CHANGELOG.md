@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.4] - 2026-06-19
+
+### Fixed
+- **`selectPaths()` reverted to v0.5.7 logic — Worker paths are now selected**:
+  v0.10.0 introduced gating on `*InWorker` flags (`hasOffscreenCanvasInWorker`,
+  `hasWebCodecsInWorker`, `hasCreateImageBitmapInWorker`) that were populated
+  by a background probe. When the probe:
+    - **Returned null** (timeout, Comlink error) → flags set to `false`
+    - **Reported a `false` flag** (e.g. Safari iOS Worker context doesn't
+      have OffscreenCanvas) → flag stayed `false`
+  ...the cascade skipped Worker paths entirely, falling through to
+  `canvas-main` even though Worker would have worked.
+
+  This broke the v0.5.7 UX of "webcodecs-worker attempt #1" on Safari iOS,
+  mobile Chrome, and slow-probe environments.
+
+  **Fix**: use main-thread capabilities for path selection (v0.5.7 behavior).
+  The cascade's try/catch fallback handles actual Worker runtime failures
+  gracefully — no need to gate on probe results. The 100KB size threshold
+  is kept as a perf optimization.
+
+  This is the **same fix that fixed the bitmap detach bug** (sync + transfer
+  vs async + clone) in spirit: we don't try to be clever about runtime
+  detection — we trust the spec and let the cascade recover from failures.
+
 ## [0.10.3] - 2026-06-19
 
 ### Fixed

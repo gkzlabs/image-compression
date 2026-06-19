@@ -687,68 +687,56 @@ export class ImageCompression {
    * first, falling back to main thread. This matches the behavior of the
    * v0.5.7 Angular wrapper.
    *
-   * **Capability strategy**:
-   * - Use main-thread capability detection as the **optimistic default** —
-   *   it can have false positives (e.g. OffscreenCanvas in main thread but
-   *   not in Worker context on Safari iOS), but the cascade's try/catch
-   *   fallback handles actual runtime failures gracefully.
-   * - If the background worker probe completes with `roundtripOk: false`,
-   *   the runtime gate (`caps.workerPathsReliable === false`) skips Worker
-   *   paths automatically.
-   * - The cascade will fall through to `canvas-main` for files that fail
-   *   in Worker context, so the optimistic default is safe.
-   *
-   * **Size threshold**: For files smaller than `WORKER_SIZE_THRESHOLD_BYTES`,
-   *   skip Worker paths. Worker spawn + structured-clone overhead is
-   *   ~30-100ms, which is more than the entire compression takes for
-   *   small files. Canvas-main is faster for these.
-   */
-  protected selectPaths(
-    caps: DeviceCapabilities,
-    options: CompressionOptions,
-  ): CompressionPath[] {
-    const paths: CompressionPath[] = [];
+   /**
+    * Decide which paths to try and in what order.
+    * Returns an ordered array of CompressionPath.
+    *
+    * v0.10.4: Reverted path-selection logic to match v0.5.7. The v0.10.0
+    * gating on `*InWorker` flags was too strict — when the background
+    * probe returned null (timeout) or reported `false` for any flag, the
+    * cascade skipped Worker paths entirely, falling through to `canvas-main`
+    * even when the Worker would have worked. This broke the v0.5.7
+    * UX of "webcodecs-worker attempt #1" on Safari iOS, mobile Chrome, and
+    * slow-probe environments.
+    *
+    * The fix: trust main-thread capabilities for path selection. The
+    * cascade's try/catch fallback handles actual runtime failures
+    * gracefully (e.g., if OffscreenCanvas doesn't work in Worker context
+    * at runtime, we fall back to canvas-main without losing the user).
+    *
+    * The 100KB size threshold is kept as a perf optimization (Worker
+    * spawn overhead > savings for tiny files). The background probe
+    * is kept for `workerPathsReliable` flag (currently unused but available
+    * for future tuning).
+    */
+   protected selectPaths(
+     caps: DeviceCapabilities,
+     options: CompressionOptions,
+   ): CompressionPath[] {
+     const paths: CompressionPath[] = [];
 
-    // Use the Worker's own capability detection for Worker paths.
-    // Main-thread detection can give false positives (OffscreenCanvas exists
-    // in main thread but not in Worker context — common in Safari iOS).
-    const workerOC = caps.hasOffscreenCanvasInWorker ?? caps.hasOffscreenCanvas;
-    const workerWC = caps.hasWebCodecsInWorker ?? caps.hasWebCodecs;
-    const workerCIB = caps.hasCreateImageBitmapInWorker ?? caps.hasCreateImageBitmap;
+     // Size threshold: skip Worker for small files (overhead > savings).
+     // Use the originalSize from options if available (set by compress() before
+     // calling selectPaths), otherwise assume non-small (don't gate on unknown).
+     const fileSize = (options as { originalSize?: number }).originalSize ?? Infinity;
+     const smallFile = fileSize < ImageCompression.WORKER_SIZE_THRESHOLD_BYTES;
 
-    // Runtime gate: skip Worker paths ONLY if main-thread doesn't have the
-    // capability. The background probe's `roundtripOk: false` is a soft warning
-    // (e.g. Chrome bitmap detach bug) but the cascade's try/catch fallback
-    // handles actual runtime failures gracefully. We trust main-thread caps
-    // optimistically (matches v0.5.7 Angular wrapper behavior).
-    //
-    // Note: Previously, `workerPathsReliable === false` would skip Worker
-    // paths entirely. That was too aggressive — a single probe failure
-    // disabled Worker paths for the entire session, even though the cascade
-    // could have recovered. Now we only skip if the main thread itself
-    // doesn't support Worker features.
-    const workerReliable = true;
+     // 'webcodecs-worker' = use ImageDecoder (for HEIC) inside Worker context.
+     // v0.10.4: Use MAIN-THREAD caps (v0.5.7 behavior). The cascade's try/catch
+     // handles actual Worker runtime failures — no need to gate on probe results.
+     if (!smallFile && caps.hasWebCodecs && caps.hasOffscreenCanvas && caps.hasWorker) {
+       paths.push('webcodecs-worker');
+     }
+     // 'offscreen-worker' = Canvas2D + createImageBitmap in Worker context.
+     if (!smallFile && caps.hasOffscreenCanvas && caps.hasWorker) {
+       paths.push('offscreen-worker');
+     }
+     if (caps.hasCanvas2D) {
+       paths.push('canvas-main');
+     }
 
-    // Size threshold: skip Worker for small files (overhead > savings).
-    // Use the originalSize from options if available (set by compress() before
-    // calling selectPaths), otherwise assume non-small (don't gate on unknown).
-    const fileSize = (options as { originalSize?: number }).originalSize ?? Infinity;
-    const smallFile = fileSize < ImageCompression.WORKER_SIZE_THRESHOLD_BYTES;
-
-    // 'webcodecs-worker' = use ImageDecoder (for HEIC) inside Worker context.
-    if (!smallFile && workerReliable && workerWC && workerOC && workerCIB && caps.hasWorker) {
-      paths.push('webcodecs-worker');
-    }
-    // 'offscreen-worker' = Canvas2D + createImageBitmap in Worker context.
-    if (!smallFile && workerReliable && workerOC && workerCIB && caps.hasWorker) {
-      paths.push('offscreen-worker');
-    }
-    if (caps.hasCanvas2D) {
-      paths.push('canvas-main');
-    }
-
-    return paths;
-  }
+     return paths;
+   }
 
   /**
    * Execute a specific compression path. Returns null on failure.
