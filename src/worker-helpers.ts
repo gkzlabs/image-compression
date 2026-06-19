@@ -196,16 +196,19 @@ export async function encodeViaOffscreenCanvas(
   }
   // Sync drawImage is safe — source bitmap is still alive at this point.
   // v0.10.2 already detached it via transferToImageBitmap() in upstream
-  // helpers, but if not, the try/finally below is a guaranteed cleanup.
-  try {
-    ctx.drawImage(bitmap, 0, 0);
-    return await canvas.convertToBlob({ type: format, quality });
-  } finally {
-    // Defensive close — guarantees the bitmap is released even if
-    // convertToBlob throws (GPU OOM, context loss, etc.). Safe to call
-    // on an already-closed bitmap (no-op per spec).
-    bitmap.close();
-  }
+  // helpers (resizeOffscreen/applyExifOrientation/applyTransforms). The
+  // returned bitmap from those is a fresh, detached bitmap — convertToBlob
+  // reads pixels immediately and the bitmap is safe to release AFTER the
+  // await resolves, not during it.
+  //
+  // v0.10.5: REMOVED the try/finally that called bitmap.close() — that
+  // "safety net" was THE BUG. finally blocks run when the try block is left,
+  // INCLUDING during await suspension. Closing the bitmap before
+  // convertToBlob completes its GPU readback is exactly what triggers
+  // Chrome 149's "image source is detached" error. The caller in worker.ts
+  // closes the bitmap after the encode returns (see worker.ts compress()).
+  ctx.drawImage(bitmap, 0, 0);
+  return await canvas.convertToBlob({ type: format, quality });
 }
 
 /**

@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.5] - 2026-06-19
+
+### Fixed
+- **CRITICAL: `InvalidStateError: image source is detached` in webcodecs-worker path**:
+  The `try/finally` block added in v0.10.3 inside `encodeViaOffscreenCanvas`
+  was THE BUG. The `finally` clause ran `bitmap.close()` during the
+  `await canvas.convertToBlob(...)` suspension, which Chrome 149 detected
+  as a detached source during the GPU readback for encoding.
+
+  Root cause: `finally` blocks execute when the try block is left, **including
+  during await suspension** — not just on throw. Closing the bitmap before
+  `convertToBlob` completes its GPU readback triggered
+  "image source is detached" exactly when the encode was about to use
+  the pixels.
+
+  v0.5.7 (the working baseline) had no try/finally in encode — just a
+  bare `ctx.drawImage(); return await convertToBlob(...)`. The bitmap
+  was closed in the worker.ts main `compress()` function AFTER the encode
+  returned. That ordering is correct because `transferToImageBitmap()` in
+  the upstream helpers (`resizeOffscreen`, `applyExifOrientation`,
+  `applyTransforms`) already produced a fresh, independent bitmap — the
+  caller (worker.ts) owns the lifetime and closes it after encode resolves.
+
+  The v0.10.3 try/finally was added on the (incorrect) assumption that
+  "defensive cleanup" is always safe. **It is not** — closing an
+  ImageBitmap while a `convertToBlob` GPU readback is in flight is
+  exactly the scenario Chrome 149 flags as detached.
+
+### Reverted (from v0.10.3)
+- `encodeViaOffscreenCanvas` reverted to v0.5.7 form: sync `drawImage`
+  + direct `return await convertToBlob(...)`, no try/finally.
+- The redundant `bitmap.close()` in worker.ts after encode is preserved
+  (caller-side cleanup, runs AFTER encode resolves — safe).
+
 ## [0.10.4] - 2026-06-19
 
 ### Fixed
