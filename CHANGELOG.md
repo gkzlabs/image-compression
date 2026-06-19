@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-06-19
+
+### Removed
+- **Dead test block in `capabilities.spec.ts`** — the "iOS Safari detection (removed in v0.2.5)" `describe.skip` block (4 tests, 51 lines) tested `caps.isIOS` / `caps.isSafari` fields that were removed in v0.2.5. Removing this dead code:
+  - Eliminates 3 TypeScript compile errors (Property 'isIOS'/'isSafari' does not exist on DeviceCapabilities)
+  - Removes 1 skipped `describe` + 3 skipped `it` blocks
+  - Improves test discoverability (no more "why is this skipped?" confusion)
+
+### Changed
+- **Re-skipped 2 tier-downgrade tests with explanation** — the "downgrades high to mid" tests (low-core, low-memory) were originally skipped because happy-dom doesn't ship OffscreenCanvas/Worker/createImageBitmap, so `detectCapabilities()` returns `tier='low'` (default) instead of `tier='high'`. The heuristic override (lines 111-114 of `capabilities.ts`) only fires when `tier === 'high'`, so the tests see `tier='low'` instead of the expected `tier='mid'`. Re-skipping with an inline comment that documents the root cause so future contributors don't try to re-enable without addressing the environment coupling.
+- **Net effect: 10 skipped → 7 skipped** in the vitest suite.
+
+### Notes
+- 99 tests passing (unchanged from v0.4.0).
+- No public API changes.
+- No production code changes — test-only cleanup.
+- The 2 re-skipped tests can be properly enabled in a follow-up by extracting the tier calculation into a pure `calculateTier()` function and unit-testing it in isolation (no happy-dom dependency). Tracked mentally, not yet scheduled.
+
 ## [0.4.0] - 2026-06-19
 
 ### Added
