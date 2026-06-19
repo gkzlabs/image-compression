@@ -51,21 +51,46 @@ export async function tryDecodeHEICLazy(file: File | Blob): Promise<Blob | null>
     }
   }
 
-  // Path 2: heic2any (WASM) — dynamic import, only on HEIC paths
-  try {
-    // heic2any is an optional, lazy-loaded peer — only present if user installs it.
-    // We type the module dynamically via 'any' to avoid hard dependency in our package.json.
-    // @ts-expect-error — heic2any is an optional dependency; only required at runtime when HEIC files are encountered.
-    const heic2anyModule = await import(/* @vite-ignore */ 'heic2any');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const heic2any = (heic2anyModule as any).default as (opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>;
-    const result = await heic2any({ blob: file, toType: 'image/jpeg' });
-    // heic2any may return a single Blob or array; take first
-    return Array.isArray(result) ? result[0] : result;
-  } catch {
-    // Both paths failed
-    return null;
+  // Path 2: heic2any (WASM) — try multiple import strategies in order.
+  //
+  // Why multiple strategies:
+  // - Bare specifier `'heic2any'` works in Node and some bundlers (Vite, Webpack 5)
+  //   but FAILS in browser-only bundles (Angular esbuild without explicit dep).
+  // - Deep import `'heic2any/dist/heic2any.js'` works when heic2any is in
+  //   node_modules and the bundler follows node module resolution.
+  // - URL escape hatch `__IC_HEIC2ANY_URL` lets users self-host heic2any
+  //   (e.g. copy from node_modules and serve at a known URL).
+  //
+  // We try each in order; the first that resolves + decodes wins.
+  const strategies: Array<() => Promise<unknown>> = [
+    // Strategy A: Deep import (resolves to actual file path, bundler-friendly)
+    () => import(/* @vite-ignore */ 'heic2any/dist/heic2any.js' as string),
+    // Strategy B: Bare specifier (original behavior, works in Node + some bundlers)
+    () => import(/* @vite-ignore */ 'heic2any' as string),
+    // Strategy C: URL escape hatch (user-provided CDN or self-hosted URL)
+    () => {
+      const url = (globalThis as { __IC_HEIC2ANY_URL?: string }).__IC_HEIC2ANY_URL;
+      if (!url) return Promise.reject(new Error('No __IC_HEIC2ANY_URL set'));
+      return import(/* @vite-ignore */ url);
+    },
+  ];
+
+  for (const load of strategies) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mod = (await load()) as any;
+      // heic2any exports as default; some bundlers wrap it differently
+      const heic2any = (mod.default ?? mod) as (opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>;
+      const result = await heic2any({ blob: file, toType: 'image/jpeg' });
+      // heic2any may return a single Blob or array; take first
+      return Array.isArray(result) ? result[0] : result;
+    } catch {
+      // Try next strategy
+    }
   }
+
+  // All strategies failed
+  return null;
 }
 
 /**

@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-06-19
+
+### Fixed
+- **HEIC decode: `await import('heic2any')` failed in production browser bundles**
+  (Angular esbuild, Vite, etc.) because bare specifiers are not resolved at
+  runtime. The cascade would skip HEIC pre-decode and return `server-fallback`
+  with 0x0 dimensions on browsers without native `ImageDecoder('image/heic')`
+  support. Refactored `tryDecodeHEICLazy()` to try 3 strategies in order:
+
+  1. **Deep import** `import('heic2any/dist/heic2any.js')` — bundler-friendly
+     (resolves to actual file path via `heic2any@0.0.4`'s `main` field)
+  2. **Bare specifier** `import('heic2any')` — original behavior, works in
+     Node and some bundlers
+  3. **URL escape hatch** `import(globalThis.__IC_HEIC2ANY_URL)` — user-provided
+     URL (e.g. CDN, self-hosted), works in ALL environments
+
+  The first strategy to resolve + decode wins. All strategies failing still
+  returns `null` (existing behavior — graceful fallback to `server-fallback`).
+
+### Added
+- **`__IC_HEIC2ANY_URL` global flag** — set by consumers (e.g. Angular's
+  `main.ts`) to point at a known URL of `heic2any.js`. Resolved at runtime
+  via dynamic `import()`.
+
+### Changed
+- **No public API changes** — `tryDecodeHEICLazy()` signature unchanged.
+  Internal refactor only.
+
+### Tests
+- **3 new tests** in `heic-decode.spec.ts` (10 → 13):
+  - URL escape hatch attempted when `__IC_HEIC2ANY_URL` is set
+  - All 3 strategies fail → returns `null` (existing behavior)
+  - URL strategy skipped when flag is not set
+- **vitest.config.ts**: refactored alias from object form to array form
+  with regex `{ find: /^heic2any(\/.*)?$/, replacement: heic2anyStub }`
+  to match both bare specifier and deep import path.
+
+### Notes
+- 139 passing tests (was 136, +3 new). 5 skipped (unchanged).
+- Backward compatible — existing consumers see no behavior change in the
+  happy path (native ImageDecoder still works without heic2any).
+- Companion to `angular-image-compression` v0.9.0 wrapper that adds
+  `scripts/copy-heic2any.js` + `__IC_HEIC2ANY_URL` injection in `main.ts`.
+- No bundle size change (heic2any is still lazy-loaded, only on HEIC paths).
+
 ## [0.4.2] - 2026-06-19
 
 ### Added

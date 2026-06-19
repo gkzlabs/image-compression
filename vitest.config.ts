@@ -1,14 +1,17 @@
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'node:path';
 
+const heic2anyStub = resolve(__dirname, 'src/__stubs__/heic2any.ts');
+
 export default defineConfig({
   resolve: {
-    alias: {
+    alias: [
       // Optional peer dep — never actually needed in unit tests.
       // We lazy-load heic2any only when HEIC files are encountered in production.
       // In vitest, we replace it with a stub that throws if accidentally called.
-      heic2any: resolve(__dirname, 'src/__stubs__/heic2any.ts'),
-    },
+      // Match BOTH bare specifier and deep import path — see service.ts tryDecodeHEICLazy.
+      { find: /^heic2any(\/.*)?$/, replacement: heic2anyStub },
+    ],
   },
   test: {
     environment: 'happy-dom',
