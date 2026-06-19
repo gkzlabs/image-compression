@@ -98,25 +98,51 @@ const api: ImageWorkerApi = {
 
     // Step 3: combined manual rotate + mirror + exact resize in a SINGLE draw
     // (v0.3.0 optimization: replaces 3 separate bitmap operations with 1)
-    // v0.10.2: applyTransforms is sync again (uses transferToImageBitmap)
-    const transformed = applyTransforms(bitmap, {
-      rotate,
-      mirror,
-      width,
-      height,
-      keepAspectRatio,
-    });
-    bitmap.close();
-    const outWidth = transformed.width;
-    const outHeight = transformed.height;
-    bitmap = transformed.bitmap;
+    // v0.10.6: SKIP the call entirely when no transforms are requested.
+    // applyTransforms's fast path returns the SAME bitmap reference (not a
+    // fresh transferToImageBitmap), and the bitmap we have at this point
+    // was already produced by upstream transferToImageBitmap() calls
+    // (resizeOffscreen, applyExifOrientation). Returning the same reference
+    // and then calling bitmap.close() + drawImage() in encode triggers
+    // Chrome's "image source is detached" error on Safari iOS.
+    //
+    // v0.5.7 (the working baseline) didn't have applyTransforms at all —
+    // it just went straight from applyExifOrientation → encodeViaOffscreenCanvas.
+    // The extract-to-core refactor (v0.6.0+) added this step and the detach
+    // error appeared.
+    const hasTransforms =
+      (rotate !== undefined && rotate !== 0) ||
+      mirror !== undefined ||
+      width !== undefined ||
+      height !== undefined;
+    let outWidth: number;
+    let outHeight: number;
+    if (hasTransforms) {
+      const transformed = applyTransforms(bitmap, {
+        rotate,
+        mirror,
+        width,
+        height,
+        keepAspectRatio,
+      });
+      bitmap.close();
+      outWidth = transformed.width;
+      outHeight = transformed.height;
+      bitmap = transformed.bitmap;
+    } else {
+      // No transforms requested — use the bitmap as-is.
+      // Don't close it here; encode owns the lifetime from now.
+      outWidth = bitmap.width;
+      outHeight = bitmap.height;
+    }
 
     // Step 4: encode (1 final operation)
-    // v0.10.3: encodeViaOffscreenCanvas has its own try/finally to close
-    // the source bitmap as a safety net. The redundant bitmap.close() here
-    // is a no-op on the already-closed bitmap (per spec) but serves as
-    // documentation of intent — encode is the last step that touches the
-    // bitmap, so the resource lifetime ends here.
+    // v0.10.5: encodeViaOffscreenCanvas is bare drawImage + return await
+    // convertToBlob (no try/finally, no bitmap.close). The caller closes
+    // the bitmap AFTER encode returns — that ordering is required because
+    // transferToImageBitmap() in upstream helpers already produced a fresh
+    // bitmap, and closing it during the await convertToBlob suspension
+    // triggers Chrome's "image source is detached" error.
     const blob = await encodeViaOffscreenCanvas(bitmap, format, quality);
     bitmap.close();
     emit('encoding', 95);

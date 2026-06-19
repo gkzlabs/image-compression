@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.6] - 2026-06-19
+
+### Fixed
+- **CRITICAL: `InvalidStateError: image source is detached` in webcodecs-worker path**:
+  The TRUE root cause was a no-op `applyTransforms()` call in worker.ts.
+  v0.3.0 added `applyTransforms` to combine manual rotate + mirror + exact
+  resize into a single OffscreenCanvas draw (optimization). v0.10.x kept
+  calling it unconditionally, but its **fast path** (`rotate === 0 && !mirror
+  && width === undefined && height === undefined`) returns the SAME bitmap
+  reference — not a fresh `transferToImageBitmap` copy.
+
+  When the worker called `applyTransforms(bitmap, {all undefined})` after
+  `applyExifOrientation`, the returned "transformed" bitmap was the same
+  reference as the input. Then worker.ts called `bitmap.close()` on it
+  (closing the bitmap that came from `transferToImageBitmap()` upstream)
+  and passed it to `encodeViaOffscreenCanvas`, which called
+  `ctx.drawImage(bitmap, 0, 0)` — triggering the "image source is detached"
+  error in Chrome 149 / Safari iOS module workers.
+
+  v0.5.7 (the working baseline) didn't have `applyTransforms` at all —
+  the worker code was INLINE in the Angular wrapper and went straight from
+  `applyExifOrientation` → `encodeViaOffscreenCanvas`. The extract-to-core
+  refactor (v0.6.0+) added `applyTransforms` and the detach error appeared.
+
+  **Fix**: skip the `applyTransforms` call entirely when no transforms are
+  requested. Only invoke it when `rotate !== 0 || mirror || width || height`.
+  This matches v0.5.7's call ordering exactly.
+
 ## [0.10.5] - 2026-06-19
 
 ### Fixed
