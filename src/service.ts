@@ -11,6 +11,113 @@ import type {
 } from './types';
 
 /**
+ * Try to decode HEIC/HEIF to a standard format (JPEG by default).
+ *
+ * Strategy:
+ * 1. **Native ImageDecoder** (iOS Safari 16.4+): zero cost, fastest path
+ * 2. **heic2any** (Chrome/Edge/Firefox/etc): dynamic import of WASM-based decoder
+ *
+ * The heic2any library is ~150 KB and is loaded only when HEIC is encountered.
+ * This keeps the initial bundle small for the common case (no HEIC files).
+ *
+ * @returns Decoded JPEG Blob, or null if both paths fail
+ *
+ * Exported for unit testing (see `heic-decode.spec.ts`). Used internally by
+ * the `ImageCompression` class's HEIC pre-decode step.
+ */
+export async function tryDecodeHEICLazy(file: File | Blob): Promise<Blob | null> {
+  // Path 1: Native ImageDecoder (iOS Safari, Chrome 94+ for some formats)
+  if (typeof ImageDecoder !== 'undefined') {
+    try {
+      const supported = await ImageDecoder.isTypeSupported('image/heic');
+      if (supported) {
+        const buffer = await file.arrayBuffer();
+        const decoder = new ImageDecoder({ data: buffer, type: 'image/heic' });
+        const { image } = await decoder.decode();
+        decoder.close();
+        // VideoFrame -> ImageBitmap -> JPEG Blob
+        const bitmap = await createImageBitmap(image);
+        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(bitmap, 0, 0);
+          const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.95 });
+          bitmap.close();
+          return blob;
+        }
+      }
+    } catch {
+      // Native decode failed, fall through to heic2any
+    }
+  }
+
+  // Path 2: heic2any (WASM) — dynamic import, only on HEIC paths
+  try {
+    // heic2any is an optional, lazy-loaded peer — only present if user installs it.
+    // We type the module dynamically via 'any' to avoid hard dependency in our package.json.
+    // @ts-expect-error — heic2any is an optional dependency; only required at runtime when HEIC files are encountered.
+    const heic2anyModule = await import(/* @vite-ignore */ 'heic2any');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const heic2any = (heic2anyModule as any).default as (opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>;
+    const result = await heic2any({ blob: file, toType: 'image/jpeg' });
+    // heic2any may return a single Blob or array; take first
+    return Array.isArray(result) ? result[0] : result;
+  } catch {
+    // Both paths failed
+    return null;
+  }
+}
+
+/**
+ * Resolve the Worker URL using the best available strategy.
+ * Order of preference:
+ * 1. User-provided `window.__IC_WORKER_URL` (escape hatch for bundlers that
+ *    don't rewrite `new URL('./worker', import.meta.url)`)
+ * 2. Standard `new URL('./worker', import.meta.url)` (works in vanilla JS,
+ *    Vite, esbuild, and Angular CLI 17+ when the import resolves to a file
+ *    the bundler can locate)
+ * 3. Hard-coded fallback `/image-compression.worker.js?v=2` for consumers
+ *    that bundle the worker to a stable URL via a postbuild script.
+ *
+ * The standard `new URL('./worker', import.meta.url)` pattern is the
+ * recommended path. It enables the bundler (esbuild, Vite, Angular CLI 17+)
+ * to emit a separate worker chunk with proper cache-busting hash.
+ *
+ * The legacy `__IC_WORKER_URL` escape hatch is kept for backwards
+ * compatibility with consumers on older bundlers.
+ *
+ * Exported for unit testing (see `worker-resolution.spec.ts`).
+ */
+export function resolveWorker(): Worker | null {
+  if (typeof window !== 'undefined') {
+    const overrideUrl = (window as { __IC_WORKER_URL?: string }).__IC_WORKER_URL;
+    if (overrideUrl) {
+      return new Worker(overrideUrl, { type: 'module' });
+    }
+  }
+
+  // Strategy 2: Standard `new URL('./worker', import.meta.url)` pattern.
+  // Works in:
+  // - Vanilla JS (import.meta.url = dist/index.js location)
+  // - Vite, esbuild, Webpack 5, Angular CLI 17+ (when they can resolve the file)
+  try {
+    return new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+  } catch (err) {
+    // Strategy 3: Hard-coded fallback for bundlers that don't rewrite
+    // `new URL('./...', import.meta.url)`. Angular CLI 17's esbuild has
+    // known issues with this pattern when the import is from node_modules —
+    // the URL stays as the raw file name and the browser gets a 404.
+    // The `?v=2` cache buster works around Cloudflare Tunnel caching the
+    // SPA fallback (HTML) response for the worker URL.
+    console.warn(
+      '[ImageCompression] new URL("./worker", import.meta.url) failed, falling back to hard-coded URL:',
+      err,
+    );
+    return new Worker('/image-compression.worker.js?v=2', { type: 'module' });
+  }
+}
+
+/**
  * Framework-agnostic image compression service with progressive enhancement.
  *
  * Cascade paths (best to worst):
@@ -171,7 +278,7 @@ export class ImageCompression {
     // Verify worker context will have what we need
     if (typeof Worker === 'undefined') return null;
     try {
-      const worker = await this.resolveWorker();
+      const worker = await resolveWorker();
       if (!worker) return null;
       // Keep raw reference so terminate() can actually kill the worker
       this.rawWorker = worker;
@@ -179,53 +286,6 @@ export class ImageCompression {
     } catch (err) {
       console.warn('[ImageCompression] failed to spawn worker:', err);
       return null;
-    }
-  }
-
-  /**
-   * Resolve the Worker URL using the best available strategy.
-   * Order of preference:
-   * 1. User-provided `window.__IC_WORKER_URL` (escape hatch for bundlers that
-   *    don't rewrite `new URL('./worker', import.meta.url)`)
-   * 2. Standard `new URL('./worker', import.meta.url)` (works in vanilla JS,
-   *    Vite, esbuild, and Angular CLI 17+ when the import resolves to a file
-   *    the bundler can locate)
-   * 3. Hard-coded fallback `/image-compression.worker.js?v=2` for consumers
-   *    that bundle the worker to a stable URL via a postbuild script.
-   *
-   * The standard `new URL('./worker', import.meta.url)` pattern is the
-   * recommended path. It enables the bundler (esbuild, Vite, Angular CLI 17+)
-   * to emit a separate worker chunk with proper cache-busting hash.
-   *
-   * The legacy `__IC_WORKER_URL` escape hatch is kept for backwards
-   * compatibility with consumers on older bundlers.
-   */
-  private async resolveWorker(): Promise<Worker | null> {
-    if (typeof window !== 'undefined') {
-      const overrideUrl = (window as { __IC_WORKER_URL?: string }).__IC_WORKER_URL;
-      if (overrideUrl) {
-        return new Worker(overrideUrl, { type: 'module' });
-      }
-    }
-
-    // Strategy 2: Standard `new URL('./worker', import.meta.url)` pattern.
-    // Works in:
-    // - Vanilla JS (import.meta.url = dist/index.js location)
-    // - Vite, esbuild, Webpack 5, Angular CLI 17+ (when they can resolve the file)
-    try {
-      return new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
-    } catch (err) {
-      // Strategy 3: Hard-coded fallback for bundlers that don't rewrite
-      // `new URL('./...', import.meta.url)`. Angular CLI 17's esbuild has
-      // known issues with this pattern when the import is from node_modules —
-      // the URL stays as the raw file name and the browser gets a 404.
-      // The `?v=2` cache buster works around Cloudflare Tunnel caching the
-      // SPA fallback (HTML) response for the worker URL.
-      console.warn(
-        '[ImageCompression] new URL("./worker", import.meta.url) failed, falling back to hard-coded URL:',
-        err,
-      );
-      return new Worker('/image-compression.worker.js?v=2', { type: 'module' });
     }
   }
 
@@ -363,7 +423,7 @@ export class ImageCompression {
     //   tryDecodeHEIC may succeed in browsers where the main thread's path failed.
     if (this.isHEICFile(file)) {
       emit({ stage: 'decoding', percent: 10, message: 'Decoding HEIC (may load WASM decoder)...' });
-      const decoded = await this.tryDecodeHEICLazy(file);
+      const decoded = await tryDecodeHEICLazy(file);
       this.checkAborted(options.signal);
       if (decoded) {
         file = decoded;
@@ -917,61 +977,6 @@ export class ImageCompression {
   private isHEICFile(file: File | Blob): boolean {
     if (file instanceof File && /\.(heic|heif)$/i.test(file.name)) return true;
     return file.type === 'image/heic' || file.type === 'image/heif';
-  }
-
-  /**
-   * Try to decode HEIC/HEIF to a standard format (JPEG by default).
-   *
-   * Strategy:
-   * 1. **Native ImageDecoder** (iOS Safari 16.4+): zero cost, fastest path
-   * 2. **heic2any** (Chrome/Edge/Firefox/etc): dynamic import of WASM-based decoder
-   *
-   * The heic2any library is ~150 KB and is loaded only when HEIC is encountered.
-   * This keeps the initial bundle small for the common case (no HEIC files).
-   *
-   * @returns Decoded JPEG Blob, or null if both paths fail
-   */
-  private async tryDecodeHEICLazy(file: File | Blob): Promise<Blob | null> {
-    // Path 1: Native ImageDecoder (iOS Safari, Chrome 94+ for some formats)
-    if (typeof ImageDecoder !== 'undefined') {
-      try {
-        const supported = await ImageDecoder.isTypeSupported('image/heic');
-        if (supported) {
-          const buffer = await file.arrayBuffer();
-          const decoder = new ImageDecoder({ data: buffer, type: 'image/heic' });
-          const { image } = await decoder.decode();
-          decoder.close();
-          // VideoFrame -> ImageBitmap -> JPEG Blob
-          const bitmap = await createImageBitmap(image);
-          const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(bitmap, 0, 0);
-            const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.95 });
-            bitmap.close();
-            return blob;
-          }
-        }
-      } catch {
-        // Native decode failed, fall through to heic2any
-      }
-    }
-
-    // Path 2: heic2any (WASM) — dynamic import, only on HEIC paths
-    try {
-      // heic2any is an optional, lazy-loaded peer — only present if user installs it.
-      // We type the module dynamically via 'any' to avoid hard dependency in our package.json.
-      // @ts-expect-error — heic2any is an optional dependency; only required at runtime when HEIC files are encountered.
-      const heic2anyModule = await import(/* @vite-ignore */ 'heic2any');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const heic2any = (heic2anyModule as any).default as (opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>;
-      const result = await heic2any({ blob: file, toType: 'image/jpeg' });
-      // heic2any may return a single Blob or array; take first
-      return Array.isArray(result) ? result[0] : result;
-    } catch {
-      // Both paths failed
-      return null;
-    }
   }
 
   /**

@@ -1,6 +1,49 @@
 import type { DeviceCapabilities, DeviceTier } from './types';
 
 /**
+ * Pure tier calculation logic, extracted from `detectCapabilities()` for
+ * unit-testability.
+ *
+ * Rules:
+ * - `high`: ImageDecoder + OffscreenCanvas + Worker + createImageBitmap all work
+ * - `mid`:  OffscreenCanvas + Worker + createImageBitmap (no ImageDecoder)
+ * - `low`:  Canvas2D on main thread only
+ *
+ * Heuristics (downgrade `high` → `mid` on low-spec devices):
+ * - deviceMemory > 0 AND <= 2 (low RAM)
+ * - hardwareConcurrency <= 2 (low CPU)
+ *
+ * Exported so unit tests can verify the heuristic logic in isolation,
+ * without going through `detectCapabilities()` (which depends on happy-dom
+ * and the real browser environment).
+ *
+ * @internal Used by `detectCapabilities()`. Exported for testing.
+ */
+export function calculateTier(
+  hasImageDecoder: boolean,
+  offscreenWorks: boolean,
+  hasWorker: boolean,
+  bitmapWorks: boolean,
+  hardwareConcurrency: number,
+  deviceMemory: number,
+): DeviceTier {
+  let tier: DeviceTier = 'low';
+  if (hasImageDecoder && offscreenWorks && hasWorker && bitmapWorks) {
+    tier = 'high';
+  } else if (offscreenWorks && hasWorker && bitmapWorks) {
+    tier = 'mid';
+  }
+
+  // Heuristics override: low-spec devices skip high tier
+  if (tier === 'high') {
+    if (deviceMemory > 0 && deviceMemory <= 2) tier = 'mid';
+    if (hardwareConcurrency <= 2) tier = 'mid';
+  }
+
+  return tier;
+}
+
+/**
  * Detect device capabilities with 3 layers of safety:
  * 1. Static checks (typeof, in window) — fast, can have false positives
  * 2. Runtime validation (try actual operation) — authoritative
@@ -93,25 +136,15 @@ export async function detectCapabilities(): Promise<DeviceCapabilities> {
   const saveData = Boolean(nav.connection?.saveData);
   const effectiveType = (nav.connection?.effectiveType || '4g') as '2g' | '3g' | '4g' | 'slow-2g';
 
-  // Layer 3: Tier calculation
-  // High: ImageDecoder (for HEIC) + OffscreenCanvas + Worker + createImageBitmap all working
-  // Mid:  OffscreenCanvas + Worker + createImageBitmap (no ImageDecoder)
-  // Low:  Canvas2D on main thread only
-  //
-  // VideoEncoder is NOT required — we use Canvas convertToBlob for encoding.
-  // (VideoEncoder is for video codecs VP8/VP9/AV1, not still images.)
-  let tier: DeviceTier = 'low';
-  if (hasImageDecoder && offscreenWorks && hasWorker && bitmapWorks) {
-    tier = 'high';
-  } else if (offscreenWorks && hasWorker && bitmapWorks) {
-    tier = 'mid';
-  }
-
-  // Heuristics override: low-spec devices skip high tier
-  if (tier === 'high') {
-    if (deviceMemory > 0 && deviceMemory <= 2) tier = 'mid';
-    if (hardwareConcurrency <= 2) tier = 'mid';
-  }
+  // Layer 3: Tier calculation (delegated to pure calculateTier() for testability)
+  const tier = calculateTier(
+    hasImageDecoder,
+    offscreenWorks,
+    hasWorker,
+    bitmapWorks,
+    hardwareConcurrency,
+    deviceMemory,
+  );
 
   return {
     // hasWebCodecs is kept for backward compat — now means "has ImageDecoder".

@@ -105,47 +105,12 @@ describe('detectCapabilities', () => {
       }
     });
 
-    it.skip('downgrades high to mid on low-core device (heuristic override)', async () => {
-      // RE-SKIPPED in v0.4.0 cleanup: this test assumes tier='high' in the
-      // happy-dom test environment, but happy-dom doesn't ship
-      // OffscreenCanvas/Worker/createImageBitmap, so detectCapabilities()
-      // returns tier='low' (default). The heuristic override is only
-      // applied when tier === 'high', so the test sees tier='low' instead
-      // of the expected 'mid'.
-      //
-      // The implementation is correct — the test is environment-coupled.
-      // Re-enable by mocking capability detection at the navigator level
-      // (see tier-calculation.spec.ts in a follow-up if needed).
-      //
-      // Modern Chrome gives 'high' by default (has all APIs).
-      // The tier code has a heuristic: if hardwareConcurrency <= 2, downgrade high -> mid.
-      // We test that the override actually fires.
-      Object.defineProperty(navigator, 'hardwareConcurrency', {
-        value: 1,
-        configurable: true,
-      });
-      const caps = await detectCapabilities();
-      // With 1 core: 'high' is downgraded to 'mid'
-      expect(caps.tier).toBe('mid');
-    });
-
-    it.skip('downgrades high to mid on low-memory device (2GB heuristic)', async () => {
-      // RE-SKIPPED in v0.4.0 cleanup: same as the low-core test above —
-      // happy-dom env yields tier='low', not 'high', so the heuristic
-      // override (which only fires for 'high' → 'mid') doesn't apply.
-      // See comment above for details.
-      //
-      // Modern Chrome gives 'high' by default.
-      // The tier code downgrades if deviceMemory > 0 AND <= 2.
-      // We set memory to 1 GB and verify the override fires.
-      Object.defineProperty(navigator, 'deviceMemory', {
-        value: 1,
-        configurable: true,
-      });
-      const caps = await detectCapabilities();
-      // With 1 GB: 'high' is downgraded to 'mid'
-      expect(caps.tier).toBe('mid');
-    });
+    // NOTE: The "low-core" and "low-memory" tier-downgrade tests were
+    // moved to `tier-calculation.spec.ts` (v0.4.2). They were originally
+    // here, but tested through `detectCapabilities()` which is environment-
+    // coupled (happy-dom yields tier='low', not 'high', so the heuristic
+    // override never fires). The pure `calculateTier()` function is now
+    // exported and tested in isolation.
 
     it('respects hardwareConcurrency override (8 cores)', async () => {
       Object.defineProperty(navigator, 'hardwareConcurrency', {

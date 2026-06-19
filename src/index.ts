@@ -25,6 +25,7 @@
 
 // Main service class (Promise-based)
 export { ImageCompression } from './service';
+export { tryDecodeHEICLazy, resolveWorker } from './service';
 
 // Streaming functions (AsyncIterable-based)
 export { compress$, compressAll$ } from './stream';
@@ -51,7 +52,7 @@ export { CompressionError } from './types';
 export { isCompressionResult, isBatchResult } from './types';
 
 // Utility functions
-export { detectCapabilities } from './capabilities';
+export { detectCapabilities, calculateTier } from './capabilities';
 export { readExifOrientation } from './exif';
 export { extensionForMimeType } from './types';
 export { applyExifOrientation, applyRotation, resizeExact } from './worker-helpers';

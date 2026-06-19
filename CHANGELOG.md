@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-06-19
+
+### Added
+- **`calculateTier()` exported helper** in `capabilities.ts` — pure function that
+  encapsulates the tier calculation logic (base tier + low-spec heuristics).
+  Previously this logic was inline in `detectCapabilities()`. Now it's exported
+  and unit-testable in isolation, without depending on happy-dom or the real
+  browser environment. Used internally by `detectCapabilities()`.
+- **`tryDecodeHEICLazy()` exported helper** in `service.ts` — was a private
+  method on `ImageCompression`. Now a top-level exported function for the
+  same reason (testability). The class's HEIC pre-decode step calls this
+  function instead of having a private method.
+- **`resolveWorker()` exported helper** in `service.ts` — was a private
+  method. Now top-level for the same reason. The class's `createWorker()`
+  calls this function.
+
+### Changed
+- **Test coverage: 99 → 136 passing tests** (37 new). Test files: 13 → 16 (3 new).
+- **Skipped tests: 7 → 5** — the 2 tier-downgrade tests in Group 2 are removed
+  (their logic is now covered by `calculateTier()` tests in `tier-calculation.spec.ts`).
+  The 5 Group 1 (real Chrome 149) tests remain skipped — they require a real
+  browser environment and are out of scope for unit tests.
+
+### New tests
+- **`tier-calculation.spec.ts`** (19 tests) — pure unit tests for `calculateTier()`:
+  - Base tier assignment (high/mid/low for all 6 capability combinations)
+  - Low-memory heuristic (1GB, 2GB, 3GB, 0GB)
+  - Low-core heuristic (1, 2, 3, 8 cores)
+  - Combined heuristics (low-mem + low-core, low-mem + high-core, high-mem + low-core)
+  - Override guard (heuristic only applies to `high` tier, not `mid`/`low`)
+- **`heic-decode.spec.ts`** (10 tests) — tests for `tryDecodeHEICLazy()`:
+  - Both paths fail (no native + no heic2any) → returns null
+  - Function never throws (graceful fallback)
+  - Native ImageDecoder path: `isTypeSupported` is called with `'image/heic'`
+  - Skips native path when `isTypeSupported` returns false
+  - Falls through to heic2any when native decode throws
+  - heic2any returns Blob → wrapped and returned
+  - heic2any returns array → first Blob taken
+  - heic2any throws → null returned
+  - heic2any returns null → null returned
+  - heic2any called with `toType: 'image/jpeg'`
+- **`worker-resolution.spec.ts`** (8 tests) — tests for `resolveWorker()`:
+  - Strategy 1: `window.__IC_WORKER_URL` override (4 variations: relative URL,
+    takes precedence over standard pattern, no fall-through, absolute CDN URL)
+  - Strategy 3: hard-coded fallback when `import.meta.url` throws (URL constructor
+    mocked to throw), logs warning, uses `type: 'module'`
+  - Integration: returns the result of `new Worker(...)`
+
+### Notes
+- 141 total tests (136 pass + 5 skip). Test runtime: ~1 second.
+- Backward compatible — no breaking changes. `calculateTier`, `tryDecodeHEICLazy`,
+  and `resolveWorker` are new exports but existing API surface unchanged.
+- The 5 still-skipped tests (Group 1) test features that are already covered by
+  the passing 136 tests, so they remain skipped as out-of-scope-for-unit-tests
+  markers. They can be enabled by adding Playwright e2e tests in a future
+  release.
+
 ## [0.4.1] - 2026-06-19
 
 ### Removed
