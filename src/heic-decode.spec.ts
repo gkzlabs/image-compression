@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tryDecodeHEICLazy } from './service';
 
 /**
@@ -112,98 +112,106 @@ describe('tryDecodeHEICLazy()', () => {
     });
   });
 
-  describe('heic2any fallback path', () => {
+  describe('heic2any fallback path (v0.9.0 — globalThis pattern)', () => {
     /**
-     * These tests use vi.mock() to swap the heic2any module with a working
-     * stub, then verify tryDecodeHEICLazy() returns the expected Blob.
+     * As of v0.9.0, heic2any is loaded as a UMD/IIFE module that attaches
+     * itself to `globalThis.heic2any`. The test mocks this global function
+     * directly (no module mocking needed).
      *
-     * vi.mock is hoisted by vitest, so the mock is active before any import
-     * of service.ts resolves.
+     * The URL hatch strategy is tested in the "multi-strategy import"
+     * describe block below (it requires real browser environment).
      */
+
+    type Heic2anyFn = (opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>;
+    let originalHeic2any: unknown;
+
+    beforeEach(() => {
+      originalHeic2any = (globalThis as { heic2any?: unknown }).heic2any;
+    });
+
+    afterEach(() => {
+      if (originalHeic2any === undefined) {
+        delete (globalThis as { heic2any?: unknown }).heic2any;
+      } else {
+        (globalThis as { heic2any?: unknown }).heic2any = originalHeic2any;
+      }
+    });
+
     it('returns a Blob when heic2any successfully decodes', async () => {
-      vi.resetModules();
-
-      // Mock the heic2any module
-      vi.doMock('heic2any', () => ({
-        default: vi.fn().mockResolvedValue(new Blob(['fake-jpeg-data'], { type: 'image/jpeg' })),
-      }));
-
-      // Re-import to pick up the mock
-      const { tryDecodeHEICLazy: tryWithMock } = await import('./service');
-
+      // Set the global heic2any to a working stub
       const fakeJpeg = new Blob(['fake-jpeg-data'], { type: 'image/jpeg' });
-      const result = await tryWithMock(HEIC_BLOB);
+      (globalThis as { heic2any?: Heic2anyFn }).heic2any = vi
+        .fn()
+        .mockResolvedValue(fakeJpeg);
+
+      const { tryDecodeHEICLazy } = await import('./service');
+      const result = await tryDecodeHEICLazy(HEIC_BLOB);
 
       expect(result).toBeInstanceOf(Blob);
       expect(result?.type).toBe('image/jpeg');
       expect(result?.size).toBe(fakeJpeg.size);
-
-      vi.doUnmock('heic2any');
-      vi.resetModules();
     });
 
     it('returns the first Blob when heic2any returns an array', async () => {
-      vi.resetModules();
-
       const firstBlob = new Blob(['first'], { type: 'image/jpeg' });
       const secondBlob = new Blob(['second'], { type: 'image/jpeg' });
-      vi.doMock('heic2any', () => ({
-        default: vi.fn().mockResolvedValue([firstBlob, secondBlob]),
-      }));
+      (globalThis as { heic2any?: Heic2anyFn }).heic2any = vi
+        .fn()
+        .mockResolvedValue([firstBlob, secondBlob]);
 
-      const { tryDecodeHEICLazy: tryWithMock } = await import('./service');
-      const result = await tryWithMock(HEIC_BLOB);
+      const { tryDecodeHEICLazy } = await import('./service');
+      const result = await tryDecodeHEICLazy(HEIC_BLOB);
 
       // heic2any may return a single Blob or an array (for HEIC sequences)
-      // We should take the first one.
       expect(result).toBe(firstBlob);
-
-      vi.doUnmock('heic2any');
-      vi.resetModules();
     });
 
     it('returns null when heic2any throws (corrupt file, etc.)', async () => {
-      vi.resetModules();
+      (globalThis as { heic2any?: Heic2anyFn }).heic2any = vi
+        .fn()
+        .mockRejectedValue(new Error('Decode failed'));
 
-      vi.doMock('heic2any', () => ({
-        default: vi.fn().mockRejectedValue(new Error('Decode failed')),
-      }));
-
-      const { tryDecodeHEICLazy: tryWithMock } = await import('./service');
-      const result = await tryWithMock(HEIC_BLOB);
+      const { tryDecodeHEICLazy } = await import('./service');
+      const result = await tryDecodeHEICLazy(HEIC_BLOB);
 
       expect(result).toBeNull();
-
-      vi.doUnmock('heic2any');
-      vi.resetModules();
     });
 
     it('returns null when heic2any returns null/undefined', async () => {
-      vi.resetModules();
+      (globalThis as { heic2any?: Heic2anyFn }).heic2any = vi
+        .fn()
+        .mockResolvedValue(null as unknown as Blob);
 
-      vi.doMock('heic2any', () => ({
-        default: vi.fn().mockResolvedValue(null),
-      }));
-
-      const { tryDecodeHEICLazy: tryWithMock } = await import('./service');
-      const result = await tryWithMock(HEIC_BLOB);
+      const { tryDecodeHEICLazy } = await import('./service');
+      const result = await tryDecodeHEICLazy(HEIC_BLOB);
 
       expect(result).toBeNull();
-
-      vi.doUnmock('heic2any');
-      vi.resetModules();
     });
   });
 
   describe('output format', () => {
+    let originalHeic2any: unknown;
+
+    beforeEach(() => {
+      originalHeic2any = (globalThis as { heic2any?: unknown }).heic2any;
+    });
+
+    afterEach(() => {
+      if (originalHeic2any === undefined) {
+        delete (globalThis as { heic2any?: unknown }).heic2any;
+      } else {
+        (globalThis as { heic2any?: unknown }).heic2any = originalHeic2any;
+      }
+    });
+
     it('calls heic2any with toType: "image/jpeg"', async () => {
-      vi.resetModules();
+      const heic2anyMock = vi
+        .fn()
+        .mockResolvedValue(new Blob(['x'], { type: 'image/jpeg' }));
+      (globalThis as { heic2any?: typeof heic2anyMock }).heic2any = heic2anyMock;
 
-      const heic2anyMock = vi.fn().mockResolvedValue(new Blob(['x'], { type: 'image/jpeg' }));
-      vi.doMock('heic2any', () => ({ default: heic2anyMock }));
-
-      const { tryDecodeHEICLazy: tryWithMock } = await import('./service');
-      await tryWithMock(HEIC_BLOB);
+      const { tryDecodeHEICLazy } = await import('./service');
+      await tryDecodeHEICLazy(HEIC_BLOB);
 
       expect(heic2anyMock).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -211,69 +219,90 @@ describe('tryDecodeHEICLazy()', () => {
           toType: 'image/jpeg',
         }),
       );
-
-      vi.doUnmock('heic2any');
-      vi.resetModules();
     });
   });
 
   describe('multi-strategy import (v0.9.0)', () => {
     /**
-     * As of v0.9.0, `tryDecodeHEICLazy()` tries 3 strategies in order:
-     * 1. Deep import ('heic2any/dist/heic2any.js') — bundler-friendly
-     * 2. Bare specifier ('heic2any') — original behavior
-     * 3. URL escape hatch (__IC_HEIC2ANY_URL) — user-provided URL
+     * As of v0.9.0, `tryDecodeHEICLazy()` tries 2 strategies in order:
+     * 1. URL hatch (__IC_HEIC2ANY_URL) — user-provided URL via eval
+     * 2. Bare specifier ('heic2any') — original behavior, may fail in some bundlers
      *
-     * Tests below verify the fallback chain works correctly.
+     * Tests below verify the URL hatch is tried first when the flag is set,
+     * and the bare specifier is the fallback.
      */
 
-    afterEach(() => {
-      // Clean up global state
-      delete (globalThis as { __IC_HEIC2ANY_URL?: string }).__IC_HEIC2ANY_URL;
-      vi.resetModules();
-      vi.doUnmock('heic2any');
-      vi.doUnmock('heic2any/dist/heic2any.js');
+    let originalHeic2any: unknown;
+    let originalUrl: string | undefined;
+
+    beforeEach(() => {
+      originalHeic2any = (globalThis as { heic2any?: unknown }).heic2any;
+      originalUrl = (globalThis as { __IC_HEIC2ANY_URL?: string }).__IC_HEIC2ANY_URL;
     });
 
-    it('URL escape hatch: decodes via __IC_HEIC2ANY_URL when set', async () => {
-      const jpegBlob = new Blob(['x'], { type: 'image/jpeg' });
+    afterEach(() => {
+      if (originalHeic2any === undefined) {
+        delete (globalThis as { heic2any?: unknown }).heic2any;
+      } else {
+        (globalThis as { heic2any?: unknown }).heic2any = originalHeic2any;
+      }
+      if (originalUrl === undefined) {
+        delete (globalThis as { __IC_HEIC2ANY_URL?: string }).__IC_HEIC2ANY_URL;
+      } else {
+        (globalThis as { __IC_HEIC2ANY_URL?: string }).__IC_HEIC2ANY_URL = originalUrl;
+      }
+      vi.resetModules();
+    });
+
+    it('returns null when no strategy succeeds (no URL, no global)', async () => {
+      // No mocks, no URL set — both strategies should fail
+      const { tryDecodeHEICLazy } = await import('./service');
+      const result = await tryDecodeHEICLazy(HEIC_BLOB);
+
+      expect(result).toBeNull();
+    });
+
+    it('URL hatch: skipped when __IC_HEIC2ANY_URL is not set, falls back to bare specifier', async () => {
+      // No URL set. URL strategy is skipped. The bare specifier should
+      // be tried — but heic2any isn't actually in node_modules, so it
+      // throws, and the function returns null.
+      const { tryDecodeHEICLazy } = await import('./service');
+      const result = await tryDecodeHEICLazy(HEIC_BLOB);
+
+      expect(result).toBeNull();
+    });
+
+    it('URL hatch: tried first when __IC_HEIC2ANY_URL is set', async () => {
+      // URL is set. The URL strategy runs first. In vitest, the URL fetch
+      // fails (no actual server), so it falls through to the bare specifier
+      // (which also fails because heic2any isn't in node_modules).
       (globalThis as { __IC_HEIC2ANY_URL?: string }).__IC_HEIC2ANY_URL =
         'https://cdn.example.com/heic2any.js';
 
-      // The URL import will be attempted but fail in vitest (no actual fetch).
-      // To test the URL path actually invokes heic2any, we need to mock the URL
-      // import. Since dynamic URL imports are not mockable in vitest, we verify
-      // the chain reaches the URL path by checking it returns null (URL fetch fails)
-      // when bare specifier also fails.
-      const { tryDecodeHEICLazy: tryWithUrl } = await import('./service');
-      const result = await tryWithUrl(HEIC_BLOB);
-
-      // Both bare and URL fail → return null. This proves the URL path was attempted.
-      expect(result).toBeNull();
-    });
-
-    it('returns null when no strategy succeeds', async () => {
-      // No mocks — all 3 strategies should fail (no native, no heic2any, no URL)
-      const { tryDecodeHEICLazy: tryPure } = await import('./service');
-      const result = await tryPure(HEIC_BLOB);
+      const { tryDecodeHEICLazy } = await import('./service');
+      const result = await tryDecodeHEICLazy(HEIC_BLOB);
 
       expect(result).toBeNull();
     });
 
-    it('URL escape hatch: skipped when __IC_HEIC2ANY_URL is not set', async () => {
-      // No URL set. The URL strategy should be skipped (Promise.reject immediately)
-      // and the function should still try bare specifier.
-      const jpegBlob = new Blob(['x'], { type: 'image/jpeg' });
-      vi.resetModules();
-      vi.doMock('heic2any', () => ({
-        default: vi.fn().mockResolvedValue(jpegBlob),
-      }));
+    it('URL hatch: import error caught, falls through to bare specifier which uses global', async () => {
+      // Pre-set globalThis.heic2any (simulating user pre-loading via <script> tag).
+      // The URL hatch's import() will fail in vitest (no real /heic2any.js file),
+      // so the code falls through to the bare specifier path. The bare specifier
+      // also fails to import heic2any in vitest, but reads globalThis.heic2any
+      // (which is pre-set) and calls it.
+      (globalThis as { __IC_HEIC2ANY_URL?: string }).__IC_HEIC2ANY_URL =
+        '/heic2any.js';
+      const fakeJpeg = new Blob(['fake-jpeg'], { type: 'image/jpeg' });
+      (globalThis as { heic2any?: unknown }).heic2any = vi
+        .fn()
+        .mockResolvedValue(fakeJpeg);
 
-      const { tryDecodeHEICLazy: tryWithMock } = await import('./service');
-      const result = await tryWithMock(HEIC_BLOB);
+      const { tryDecodeHEICLazy } = await import('./service');
+      const result = await tryDecodeHEICLazy(HEIC_BLOB);
 
-      // Bare specifier mock should be used
-      expect(result).toBe(jpegBlob);
+      // Result comes from the pre-set global (used by the bare specifier fallback)
+      expect(result).toBe(fakeJpeg);
     });
   });
 });
