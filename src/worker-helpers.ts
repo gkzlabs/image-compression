@@ -12,13 +12,14 @@ import type { ExifOrientation } from './exif';
 
 /**
  * Resize a File/Blob to fit within maxWidthOrHeight, preserving aspect ratio.
- * Uses native `createImageBitmap()` with resize options (no OffscreenCanvas
- * round-trip, no transferToImageBitmap).
+ * Uses OffscreenCanvas with high-quality smoothing.
  *
- * v0.10.0: Replaces the OffscreenCanvas + drawImage + transferToImageBitmap
- * pipeline that triggered Chrome 149's "image source is detached" bug.
- * The native resize options are supported in Chrome 113+ and Firefox 121+,
- * with HW-accelerated resize built into the browser.
+ * v0.10.2: Reverted from native `createImageBitmap(file, {resizeWidth})` to
+ * OffscreenCanvas + `transferToImageBitmap()`. The async clone-based approach
+ * (v0.10.0/v0.10.1) left the source bitmap alive past the GPU readback in
+ * `convertToBlob`, triggering Chrome 149's "image source is detached" error.
+ * `transferToImageBitmap()` is **synchronous** and **detaches the source
+ * immediately**, eliminating the race condition.
  *
  * @param file Source image
  * @param maxWidthOrHeight Longest edge in pixels
@@ -28,26 +29,14 @@ export async function resizeOffscreen(
   file: File | Blob,
   maxWidthOrHeight: number,
 ): Promise<{ bitmap: ImageBitmap; width: number; height: number }> {
-  // Use native resize options — works around Chrome 149's OffscreenCanvas bug
-  // by avoiding the canvas round-trip entirely. The browser does the resize
-  // internally with HW acceleration.
-  //
-  // First create the bitmap to read original dimensions.
-  const probe = await createImageBitmap(file);
-  const { width: srcW, height: srcH } = probe;
-  probe.close();
+  const bitmap = await createImageBitmap(file);
+  const { width: srcW, height: srcH } = bitmap;
 
   // No resize needed if already small
   if (srcW <= maxWidthOrHeight && srcH <= maxWidthOrHeight) {
-    // Recreate from file (we closed the probe)
-    // Also clone to ensure stability (Chrome 149 detached-bitmap workaround)
-    const original = await createImageBitmap(file);
-    const stable = await createImageBitmap(original);
-    original.close();
-    return { bitmap: stable, width: srcW, height: srcH };
+    return { bitmap, width: srcW, height: srcH };
   }
 
-  // Calculate target dimensions
   const ratio = srcW / srcH;
   let targetW: number;
   let targetH: number;
@@ -59,24 +48,23 @@ export async function resizeOffscreen(
     targetW = Math.round(targetH * ratio);
   }
 
-  // v0.10.0: Use native `createImageBitmap(file, { resizeWidth, resizeHeight })`
-  // — this is the documented way to resize without going through OffscreenCanvas.
-  // The browser handles the resize internally, and the returned bitmap is
-  // stable (not detached, not transferred, drawable multiple times).
-  //
-  // Chrome 149 bug workaround: wrap the result in `createImageBitmap(bitmap)`
-  // to clone it. Native-resized bitmaps in Chrome 149 are sometimes already
-  // detached when used in a subsequent OffscreenCanvas drawImage, even though
-  // the resize succeeded. Cloning produces a stable bitmap.
-  const resized = await createImageBitmap(file, {
-    resizeWidth: targetW,
-    resizeHeight: targetH,
-    resizeQuality: 'high',
-  });
-  // Clone to work around Chrome 149's detached-bitmap issue
-  const stable = await createImageBitmap(resized);
-  resized.close();
-  return { bitmap: stable, width: targetW, height: targetH };
+  const canvas = new OffscreenCanvas(targetW, targetH);
+  const ctx = canvas.getContext('2d', { willReadFrequently: false });
+  if (!ctx) {
+    throw new Error('OffscreenCanvas 2d context unavailable');
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bitmap, 0, 0, targetW, targetH);
+
+  // Release the original bitmap (no longer needed)
+  bitmap.close();
+
+  // Convert canvas back to ImageBitmap for next steps.
+  // transferToImageBitmap() is sync and detaches the canvas backing
+  // — the new bitmap is independent of the canvas.
+  const resized = canvas.transferToImageBitmap();
+  return { bitmap: resized, width: targetW, height: targetH };
 }
 
 /**
@@ -95,15 +83,20 @@ export async function resizeOffscreen(
  *
  * Returns the original bitmap unchanged for orientation 1 (common case).
  *
+ * v0.10.2: Reverted to **synchronous** function with `transferToImageBitmap()`.
+ * The async version (v0.10.0+) used `await createImageBitmap(canvas)` which
+ * kept the source bitmap alive past Chrome 149's GPU readback, triggering
+ * "image source is detached" errors in the subsequent `convertToBlob` step.
+ *
  * Why we need this: when re-encoding via Canvas, the EXIF metadata is
  * stripped — including the orientation tag. The output image would appear
  * sideways without this transform. We rotate the actual pixels so the
  * output is correctly oriented without needing EXIF.
  */
-export async function applyExifOrientation(
+export function applyExifOrientation(
   bitmap: ImageBitmap,
   orientation: ExifOrientation,
-): Promise<{ bitmap: ImageBitmap; width: number; height: number }> {
+): { bitmap: ImageBitmap; width: number; height: number } {
   // Fast path: no rotation needed
   if (orientation === 1 || orientation < 1 || orientation > 8) {
     return { bitmap, width: bitmap.width, height: bitmap.height };
@@ -159,14 +152,20 @@ export async function applyExifOrientation(
   // Draw the bitmap centered on the transformed origin
   ctx.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2);
 
-  // v0.10.0: see resizeOffscreen() for Chrome 149 bitmap detach bug fix
-  const transformed = await createImageBitmap(canvas);
+  // transferToImageBitmap() is sync and detaches the canvas backing.
+  // The new bitmap is independent of the source, eliminating the
+  // Chrome 149 "image source is detached" race.
+  const transformed = canvas.transferToImageBitmap();
   return { bitmap: transformed, width: w, height: h };
 }
 
 /**
  * Encode a bitmap to a Blob using OffscreenCanvas.convertToBlob.
  * Hardware-accelerated in modern browsers.
+ *
+ * v0.10.2: Reverted to v0.5.7 pattern (no try/finally). The v0.10.1 try/finally
+ * was a workaround for the bitmap detach bug, which is now fixed at the source
+ * by using `transferToImageBitmap()` (sync) in the upstream helpers.
  *
  * This is the only viable encoding path for JPEG/WebP/PNG/AVIF (browser-dependent):
  * - WebCodecs VideoEncoder is for *video* codecs (VP8/VP9/AV1), not still images.
@@ -189,16 +188,8 @@ export async function encodeViaOffscreenCanvas(
   if (!ctx) {
     throw new Error('OffscreenCanvas 2d context unavailable for encode');
   }
-  // Per Chrome 149 docs / MDN pattern: draw the bitmap while it is active,
-  // run convertToBlob (which may be async), and ONLY close the source bitmap
-  // AFTER the blob has been fully produced. Closing earlier races with
-  // convertToBlob's internal GPU readback and trips "image source is detached".
-  try {
-    ctx.drawImage(bitmap, 0, 0);
-    return await canvas.convertToBlob({ type: format, quality });
-  } finally {
-    bitmap.close();
-  }
+  ctx.drawImage(bitmap, 0, 0);
+  return await canvas.convertToBlob({ type: format, quality });
 }
 
 /**
@@ -248,16 +239,19 @@ export async function tryDecodeHEIC(file: File | Blob): Promise<ImageBitmap | nu
  * Used when the caller wants to override EXIF auto-rotation or apply
  * additional transforms (e.g., rotate a vertical photo 90° for landscape).
  *
+ * v0.10.2: Made **synchronous** + `transferToImageBitmap()` to match v0.5.7
+ * architecture and eliminate the Chrome 149 bitmap detach race condition.
+ *
  * @param bitmap  Source image
  * @param rotate  Rotation in degrees clockwise (0 | 90 | 180 | 270)
  * @param mirror  Optional mirror ('horizontal' or 'vertical') applied AFTER rotation
  * @returns New bitmap with transforms applied
  */
-export async function applyRotation(
+export function applyRotation(
   bitmap: ImageBitmap,
   rotate: 0 | 90 | 180 | 270 = 0,
   mirror?: 'horizontal' | 'vertical',
-): Promise<{ bitmap: ImageBitmap; width: number; height: number }> {
+): { bitmap: ImageBitmap; width: number; height: number } {
   // Fast path: no rotation, no mirror → return as-is
   if (rotate === 0 && !mirror) {
     return { bitmap, width: bitmap.width, height: bitmap.height };
@@ -287,9 +281,8 @@ export async function applyRotation(
   ctx.translate(-bitmap.width / 2, -bitmap.height / 2);
   ctx.drawImage(bitmap, 0, 0);
 
-  // v0.10.0: see resizeOffscreen() for Chrome 149 bitmap detach bug fix
   return {
-    bitmap: await createImageBitmap(canvas),
+    bitmap: canvas.transferToImageBitmap(),
     width: w,
     height: h,
   };
@@ -304,18 +297,21 @@ export async function applyRotation(
  * - Both set + `keepAspectRatio: true`: fit-within-box (letterbox if needed)
  * - Both set + `keepAspectRatio: false` (default): stretch to exact size
  *
+ * v0.10.2: Made **synchronous** + `transferToImageBitmap()` for consistency
+ * with the v0.5.7 architecture.
+ *
  * @param bitmap  Source image
  * @param width   Target width in pixels
  * @param height  Target height in pixels (optional)
  * @param keepAspectRatio  If both width+height set, fit-within instead of stretching
  * @returns New bitmap with target dimensions
  */
-export async function resizeExact(
+export function resizeExact(
   bitmap: ImageBitmap,
   width?: number,
   height?: number,
   keepAspectRatio: boolean = false,
-): Promise<{ bitmap: ImageBitmap; width: number; height: number }> {
+): { bitmap: ImageBitmap; width: number; height: number } {
   let targetW: number;
   let targetH: number;
   const srcW = bitmap.width;
@@ -367,9 +363,8 @@ export async function resizeExact(
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(bitmap, 0, 0, targetW, targetH);
 
-  // v0.10.0: see resizeOffscreen() for Chrome 149 bitmap detach bug fix
   return {
-    bitmap: await createImageBitmap(canvas),
+    bitmap: canvas.transferToImageBitmap(),
     width: targetW,
     height: targetH,
   };
@@ -389,8 +384,13 @@ export { readExifOrientation } from './exif';
  * - Memory: 2 fewer ImageBitmap allocations
  * - CPU: avoids redundant rasterization passes
  * - Quality: less quality loss from multiple resizes
+ *
+ * v0.10.2: Reverted to **synchronous** function with `transferToImageBitmap()`.
+ * The async version (v0.10.0+) used `await createImageBitmap(canvas)` which
+ * kept the source bitmap alive past Chrome 149's GPU readback in
+ * `convertToBlob`, triggering "image source is detached" errors.
  */
-export async function applyTransforms(
+export function applyTransforms(
   bitmap: ImageBitmap,
   opts: {
     rotate?: 0 | 90 | 180 | 270;
@@ -399,7 +399,7 @@ export async function applyTransforms(
     height?: number;
     keepAspectRatio?: boolean;
   },
-): Promise<{ bitmap: ImageBitmap; width: number; height: number }> {
+): { bitmap: ImageBitmap; width: number; height: number } {
   const { rotate = 0, mirror, width, height, keepAspectRatio = false } = opts;
   const srcW = bitmap.width;
   const srcH = bitmap.height;
@@ -456,9 +456,8 @@ export async function applyTransforms(
   ctx.translate(-srcW / 2, -srcH / 2);
   ctx.drawImage(bitmap, 0, 0);
 
-  // v0.10.0: see resizeOffscreen() for Chrome 149 bitmap detach bug fix
   return {
-    bitmap: await createImageBitmap(canvas),
+    bitmap: canvas.transferToImageBitmap(),
     width: finalW,
     height: finalH,
   };

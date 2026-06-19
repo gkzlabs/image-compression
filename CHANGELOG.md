@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2] - 2026-06-19
+
+### Fixed
+- **Chrome 149 `InvalidStateError: image source is detached` — proper root cause fix**:
+  Reverted the bitmap helpers (`applyExifOrientation`, `applyTransforms`,
+  `applyRotation`, `resizeExact`) to **synchronous** functions that use
+  `canvas.transferToImageBitmap()`. The async `await createImageBitmap(canvas)`
+  approach introduced in v0.10.0 was the actual root cause: it kept the
+  source bitmap alive past the GPU readback in `convertToBlob`, triggering
+  the race.
+
+  `transferToImageBitmap()` is **synchronous** and **immediately detaches the
+  canvas backing**, so the new bitmap is independent of the source bitmap
+  by the time we reach the next `await`. This matches the v0.5.7 architecture
+  (which has been confirmed working on the same hardware that v0.10.x fails
+  on — see CHANGELOG v0.5.7 entry and the live test at
+  https://compress.gkz.info/).
+
+- **`resizeOffscreen()` reverted to v0.5.7 OffscreenCanvas pipeline**:
+  Removed the native `createImageBitmap(file, {resizeWidth, ...})` shortcut
+  (v0.10.0) and the extra `createImageBitmap(bitmap)` clone workaround
+  (v0.10.1). The original OffscreenCanvas + drawImage + transferToImageBitmap
+  pipeline is the only one that has been verified to work in production on
+  Chrome 149.
+
+- **`encodeViaOffscreenCanvas()` reverted to v0.5.7 pattern (no try/finally)**:
+  The v0.10.1 `try { drawImage; convertToBlob } finally { bitmap.close() }`
+  pattern is no longer needed because the upstream helpers now detach the
+  source bitmap synchronously. The caller (`worker.ts`) closes the bitmap
+  after the encode step, just like v0.5.7.
+
+### Removed
+- `src/v101-encoding.test.ts` — tests for the v0.10.1 try/finally close
+  pattern. With v0.10.2 the bitmap close lifecycle is back in the caller
+  and the helper no longer owns it. The previous test expectations (close
+  called inside the helper) are no longer correct.
+
 ## [0.10.1] - 2026-06-19
 
 ### Fixed

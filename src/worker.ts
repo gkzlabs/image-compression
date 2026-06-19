@@ -85,7 +85,8 @@ const api: ImageWorkerApi = {
       if (rotate === undefined) {
         const orientation = await readExifOrientation(file);
         if (orientation !== 1) {
-          const rotated = await applyExifOrientation(bitmap, orientation);
+          // v0.10.2: applyExifOrientation is sync again (uses transferToImageBitmap)
+          const rotated = applyExifOrientation(bitmap, orientation);
           bitmap.close();
           bitmap = rotated.bitmap;
           emit('resizing', 55);
@@ -97,7 +98,8 @@ const api: ImageWorkerApi = {
 
     // Step 3: combined manual rotate + mirror + exact resize in a SINGLE draw
     // (v0.3.0 optimization: replaces 3 separate bitmap operations with 1)
-    const transformed = await applyTransforms(bitmap, {
+    // v0.10.2: applyTransforms is sync again (uses transferToImageBitmap)
+    const transformed = applyTransforms(bitmap, {
       rotate,
       mirror,
       width,
@@ -110,10 +112,12 @@ const api: ImageWorkerApi = {
     bitmap = transformed.bitmap;
 
     // Step 4: encode (1 final operation)
-    // encodeViaOffscreenCanvas closes the bitmap in its finally block (v0.10.1+
-    // fix for Chrome 149 "image source is detached" — close must run AFTER
-    // convertToBlob, not before).
+    // v0.10.2: encodeViaOffscreenCanvas reverted to v0.5.7 pattern (sync
+    // drawImage + await convertToBlob). The v0.10.1 try/finally is no longer
+    // needed because transferToImageBitmap() in the helpers above already
+    // detaches the source bitmap synchronously, eliminating the race.
     const blob = await encodeViaOffscreenCanvas(bitmap, format, quality);
+    bitmap.close();
     emit('encoding', 95);
 
     return { blob, width: outWidth, height: outHeight, mimeType: format };

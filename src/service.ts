@@ -867,7 +867,8 @@ export class ImageCompression {
       const { readExifOrientation, applyExifOrientation } = await import('./worker-helpers');
       const orientation = await readExifOrientation(file);
       if (orientation !== 1) {
-        const rotated = await applyExifOrientation(bitmap, orientation);
+        // v0.10.2: applyExifOrientation is sync again (uses transferToImageBitmap)
+        const rotated = applyExifOrientation(bitmap, orientation);
         bitmap.close();
         bitmap = rotated.bitmap as unknown as ImageBitmap;
         outWidth = rotated.width;
@@ -879,7 +880,8 @@ export class ImageCompression {
     // Manual rotation / mirror
     if (rotate !== undefined || mirror !== undefined) {
       const { applyRotation } = await import('./worker-helpers');
-      const rotated = await applyRotation(bitmap, rotate ?? 0, mirror);
+      // v0.10.2: applyRotation is sync again (uses transferToImageBitmap)
+      const rotated = applyRotation(bitmap, rotate ?? 0, mirror);
       bitmap.close();
       bitmap = rotated.bitmap as unknown as ImageBitmap;
       outWidth = rotated.width;
@@ -894,7 +896,8 @@ export class ImageCompression {
     if (width !== undefined || height !== undefined) {
       // Exact resize: use helper
       const { resizeExact } = await import('./worker-helpers');
-      const resized = await resizeExact(bitmap, width ?? outWidth, height, keepAspectRatio ?? false);
+      // v0.10.2: resizeExact is sync again (uses transferToImageBitmap)
+      const resized = resizeExact(bitmap, width ?? outWidth, height, keepAspectRatio ?? false);
       bitmap.close();
       bitmap = resized.bitmap as unknown as ImageBitmap;
       targetW = resized.width;
@@ -912,7 +915,8 @@ export class ImageCompression {
         }
         // Apply via OffscreenCanvas helper for consistency
         const { resizeExact } = await import('./worker-helpers');
-        const resized = await resizeExact(bitmap, targetW, targetH, false);
+        // v0.10.2: resizeExact is sync again (uses transferToImageBitmap)
+        const resized = resizeExact(bitmap, targetW, targetH, false);
         bitmap.close();
         bitmap = resized.bitmap as unknown as ImageBitmap;
         targetW = resized.width;

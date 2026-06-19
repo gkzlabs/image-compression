@@ -1,6 +1,7 @@
 /**
  * Tests for applyRotation() — manual rotation and mirror transforms.
  */
+import { describe, it, expect } from 'vitest';
 import { applyRotation, resizeExact } from './worker-helpers';
 
 describe('applyRotation()', () => {
@@ -22,7 +23,8 @@ describe('applyRotation()', () => {
 
   it('rotate=0, no mirror returns the same bitmap (fast path)', async () => {
     const bitmap = await makeTestBitmap();
-    const result = await applyRotation(bitmap, 0);
+    // v0.10.2: applyRotation is sync again
+    const result = applyRotation(bitmap, 0);
     expect(result.width).toBe(100);
     expect(result.height).toBe(50);
     expect(result.bitmap).toBe(bitmap);
@@ -30,42 +32,42 @@ describe('applyRotation()', () => {
 
   it('rotate=90 swaps width and height', async () => {
     const bitmap = await makeTestBitmap(100, 50);
-    const result = await applyRotation(bitmap, 90);
+    const result = applyRotation(bitmap, 90);
     expect(result.width).toBe(50);
     expect(result.height).toBe(100);
   });
 
   it('rotate=180 keeps width and height', async () => {
     const bitmap = await makeTestBitmap(100, 50);
-    const result = await applyRotation(bitmap, 180);
+    const result = applyRotation(bitmap, 180);
     expect(result.width).toBe(100);
     expect(result.height).toBe(50);
   });
 
   it('rotate=270 swaps width and height', async () => {
     const bitmap = await makeTestBitmap(100, 50);
-    const result = await applyRotation(bitmap, 270);
+    const result = applyRotation(bitmap, 270);
     expect(result.width).toBe(50);
     expect(result.height).toBe(100);
   });
 
   it('mirror=horizontal produces a valid bitmap (no throw)', async () => {
     const bitmap = await makeTestBitmap();
-    const result = await applyRotation(bitmap, 0, 'horizontal');
+    const result = applyRotation(bitmap, 0, 'horizontal');
     expect(result.width).toBe(100);
     expect(result.height).toBe(50);
   });
 
   it('mirror=vertical produces a valid bitmap (no throw)', async () => {
     const bitmap = await makeTestBitmap();
-    const result = await applyRotation(bitmap, 0, 'vertical');
+    const result = applyRotation(bitmap, 0, 'vertical');
     expect(result.width).toBe(100);
     expect(result.height).toBe(50);
   });
 
   it('rotate=180 + mirror=horizontal combines transforms', async () => {
     const bitmap = await makeTestBitmap(100, 50);
-    const result = await applyRotation(bitmap, 180, 'horizontal');
+    const result = applyRotation(bitmap, 180, 'horizontal');
     expect(result.width).toBe(100);
     expect(result.height).toBe(50);
   });
