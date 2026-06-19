@@ -112,10 +112,11 @@ const api: ImageWorkerApi = {
     bitmap = transformed.bitmap;
 
     // Step 4: encode (1 final operation)
-    // v0.10.2: encodeViaOffscreenCanvas reverted to v0.5.7 pattern (sync
-    // drawImage + await convertToBlob). The v0.10.1 try/finally is no longer
-    // needed because transferToImageBitmap() in the helpers above already
-    // detaches the source bitmap synchronously, eliminating the race.
+    // v0.10.3: encodeViaOffscreenCanvas has its own try/finally to close
+    // the source bitmap as a safety net. The redundant bitmap.close() here
+    // is a no-op on the already-closed bitmap (per spec) but serves as
+    // documentation of intent — encode is the last step that touches the
+    // bitmap, so the resource lifetime ends here.
     const blob = await encodeViaOffscreenCanvas(bitmap, format, quality);
     bitmap.close();
     emit('encoding', 95);

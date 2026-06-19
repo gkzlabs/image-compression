@@ -163,9 +163,15 @@ export function applyExifOrientation(
  * Encode a bitmap to a Blob using OffscreenCanvas.convertToBlob.
  * Hardware-accelerated in modern browsers.
  *
- * v0.10.2: Reverted to v0.5.7 pattern (no try/finally). The v0.10.1 try/finally
- * was a workaround for the bitmap detach bug, which is now fixed at the source
- * by using `transferToImageBitmap()` (sync) in the upstream helpers.
+ * v0.10.3: Re-added `try/finally` as a **safety net** for guaranteed bitmap
+ * cleanup. The race-condition root cause was fixed in v0.10.2 by reverting
+ * the upstream helpers to sync + `transferToImageBitmap()` (which detaches
+ * the source bitmap synchronously, so it's already gone by the next await).
+ * The `try/finally` here is **defensive, not a race-condition workaround**:
+ *   - Closes the source bitmap even if `convertToBlob` throws (GPU OOM,
+ *     context loss, etc.) — prevents resource leak in the Worker.
+ *   - Safe to call even on an already-closed bitmap (no-op in spec).
+ *   - Sync code in a Worker is fine — it doesn't block the main thread.
  *
  * This is the only viable encoding path for JPEG/WebP/PNG/AVIF (browser-dependent):
  * - WebCodecs VideoEncoder is for *video* codecs (VP8/VP9/AV1), not still images.
@@ -188,8 +194,18 @@ export async function encodeViaOffscreenCanvas(
   if (!ctx) {
     throw new Error('OffscreenCanvas 2d context unavailable for encode');
   }
-  ctx.drawImage(bitmap, 0, 0);
-  return await canvas.convertToBlob({ type: format, quality });
+  // Sync drawImage is safe — source bitmap is still alive at this point.
+  // v0.10.2 already detached it via transferToImageBitmap() in upstream
+  // helpers, but if not, the try/finally below is a guaranteed cleanup.
+  try {
+    ctx.drawImage(bitmap, 0, 0);
+    return await canvas.convertToBlob({ type: format, quality });
+  } finally {
+    // Defensive close — guarantees the bitmap is released even if
+    // convertToBlob throws (GPU OOM, context loss, etc.). Safe to call
+    // on an already-closed bitmap (no-op per spec).
+    bitmap.close();
+  }
 }
 
 /**

@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.3] - 2026-06-19
+
+### Fixed
+- **`encodeViaOffscreenCanvas()` re-adds `try/finally` as a safety net**:
+  The v0.10.1 try/finally was removed in v0.10.2 because the upstream
+  sync `transferToImageBitmap()` was the actual root cause fix. But
+  defensive `try/finally` belongs in the encode step regardless, because:
+    - Closes the source bitmap even if `convertToBlob` throws (GPU OOM,
+      context loss, etc.) — prevents resource leak in the Worker.
+    - Safe to call even on an already-closed bitmap (no-op in spec).
+    - Sync code in a Worker is fine — it doesn't block the main thread.
+
+  This is **defensive cleanup, not a race-condition workaround**. The
+  race condition was fixed at the source in v0.10.2 (sync `transferToImageBitmap()`).
+  The `try/finally` here guarantees no resource leak in the Worker on
+  any error path.
+
+### Added
+- `src/v103-encoding.test.ts` — 4 new tests for the v0.10.3 try/finally
+  safety net:
+    - Bitmap is closed on successful encode
+    - Bitmap is closed even when `convertToBlob` throws
+    - Re-closing an already-closed bitmap is safe (no-throw)
+    - Format/quality options are respected
+
 ## [0.10.2] - 2026-06-19
 
 ### Fixed
