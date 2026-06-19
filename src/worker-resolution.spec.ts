@@ -8,7 +8,7 @@ import { resolveWorker } from './service';
  * 1. `window.__IC_WORKER_URL` (user override) — escape hatch for bundlers
  *    that don't rewrite `new URL('./worker', import.meta.url)`
  * 2. `new URL('./worker.js', import.meta.url)` — standard bundler pattern
- * 3. Hard-coded `/image-compression.worker.js?v=2` — final fallback
+ * 3. Hard-coded `/image-compression.worker.js?v=4` — final fallback
  *
  * We mock the `Worker` constructor in each test to verify which URL was
  * used (and which strategy was selected). The mock factory is replaced
@@ -79,7 +79,7 @@ describe('resolveWorker()', () => {
   });
 
   describe('Strategy 3: hard-coded fallback', () => {
-    it('falls back to /image-compression.worker.js?v=2 when import.meta.url throws', () => {
+    it('falls back to /image-compression.worker.js?v=4 when import.meta.url throws', () => {
       // Force strategy 2 to fail by mocking the URL constructor to throw.
       // This simulates bundlers that don't support the `new URL('./worker',
       // import.meta.url)` pattern (e.g. Angular CLI 17 esbuild on
@@ -97,7 +97,7 @@ describe('resolveWorker()', () => {
         // The first arg of `new Worker(...)` may be a string (hard-coded) or
         // a URL (standard pattern). We expect a string for the fallback.
         expect(typeof lastCall?.[0]).toBe('string');
-        expect(lastCall?.[0]).toBe('/image-compression.worker.js?v=2');
+        expect(lastCall?.[0]).toBe('/image-compression.worker.js?v=4');
       } finally {
         (globalThis as { URL?: unknown }).URL = originalURL;
       }

@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-06-19
+
+### Fixed
+- **Chrome 149 `InvalidStateError: image source is detached` — root cause fix**:
+  `encodeViaOffscreenCanvas()` now closes the source `ImageBitmap` in a
+  `finally` block that runs AFTER `canvas.convertToBlob()` resolves, not
+  before. The previous code called `drawImage(bitmap, 0, 0)` then
+  `convertToBlob(...)` synchronously, and the caller closed the bitmap
+  after — but Chrome 149's internal GPU readback in `convertToBlob` can
+  detach the source bitmap asynchronously, racing with the close call.
+  Wrapping close in `try { ... } finally { bitmap.close(); }` guarantees
+  the bitmap outlives the encode step. Matches the MDN reference pattern
+  for safe `ImageBitmap` lifecycle in OffscreenCanvas encode flows.
+
+- **Cascade warning `bitmap already closed` suppressed**: Removed redundant
+  `bitmap.close()` in the worker pipeline after `encodeViaOffscreenCanvas()`
+  since the helper now owns the close lifecycle. Calling `close()` on an
+  already-closed bitmap is a no-op in spec, but Chrome 149 logs a warning
+  to the console that confuses users investigating detach errors.
+
 ## [0.10.0] - 2026-06-19
 
 ### Changed

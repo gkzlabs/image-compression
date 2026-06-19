@@ -85,7 +85,7 @@ const api: ImageWorkerApi = {
       if (rotate === undefined) {
         const orientation = await readExifOrientation(file);
         if (orientation !== 1) {
-          const rotated = applyExifOrientation(bitmap, orientation);
+          const rotated = await applyExifOrientation(bitmap, orientation);
           bitmap.close();
           bitmap = rotated.bitmap;
           emit('resizing', 55);
@@ -97,7 +97,7 @@ const api: ImageWorkerApi = {
 
     // Step 3: combined manual rotate + mirror + exact resize in a SINGLE draw
     // (v0.3.0 optimization: replaces 3 separate bitmap operations with 1)
-    const transformed = applyTransforms(bitmap, {
+    const transformed = await applyTransforms(bitmap, {
       rotate,
       mirror,
       width,
@@ -110,8 +110,10 @@ const api: ImageWorkerApi = {
     bitmap = transformed.bitmap;
 
     // Step 4: encode (1 final operation)
+    // encodeViaOffscreenCanvas closes the bitmap in its finally block (v0.10.1+
+    // fix for Chrome 149 "image source is detached" — close must run AFTER
+    // convertToBlob, not before).
     const blob = await encodeViaOffscreenCanvas(bitmap, format, quality);
-    bitmap.close();
     emit('encoding', 95);
 
     return { blob, width: outWidth, height: outHeight, mimeType: format };

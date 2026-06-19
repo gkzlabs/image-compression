@@ -175,7 +175,7 @@ export function resolveWorker(): Worker | null {
       '[ImageCompression] new URL("./worker", import.meta.url) failed, falling back to hard-coded URL:',
       err,
     );
-    return new Worker('/image-compression.worker.js?v=2', { type: 'module' });
+    return new Worker('/image-compression.worker.js?v=4', { type: 'module' });
   }
 }
 
