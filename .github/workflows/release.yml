@@ -72,9 +72,9 @@ jobs:
           echo "Version match: $PKG_VERSION"
 
       - name: Publish to npm (with OIDC provenance)
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ''   # forces OIDC; do NOT set NPM_TOKEN
+        run: |
+          npm install -g npm@latest
+          npm publish --provenance --access public
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
