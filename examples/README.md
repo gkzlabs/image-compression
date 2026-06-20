@@ -1,4 +1,4 @@
-# @gkz/image-compression — Examples
+# @gkzlabs/image-compression — Examples
 
 Five complete, working examples demonstrating the same library API across different frameworks. Each example:
 
@@ -32,7 +32,7 @@ npm run dev
 Every example uses the same library calls:
 
 ```ts
-import { ImageCompression, CompressionError } from '@gkz/image-compression';
+import { ImageCompression, CompressionError } from '@gkzlabs/image-compression';
 
 // 1. Initialize
 const svc = new ImageCompression();

@@ -1,4 +1,4 @@
-# @gkz/image-compression — React Example
+# @gkzlabs/image-compression — React Example
 
 React 18 + TypeScript example using **hooks** (useState, useEffect, useRef).
 
@@ -30,8 +30,8 @@ The key file: [`src/main.tsx`](./src/main.tsx) (~120 lines, fully commented).
 
 ```tsx
 import { useEffect, useRef, useState } from 'react';
-import { ImageCompression, CompressionError } from '@gkz/image-compression';
-import type { CompressionResult, DeviceCapabilities } from '@gkz/image-compression';
+import { ImageCompression, CompressionError } from '@gkzlabs/image-compression';
+import type { CompressionResult, DeviceCapabilities } from '@gkzlabs/image-compression';
 
 function ImageCompressor() {
   // 1. Hold service in a ref (survives re-renders, not a dep of useEffect)

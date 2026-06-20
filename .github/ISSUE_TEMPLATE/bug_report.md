@@ -13,7 +13,7 @@ A clear and concise description of what the bug is.
 Minimal code snippet or steps to reproduce:
 
 ```ts
-import { ImageCompression } from '@gkz/image-compression';
+import { ImageCompression } from '@gkzlabs/image-compression';
 
 // your code here
 ```
@@ -28,7 +28,7 @@ What actually happened. Include error messages, console output, or screenshots.
 
 ## Environment
 
-- Library version: `npm ls @gkz/image-compression` → output
+- Library version: `npm ls @gkzlabs/image-compression` → output
 - Browser + version:
 - OS:
 - Framework (if any): vanilla / React / Vue / Svelte / Angular

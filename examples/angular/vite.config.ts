@@ -41,6 +41,6 @@ export default defineConfig({
   // Use a different port for preview to avoid conflict with dev server.
   preview: { port: 4300, host: '127.0.0.1' },
   optimizeDeps: {
-    exclude: ['@gkz/image-compression'],
+    exclude: ['@gkzlabs/image-compression'],
   },
 });

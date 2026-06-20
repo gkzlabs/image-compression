@@ -22,7 +22,7 @@
 
 - **Browser:** <!-- Chrome 120, Safari 16.3, Firefox 121, etc. -->
 - **OS:** <!-- macOS 14, iOS 16.3, Windows 11, etc. -->
-- **@gkz/image-compression version:** <!-- e.g. 0.1.0 -->
+- **@gkzlabs/image-compression version:** <!-- e.g. 0.1.0 -->
 - **Node.js version:** <!-- if applicable -->
 - **Framework:** <!-- Angular 17, React 18, vanilla JS, etc. -->
 
@@ -31,7 +31,7 @@
 <!-- Minimal reproduction code. The shorter, the better. -->
 
 ```ts
-import { ImageCompression } from '@gkz/image-compression';
+import { ImageCompression } from '@gkzlabs/image-compression';
 
 const svc = new ImageCompression();
 // ...

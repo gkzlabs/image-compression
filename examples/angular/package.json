@@ -1,8 +1,8 @@
 {
-  "name": "@gkz/image-compression-example-angular",
+  "name": "@gkzlabs/image-compression-example-angular",
   "version": "0.10.20",
   "private": true,
-  "description": "Angular 18 + Vite (Analog plugin) example for @gkz/image-compression. The worker is auto-bundled by Vite — zero config required.",
+  "description": "Angular 18 + Vite (Analog plugin) example for @gkzlabs/image-compression. The worker is auto-bundled by Vite — zero config required.",
   "type": "module",
   "scripts": {
     "start": "vite",
@@ -19,7 +19,7 @@
     "@angular/platform-browser": "^18.2.0",
     "@angular/platform-browser-dynamic": "^18.2.0",
     "@angular/router": "^18.2.0",
-    "@gkz/image-compression": "file:../..",
+    "@gkzlabs/image-compression": "file:../..",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.14.10"

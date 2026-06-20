@@ -1,4 +1,4 @@
-# @gkz/image-compression — Svelte 5 Example
+# @gkzlabs/image-compression — Svelte 5 Example
 
 Svelte 5 + TypeScript example using `$state` runes (Svelte 5 reactive primitives).
 
@@ -30,8 +30,8 @@ The key file: [`src/App.svelte`](./src/App.svelte) (~150 lines, fully commented)
 
 ```svelte
 <script lang="ts">
-  import { ImageCompression, CompressionError } from '@gkz/image-compression';
-  import type { CompressionResult, DeviceCapabilities } from '@gkz/image-compression';
+  import { ImageCompression, CompressionError } from '@gkzlabs/image-compression';
+  import type { CompressionResult, DeviceCapabilities } from '@gkzlabs/image-compression';
 
   // Reactive state (Svelte 5 runes)
   let caps = $state<DeviceCapabilities | null>(null);
@@ -82,7 +82,7 @@ The key file: [`src/App.svelte`](./src/App.svelte) (~150 lines, fully commented)
 </script>
 
 <div class="demo">
-  <h1>🖼️ @gkz/image-compression <span class="badge">Svelte</span></h1>
+  <h1>🖼️ @gkzlabs/image-compression <span class="badge">Svelte</span></h1>
 
   {#if caps}
     <details>

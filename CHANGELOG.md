@@ -5,10 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.10.21] - 2026-06-20
+## [0.10.22] - 2026-06-20
 
 ### Changed
-- **Package renamed**: `@GKz/image-compression` → `@gkz/image-compression` (npm requires lowercase scopes).
+- **Package renamed**: `@GKz/image-compression` → `@gkzlabs/image-compression` (npm requires lowercase scopes; switched to the `@gkzlabs` scope to match the npm user that owns this package).
 - **Repository moved**: GitLab (private) → GitHub at [gkzlabs/image-compression](https://github.com/gkzlabs/image-compression).
 
 ### Added
@@ -724,7 +724,7 @@ framework examples — pick whichever fits your needs.
 ## [0.1.0] - 2026-06-18
 
 ### Added
-- Initial release of `@gkz/image-compression` framework-agnostic core
+- Initial release of `@gkzlabs/image-compression` framework-agnostic core
 - `ImageCompression` class with Promise-based API (`compress`, `compressAll`, `getCapabilities`)
 - `compress$()` and `compressAll$()` — native `AsyncIterable` streaming API (no RxJS dependency)
 - 4-path cascade: `webcodecs-worker` → `offscreen-worker` → `canvas-main` → `server-fallback`

@@ -1,6 +1,6 @@
 # Examples — Detailed Usage Guide
 
-This guide explains the **framework-specific binding patterns** for using `@gkz/image-compression` across different frameworks, common pitfalls, performance tips, and HEIC support.
+This guide explains the **framework-specific binding patterns** for using `@gkzlabs/image-compression` across different frameworks, common pitfalls, performance tips, and HEIC support.
 
 > 📖 For per-example READMEs, see [`examples/<framework>/README.md`](../examples/).
 
@@ -22,13 +22,13 @@ This guide explains the **framework-specific binding patterns** for using `@gkz/
 The library is **framework-agnostic** — a single class `ImageCompression` handles all the work.
 
 ```ts
-import { ImageCompression, CompressionError } from '@gkz/image-compression';
+import { ImageCompression, CompressionError } from '@gkzlabs/image-compression';
 import type {
   CompressionOptions,
   CompressionResult,
   DeviceCapabilities,
   BatchProgress,
-} from '@gkz/image-compression';
+} from '@gkzlabs/image-compression';
 
 const svc = new ImageCompression();
 

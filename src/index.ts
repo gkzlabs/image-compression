@@ -1,12 +1,12 @@
 /**
- * @gkz/image-compression
+ * @gkzlabs/image-compression
  *
  * Framework-agnostic image compression for the browser. Pure web APIs only.
  * Works with any framework (Angular, React, Vue, Svelte) or vanilla JS.
  *
  * @example
  * ```ts
- * import { ImageCompression } from '@gkz/image-compression';
+ * import { ImageCompression } from '@gkzlabs/image-compression';
  *
  * const svc = new ImageCompression();
  * const result = await svc.compress(file, { quality: 0.85 });

@@ -1,4 +1,4 @@
-# @gkz/image-compression
+# @gkzlabs/image-compression
 
 [![Version](https://img.shields.io/github/package-json/v/gkzlabs/image-compression)](https://github.com/gkzlabs/image-compression/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -28,7 +28,7 @@ A modern, progressive-enhancement image compression library that runs entirely i
 ## 📦 Installation
 
 ```bash
-npm install @gkz/image-compression
+npm install @gkzlabs/image-compression
 # or install directly from GitHub
 npm install git+ssh://git@github.com/gkzlabs/image-compression.git
 ```
@@ -38,7 +38,7 @@ npm install git+ssh://git@github.com/gkzlabs/image-compression.git
 ### Promise-based (vanilla JS)
 
 ```ts
-import { ImageCompression } from '@gkz/image-compression';
+import { ImageCompression } from '@gkzlabs/image-compression';
 
 const svc = new ImageCompression();
 const result = await svc.compress(file, { quality: 0.85, maxWidthOrHeight: 2048 });
@@ -54,7 +54,7 @@ svc.dispose();
 ### Streaming (AsyncIterable)
 
 ```ts
-import { compress$ } from '@gkz/image-compression';
+import { compress$ } from '@gkzlabs/image-compression';
 
 for await (const evt of compress$(file, { quality: 0.85 }, svc)) {
   if ('percent' in evt) {
@@ -113,7 +113,7 @@ import {
   applyExifOrientation,
   applyRotation,
   resizeExact,
-} from '@gkz/image-compression';
+} from '@gkzlabs/image-compression';
 ```
 
 ### Transform Helpers (low-level)
@@ -121,7 +121,7 @@ import {
 For advanced use cases (e.g., custom compression pipelines), the rotate/resize helpers are exported:
 
 ```ts
-import { applyRotation, resizeExact } from '@gkz/image-compression';
+import { applyRotation, resizeExact } from '@gkzlabs/image-compression';
 
 // Manual rotation (degrees CW) + optional mirror
 const { bitmap, width, height } = applyRotation(bitmap, 90, 'horizontal');
@@ -179,7 +179,7 @@ import type {
   CompressionPath,
   OutputFormat,
   DeviceTier,
-} from '@gkz/image-compression';
+} from '@gkzlabs/image-compression';
 ```
 
 ## 🌐 Browser Support
@@ -265,7 +265,7 @@ When multiple transforms are specified, they're applied in this order:
 ## 📂 Project Structure
 
 ```
-@gkz/image-compression/
+@gkzlabs/image-compression/
 ├── src/
 │   ├── index.ts             # Public API
 │   ├── service.ts           # ImageCompression class
@@ -297,7 +297,7 @@ When multiple transforms are specified, they're applied in this order:
 
 ## 🤝 Related Packages
 
-- **`angular-image-compression`** — Angular DI wrapper. Adds `Observable` variants, `@Injectable()` service. Depends on `@gkz/image-compression`.
+- **`angular-image-compression`** — Angular DI wrapper. Adds `Observable` variants, `@Injectable()` service. Depends on `@gkzlabs/image-compression`.
 
 ## 📚 Documentation
 

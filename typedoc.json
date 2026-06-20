@@ -1,6 +1,6 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "name": "@gkz/image-compression",
+  "name": "@gkzlabs/image-compression",
   "entryPoints": ["./src/index.ts"],
   "entryPointStrategy": "expand",
   "out": "./docs/api",
