@@ -440,3 +440,15 @@ export function isBatchResult(
 ): evt is CompressionResult[] {
   return Array.isArray(evt);
 }
+
+/**
+ * Build-time constant replaced by the bundler (e.g. esbuild --define or
+ * rollup-plugin-replace) to embed the package version in the runtime
+ * worker URL cache buster. Defaults to a numeric timestamp at runtime if
+ * not defined, which still gives per-build uniqueness.
+ */
+declare global {
+  const __BUILD_VERSION__: string | undefined;
+}
+
+export {};

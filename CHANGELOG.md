@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.10.10] - 2026-06-20
+## [0.10.11] - 2026-06-20
+
+### Changed
+- **Production cleanup:** Removed broken CJS export from package.json
+  (`./dist/index.cjs` was declared but never generated — caused `require()`
+  imports to fail with MODULE_NOT_FOUND). Package is now ESM-only.
+- **Version-driven cache buster:** `__BUILD_VERSION__` constant is injected
+  via esbuild `--define` at build time. The runtime worker URL now embeds
+  the actual package version (`?v=0.10.11`) instead of a `Date.now()`
+  timestamp, so the browser can cache the worker across page loads (same
+  version = cache hit, new version = fresh download).
+- **Build script:** `npm run build` now uses esbuild (`scripts/build.mjs`)
+  instead of tsc, gaining `--define` support. tsc is still used for
+  `.d.ts` generation (esbuild doesn't emit declarations).
+
+### Fixed
+- **Worker resolution test** now matches any version string instead of the
+  previously hard-coded `?v=4`.
+- **`declare global`** wrapper added for `__BUILD_VERSION__` so it's
+  properly visible from all files in the bundle.
 
 ### Fixed
 - **CRITICAL: exact width/height options no longer fail with `InvalidStateError`**

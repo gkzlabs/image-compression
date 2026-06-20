@@ -96,8 +96,11 @@ describe('resolveWorker()', () => {
         const lastCall = workerSpy.mock.calls[workerSpy.mock.calls.length - 1];
         // The first arg of `new Worker(...)` may be a string (hard-coded) or
         // a URL (standard pattern). We expect a string for the fallback.
+        // The cache buster uses the build version (or runtime timestamp).
         expect(typeof lastCall?.[0]).toBe('string');
-        expect(lastCall?.[0]).toBe('/image-compression.worker.js?v=4');
+        expect(lastCall?.[0]).toMatch(
+          /^\/image-compression\.worker\.js\?v=[a-z0-9.]+$/,
+        );
       } finally {
         (globalThis as { URL?: unknown }).URL = originalURL;
       }

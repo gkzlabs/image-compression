@@ -17,6 +17,16 @@ import type {
 } from './types';
 
 /**
+ * Build-time injected version (replaced by esbuild --define or rollup-plugin-replace).
+ * Falls back to a date-based tag at runtime so each unbuilt source has a unique
+ * cache buster and Cloudflare doesn't serve a stale worker.
+ */
+const VERSION_TAG =
+  (typeof __BUILD_VERSION__ !== 'undefined' ? __BUILD_VERSION__ : Date.now().toString())
+    .replace(/[^a-z0-9.]/gi, '')
+    .slice(0, 32) || 'dev';
+
+/**
  * Try to decode HEIC/HEIF to a standard format (JPEG by default).
  *
  * Strategy:
@@ -181,7 +191,7 @@ export function resolveWorker(): Worker | null {
       '[ImageCompression] new URL("./worker", import.meta.url) failed, falling back to hard-coded URL:',
       err,
     );
-    return new Worker('/image-compression.worker.js?v=4', { type: 'module' });
+    return new Worker(`/image-compression.worker.js?v=${VERSION_TAG}`, { type: 'module' });
   }
 }
 

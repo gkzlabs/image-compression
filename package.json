@@ -1,6 +1,6 @@
 {
   "name": "@GKz/image-compression",
-  "version": "0.10.10",
+  "version": "0.10.11",
   "description": "Framework-agnostic image compression for the browser. Pure web APIs (WebCodecs, OffscreenCanvas, Comlink Worker). Works with any frontend framework (Angular, React, Vue, Svelte) or vanilla JS.",
   "repository": {
     "type": "git",
@@ -13,8 +13,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
     },
     "./worker": {
       "types": "./dist/worker.d.ts",
@@ -27,8 +26,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "build:watch": "tsc -p tsconfig.build.json --watch",
+    "build": "node scripts/build.mjs",
+    "build:watch": "node scripts/build.mjs --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit -p tsconfig.json",
