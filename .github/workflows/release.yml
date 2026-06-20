@@ -1,4 +1,4 @@
-# GitHub Actions Release for @GKz/image-compression
+# GitHub Actions Release for @gkz/image-compression
 #
 # Publishes to npm with OIDC trusted publishing (no NPM_TOKEN secret needed)
 # and creates a GitHub Release with auto-generated notes.
@@ -38,7 +38,7 @@ jobs:
       attestations: write     # npm provenance attestation
     environment:
       name: npm-production
-      url: https://www.npmjs.com/package/@GKz/image-compression
+      url: https://www.npmjs.com/package/@gkz/image-compression
     steps:
       - uses: actions/checkout@v4
         with:

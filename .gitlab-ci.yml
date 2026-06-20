@@ -1,4 +1,4 @@
-# GitLab CI/CD for @GKz/image-compression
+# GitLab CI/CD for @gkz/image-compression
 #
 # Pipeline stages:
 #   1. lint    — TypeScript strict type check

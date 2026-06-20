@@ -8,7 +8,7 @@
  * Outputs:
  *   - dist/index.js     (ESM main bundle, worker INLINED as Blob source — no
  *                        separate worker file needed by consumers)
- *   - dist/worker.js    (standalone worker — kept for @GKz/image-compression/worker
+ *   - dist/worker.js    (standalone worker — kept for @gkz/image-compression/worker
  *                        exports field, advanced users who want explicit URLs)
  *   - dist/index.d.ts + per-file .d.ts (types via tsc)
  *   - dist/*.js.map     (source maps)
@@ -50,7 +50,7 @@ const workerResult = await build({
   sourcemap: false,
 });
 
-// Save standalone worker.js (kept for @GKz/image-compression/worker exports)
+// Save standalone worker.js (kept for @gkz/image-compression/worker exports)
 const workerSource = workerResult.outputFiles[0].text;
 writeFileSync(`${outdir}/worker.js`, workerSource);
 console.log(`[build] ✓ Standalone worker: ${outdir}/worker.js (${workerSource.length} bytes)`);
@@ -108,6 +108,6 @@ for (const file of readdirSync(outdir)) {
 
 console.log(`[build] ✓ Done: ${outdir}/`);
 console.log(`[build]   dist/index.js    — main library bundle`);
-console.log(`[build]   dist/worker.js   — standalone Web Worker (use: import '@GKz/image-compression/worker')`);
+console.log(`[build]   dist/worker.js   — standalone Web Worker (use: import '@gkz/image-compression/worker')`);
 console.log(`[build]   Consumers can use the standard new URL pattern or set __IC_WORKER_URL escape hatch.`);
 console.log(`[build]   See docs/BROWSER_COMPAT.md for per-bundler setup notes.`);

@@ -1,6 +1,6 @@
-# @GKz/image-compression — Angular (Vite) Example
+# @gkz/image-compression — Angular (Vite) Example
 
-Angular 18 standalone example for `@GKz/image-compression`, built with **Vite** (via `@analogjs/vite-plugin-angular`).
+Angular 18 standalone example for `@gkz/image-compression`, built with **Vite** (via `@analogjs/vite-plugin-angular`).
 
 **Zero worker setup required** — Vite handles `new URL('./worker.js', import.meta.url)` automatically.
 
@@ -43,7 +43,7 @@ The `vite.config.ts` has two tweaks to make this work:
 
 ```ts
 // 1. Exclude the lib from optimize-deps (Vite's optimizer fails on worker.js)
-optimizeDeps: { exclude: ['@GKz/image-compression'] },
+optimizeDeps: { exclude: ['@gkz/image-compression'] },
 
 // 2. Allow Vite to serve files from outside the project root
 server: { fs: { allow: ['..', '../..'] } },

@@ -1,6 +1,6 @@
 <template>
   <div class="demo">
-    <h1>🖼️ @GKz/image-compression <span class="badge">Vue</span></h1>
+    <h1>🖼️ @gkz/image-compression <span class="badge">Vue</span></h1>
 
     <details v-if="caps">
       <summary>📱 Device Capabilities</summary>
@@ -41,12 +41,12 @@
 
 <script setup lang="ts">
 /**
- * Vue 3 Composition API example for @GKz/image-compression.
+ * Vue 3 Composition API example for @gkz/image-compression.
  * Uses `<script setup>` + `ref()` + `onMounted()` for reactivity.
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { ImageCompression, CompressionError } from '@GKz/image-compression';
-import type { CompressionResult, DeviceCapabilities } from '@GKz/image-compression';
+import { ImageCompression, CompressionError } from '@gkz/image-compression';
+import type { CompressionResult, DeviceCapabilities } from '@gkz/image-compression';
 
 const svc = new ImageCompression();
 const caps = ref<DeviceCapabilities | null>(null);

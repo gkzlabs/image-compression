@@ -1,4 +1,4 @@
-# @GKz/image-compression — Vue 3 Example
+# @gkz/image-compression — Vue 3 Example
 
 Vue 3 + TypeScript + Composition API example using `<script setup>` and `ref()`.
 
@@ -32,8 +32,8 @@ The key file: [`src/App.vue`](./src/App.vue) (~150 lines, fully commented).
 ```vue
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { ImageCompression, CompressionError } from '@GKz/image-compression';
-import type { CompressionResult, DeviceCapabilities } from '@GKz/image-compression';
+import { ImageCompression, CompressionError } from '@gkz/image-compression';
+import type { CompressionResult, DeviceCapabilities } from '@gkz/image-compression';
 
 // Reactive state
 const caps = ref<DeviceCapabilities | null>(null);
@@ -89,7 +89,7 @@ function download() {
 
 <template>
   <div class="demo">
-    <h1>🖼️ @GKz/image-compression <span class="badge">Vue</span></h1>
+    <h1>🖼️ @gkz/image-compression <span class="badge">Vue</span></h1>
 
     <details v-if="caps">
       <summary>📱 Device Capabilities</summary>

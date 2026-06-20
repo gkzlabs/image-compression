@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.21] - 2026-06-20
+
+### Changed
+- **Package renamed**: `@GKz/image-compression` → `@gkz/image-compression` (npm requires lowercase scopes).
+- **Repository moved**: GitLab (private) → GitHub at [gkzlabs/image-compression](https://github.com/gkzlabs/image-compression).
+
+### Added
+- GitHub Actions CI workflow (`.github/workflows/ci.yml`) — lint, test, build, size on every PR.
+- GitHub Actions release workflow (`.github/workflows/release.yml`) — publishes to npm via **OIDC trusted publishing** (no NPM_TOKEN secret).
+- Dependabot configuration for npm + GitHub Actions (weekly).
+- `CODEOWNERS` — `@gkzlabs` owns critical paths.
+- `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1).
+- Issue templates: bug report, feature request, question.
+- Pull request template with full pre-merge checklist.
+
 ## [0.10.15] - 2026-06-20
 
 ### Added
@@ -709,7 +724,7 @@ framework examples — pick whichever fits your needs.
 ## [0.1.0] - 2026-06-18
 
 ### Added
-- Initial release of `@GKz/image-compression` framework-agnostic core
+- Initial release of `@gkz/image-compression` framework-agnostic core
 - `ImageCompression` class with Promise-based API (`compress`, `compressAll`, `getCapabilities`)
 - `compress$()` and `compressAll$()` — native `AsyncIterable` streaming API (no RxJS dependency)
 - 4-path cascade: `webcodecs-worker` → `offscreen-worker` → `canvas-main` → `server-fallback`

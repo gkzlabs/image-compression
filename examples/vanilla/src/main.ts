@@ -1,5 +1,5 @@
 /**
- * Vanilla TypeScript example for @GKz/image-compression.
+ * Vanilla TypeScript example for @gkz/image-compression.
  *
  * No framework — uses raw DOM APIs and a small class to manage state.
  * This is the "drop into any HTML page" reference implementation.
@@ -11,11 +11,11 @@
  * Or inline:
  *   <script type="module" src="/src/main.ts"></script>
  */
-import { ImageCompression, CompressionError } from '@GKz/image-compression';
+import { ImageCompression, CompressionError } from '@gkz/image-compression';
 import type {
   CompressionResult,
   DeviceCapabilities,
-} from '@GKz/image-compression';
+} from '@gkz/image-compression';
 
 // ============================================================================
 // State container (minimal — no framework)
@@ -87,7 +87,7 @@ class CompressorDemo {
 
     this.root.innerHTML = `
       <div class="demo">
-        <h1>🖼️ @GKz/image-compression <span class="badge">Vanilla</span></h1>
+        <h1>🖼️ @gkz/image-compression <span class="badge">Vanilla</span></h1>
 
         ${this.caps ? `
           <details>

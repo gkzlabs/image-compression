@@ -1,12 +1,12 @@
 /**
- * Angular 17 standalone component demonstrating @GKz/image-compression.
+ * Angular 17 standalone component demonstrating @gkz/image-compression.
  *
  * Same UI logic as react/vue/svelte/vanilla examples — only the framework
  * binding differs. Uses Angular signals for state management (Angular 17+).
  */
 import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
-import { ImageCompression, CompressionError } from '@GKz/image-compression';
-import type { CompressionResult, DeviceCapabilities } from '@GKz/image-compression';
+import { ImageCompression, CompressionError } from '@gkz/image-compression';
+import type { CompressionResult, DeviceCapabilities } from '@gkz/image-compression';
 
 @Component({
   selector: 'app-root',

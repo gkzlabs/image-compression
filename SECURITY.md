@@ -22,7 +22,7 @@ You should receive a response within 48 hours. If for some reason you do not, pl
 Please include the following information in your report:
 
 - **Type of vulnerability** (e.g., XSS, prototype pollution, denial of service)
-- **Affected versions** of `@GKz/image-compression`
+- **Affected versions** of `@gkz/image-compression`
 - **Affected files** (if known)
 - **Steps to reproduce** — minimal code snippet
 - **Impact** — what can an attacker do?
@@ -43,7 +43,7 @@ After you submit a report:
 
 ## Security Best Practices for Consumers
 
-When using `@GKz/image-compression` in your project:
+When using `@gkz/image-compression` in your project:
 
 - **Always validate user-uploaded files** before processing (e.g., check MIME type, magic bytes)
 - **Set size limits** on uploads to prevent OOM (e.g., reject files > 50 MB)

@@ -1,11 +1,11 @@
 <script lang="ts">
 /**
- * Svelte 4 example for @GKz/image-compression.
+ * Svelte 4 example for @gkz/image-compression.
  * Uses Svelte's reactive `let` bindings + `$:` derived values.
  */
 import { onDestroy, onMount } from 'svelte';
-import { ImageCompression, CompressionError } from '@GKz/image-compression';
-import type { CompressionResult, DeviceCapabilities } from '@GKz/image-compression';
+import { ImageCompression, CompressionError } from '@gkz/image-compression';
+import type { CompressionResult, DeviceCapabilities } from '@gkz/image-compression';
 
 let svc = new ImageCompression();
 let caps: DeviceCapabilities | null = null;
@@ -55,7 +55,7 @@ function formatBytes(n: number): string {
 </script>
 
 <div class="demo">
-  <h1>🖼️ @GKz/image-compression <span class="badge">Svelte</span></h1>
+  <h1>🖼️ @gkz/image-compression <span class="badge">Svelte</span></h1>
 
   {#if caps}
     <details>

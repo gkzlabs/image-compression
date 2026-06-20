@@ -1,11 +1,11 @@
 [
   {
-    "name": "@GKz/image-compression (main bundle)",
+    "name": "@gkz/image-compression (main bundle)",
     "path": "dist/index.js",
     "limit": "70 KB"
   },
   {
-    "name": "@GKz/image-compression/worker",
+    "name": "@gkz/image-compression/worker",
     "path": "dist/worker.js",
     "limit": "10 KB"
   }

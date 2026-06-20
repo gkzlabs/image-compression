@@ -13,7 +13,7 @@ What problem does this solve? What workflow is awkward or missing today?
 Show the desired usage with a code snippet:
 
 ```ts
-import { ImageCompression } from '@GKz/image-compression';
+import { ImageCompression } from '@gkz/image-compression';
 
 // what you want to write
 ```

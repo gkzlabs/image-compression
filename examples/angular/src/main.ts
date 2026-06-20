@@ -1,5 +1,5 @@
 /**
- * Angular 18 standalone bootstrap for @GKz/image-compression example.
+ * Angular 18 standalone bootstrap for @gkz/image-compression example.
  *
  * ## Vite handles worker bundling automatically
  *

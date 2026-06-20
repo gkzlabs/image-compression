@@ -5,7 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.10.11] - 2026-06-20
+## [0.10.21] - 2026-06-20
+
+### Changed
+- **Package renamed**: `@GKz/image-compression` → `@gkz/image-compression` (npm requires lowercase scopes).
+- **Repository moved**: GitLab (private) → GitHub at [gkzlabs/image-compression](https://github.com/gkzlabs/image-compression).
+
+### Added
+- GitHub Actions CI workflow (`.github/workflows/ci.yml`) — lint, test, build, size on every PR.
+- GitHub Actions release workflow (`.github/workflows/release.yml`) — publishes to npm via **OIDC trusted publishing** (no NPM_TOKEN secret).
+- Dependabot configuration for npm + GitHub Actions (weekly).
+- `CODEOWNERS` — `@gkzlabs` owns critical paths.
+- `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1).
+- Issue templates: bug report, feature request, question.
+- Pull request template with full pre-merge checklist.
+
+## [0.10.15] - 2026-06-20
+
+### Added
+- **`examples/angular/`** — minimal Angular 17 standalone example.
+  - **13 files** (vs the original 39-file `angular-image-compression` repo)
+  - Uses Angular 17 `signal()` + `computed()` for state management
+  - Uses Angular 17 `@if`/`@for` control flow syntax
+  - Same UI as react/vue/svelte/vanilla examples
+  - Build scripts: `build-worker.js` + `copy-heic2any.js` (Angular-specific)
+- **`examples/README.md`** updated to include Angular row in comparison
+  table and `When to use` list. Quick-start includes Angular port (4200).
+
+### Note
+The original `angular-image-compression` repo (39 files, includes Karma
+unit tests, Playwright E2E tests, 16MB test fixtures, etc.) is left
+intact for users who want the full production setup. The new
+`examples/angular/` is a **minimal reference** matching the other
+framework examples — pick whichever fits your needs.
+
+### Added
+- **`examples/` directory** with 4 standalone Vite projects:
+  - `examples/react/` — React 18 + TypeScript (uses hooks)
+  - `examples/vue/` — Vue 3 + TypeScript (Composition API + `<script setup>`)
+  - `examples/svelte/` — Svelte 4 + TypeScript (reactive `let` bindings)
+  - `examples/vanilla/` — TypeScript + raw DOM (no framework)
+  - `examples/README.md` — comparison table, when-to-use guide, common
+    patterns
+
+### Refactored (v0.10.13)
+- **Extracted `src/heic.ts`** — `tryDecodeHEICLazy()` + `isHEICFile()`. service.ts
+  re-exports for backwards-compatible public API.
+- **Extracted `src/worker-resolution.ts`** — `resolveWorker()` + `VERSION_TAG`.
+  service.ts re-exports for backwards-compatible public API.
+- **service.ts: 1453 → 1340 lines** (8% reduction). Further extraction
+  (path executors → `src/paths/`) deferred — would require re-architecting
+  the ImageCompression class to pass shared state (Worker, capabilities)
+  between modules.
+
+### Changed
+- **Test file naming:** Renamed all `.test.ts` → `.spec.ts` (8 files) for
+  consistency with the existing `.spec.ts` files. The project now uses
+  one convention (specification-style). Updated `vitest.config.ts` to
+  match.
+- **GitLab CI:** Added `.gitlab-ci.yml` with 4 stages (lint, test, build,
+  size) running on `node:20-alpine`. Build artifacts cached between jobs.
+
+### Added
+- **`size-limit` bundle budget:** 70 KB main, 10 KB worker. Current actual:
+  12.34 KB / 1.82 KB (well under). Wired into `npm run size` and
+  `prepublishOnly`.
+- **Typedoc API docs:** `typedoc.json` config + `npm run docs` → outputs
+  to `docs/api/`. Excludes private/internal members and test files.
+- **`docs/BROWSER_COMPAT.md`:** Comprehensive browser-support matrix
+  covering all cascade paths, feature detection, HEIC support, and known
+  browser quirks (Safari module-worker issues, Chrome 149 detach, etc.).
 
 ### Changed
 - **Production cleanup:** Removed broken CJS export from package.json
@@ -655,7 +724,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2026-06-18
 
 ### Added
-- Initial release of `@GKz/image-compression` framework-agnostic core
+- Initial release of `@gkz/image-compression` framework-agnostic core
 - `ImageCompression` class with Promise-based API (`compress`, `compressAll`, `getCapabilities`)
 - `compress$()` and `compressAll$()` — native `AsyncIterable` streaming API (no RxJS dependency)
 - 4-path cascade: `webcodecs-worker` → `offscreen-worker` → `canvas-main` → `server-fallback`

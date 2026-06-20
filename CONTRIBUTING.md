@@ -1,4 +1,4 @@
-# Contributing to @GKz/image-compression
+# Contributing to @gkz/image-compression
 
 Thank you for your interest in contributing! This document explains how to set up the project, run tests, and submit changes.
 

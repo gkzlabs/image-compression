@@ -95,7 +95,7 @@ export function resolveWorker(): Worker | null {
  *
  * Usage:
  * ```ts
- * import { ImageCompression } from '@GKz/image-compression';
+ * import { ImageCompression } from '@gkz/image-compression';
  *
  * const svc = new ImageCompression();
  * const result = await svc.compress(file, { quality: 0.85 });

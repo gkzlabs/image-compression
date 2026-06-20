@@ -1,13 +1,13 @@
 /**
- * React example for @GKz/image-compression.
+ * React example for @gkz/image-compression.
  *
  * Uses React 18 + TypeScript with hooks (useState, useEffect).
  * Same UI logic as the vanilla example, but with React state management.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { ImageCompression, CompressionError } from '@GKz/image-compression';
-import type { CompressionResult, DeviceCapabilities } from '@GKz/image-compression';
+import { ImageCompression, CompressionError } from '@gkz/image-compression';
+import type { CompressionResult, DeviceCapabilities } from '@gkz/image-compression';
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -57,7 +57,7 @@ function CompressorDemo() {
 
   return (
     <div className="demo">
-      <h1>🖼️ @GKz/image-compression <span className="badge">React</span></h1>
+      <h1>🖼️ @gkz/image-compression <span className="badge">React</span></h1>
 
       {caps ? (
         <details>

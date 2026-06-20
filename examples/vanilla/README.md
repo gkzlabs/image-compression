@@ -1,4 +1,4 @@
-# @GKz/image-compression — Vanilla TypeScript Example
+# @gkz/image-compression — Vanilla TypeScript Example
 
 Drop-in reference implementation using **only raw DOM APIs** — no framework, no virtual DOM. The smallest possible usage example.
 
@@ -32,8 +32,8 @@ The key file: [`src/main.ts`](./src/main.ts) (~150 lines, fully commented).
 ## Core API usage
 
 ```ts
-import { ImageCompression, CompressionError } from '@GKz/image-compression';
-import type { CompressionResult, DeviceCapabilities } from '@GKz/image-compression';
+import { ImageCompression, CompressionError } from '@gkz/image-compression';
+import type { CompressionResult, DeviceCapabilities } from '@gkz/image-compression';
 
 const svc = new ImageCompression();
 
@@ -95,7 +95,7 @@ svc.dispose();
 ## Error handling
 
 ```ts
-import { CompressionError } from '@GKz/image-compression';
+import { CompressionError } from '@gkz/image-compression';
 
 try {
   const result = await svc.compress(file, options);

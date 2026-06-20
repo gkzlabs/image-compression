@@ -3,7 +3,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { sveltePreprocess } from 'svelte-preprocess';
 
 /**
- * Svelte example for @GKz/image-compression.
+ * Svelte example for @gkz/image-compression.
  * svelte-preprocess is required so the `<script lang="ts">` blocks
  * (with `import type { ... }`) compile correctly. Without it, Svelte's
  * native parser chokes on TypeScript-only syntax like `import type`.

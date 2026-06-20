@@ -1,4 +1,4 @@
-# GitHub Actions CI for @GKz/image-compression
+# GitHub Actions CI for @gkz/image-compression
 #
 # Mirrors .gitlab-ci.yml: lint → test → build → size
 # Triggers: push to main, pull_request, manual workflow_dispatch
