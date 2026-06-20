@@ -15,6 +15,12 @@ This guide explains the **framework-specific binding patterns** for using `@gkzl
 - [HEIC support](#heic-support)
 - [Performance tips](#performance-tips)
 - [Common pitfalls](#common-pitfalls)
+  - [1. Creating the service in render](#1-creating-the-service-in-render)
+  - [2. Forgetting to dispose](#2-forgetting-to-dispose)
+  - [3. Reacting to onProgress without throttling](#3-reacting-to-onprogress-without-throttling)
+  - [4. Not handling `CompressionError`](#4-not-handling-compressionerror)
+  - [5. Using `rotate`/`mirror` with workers](#5-using-rotatemirrorwidthheight-with-workers)
+  - [6. Zone.js / NgZone — Angular UI "hung"](#6-zonejs--ngzone--angular-ui-appears-hung-after-compression)
 - [Migration from v0.5.x](#migration-from-v05x)
 
 ## Library API overview
@@ -529,6 +535,200 @@ await svc.compress(file, { rotate: 90 });
 // Workers used — fastest path
 await svc.compress(file, { maxWidthOrHeight: 2048 });
 ```
+
+### 6. Zone.js / NgZone — Angular UI appears "hung" after compression
+
+**Applies to: Angular 17+ standalone components using signals.**
+
+`@gkzlabs/image-compression` runs its core operations inside a Web Worker
+(via Comlink). When the worker posts results back to the main thread,
+**Zone.js does NOT patch `MessagePort` events** — so promise resolutions
+and `onProgress` callbacks fire **outside** Angular's NgZone.
+
+If you update component state (signals, change detection) directly inside
+these callbacks or after a worker-based `await`, **Angular will not trigger
+Change Detection**. The UI will appear "hung" until the user performs
+some other interaction (click, scroll, input change) that IS tracked by
+zone.
+
+**The fix:** wrap every state-modifying callback and signal update in
+`this.zone.run(() => { ... })`.
+
+```ts
+import { NgZone, inject } from '@angular/core';
+
+export class AppComponent {
+  private readonly zone = inject(NgZone);
+  private svc = new ImageCompression();
+
+  async onFileChange(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    this.isCompressing.set(true);
+
+    const r = await this.svc.compress(file, {
+      onProgress: (p) => {
+        // ✅ onProgress fires from Worker — wrap to trigger CD
+        this.zone.run(() => this.progress.set(p));
+      },
+    });
+
+    // ✅ await continuation is outside zone — wrap signal updates
+    this.zone.run(() => {
+      this.result.set(r);
+      this.isCompressing.set(false);
+    });
+  }
+}
+```
+
+**Common mistake — wrapping the async control flow instead of state mutations:**
+
+```ts
+// ❌ Doesn't work reliably
+const r = await new Promise((resolve) => {
+  this.zone.run(() => {
+    this.svc.compress(file, opts).then(resolve);
+    // .then callback fires OUTSIDE zone (worker message event)
+    // → resolve() called outside zone
+    // → outer Promise resolves outside zone
+    // → await resumes outside zone
+  });
+});
+```
+
+**Rule of thumb:** `zone.run()` must wrap the **state mutations**
+(signal `.set()`, `.update()`), not the async control flow (`.then`, `await`).
+
+**For RxJS Observable integration** of `compress$`, bridge the async iterable
+manually and wrap each emission in `zone.run()`:
+
+```ts
+import { NgZone } from '@angular/core';
+import { Observable } from 'rxjs';
+import { compress$ } from '@gkzlabs/image-compression';
+
+function asyncIterableToObservable<T>(
+  iter: AsyncIterable<T>,
+  zone: NgZone,
+): Observable<T> {
+  return new Observable<T>((subscriber) => {
+    let cancelled = false;
+    zone.run(() => {
+      (async () => {
+        try {
+          for await (const value of iter) {
+            if (cancelled) break;
+            zone.run(() => subscriber.next(value));
+          }
+          if (!cancelled) zone.run(() => subscriber.complete());
+        } catch (err) {
+          if (!cancelled) zone.run(() => subscriber.error(err));
+        }
+      })();
+    });
+    return () => { cancelled = true; };
+  });
+}
+```
+
+| Pattern | Where to wrap |
+|---|---|
+| `onProgress` callback | Wrap the signal update in `zone.run()` |
+| `await compress()` continuation | Wrap signal updates in `zone.run()` |
+| `compressAll()` batch results | Wrap signal updates in `zone.run()` |
+| RxJS bridge for `compress$` | Wrap each `next`/`complete` emission in `zone.run()` |
+| Don't wrap | Async control flow (`.then`, `await`) — won't help |
+
+See [`examples/angular/README.md`](../../examples/angular/README.md#-critical-ngzone--web-worker-integration)
+for a complete working example.
+
+#### Alternatives to `NgZone.run()`
+
+The `NgZone.run()` pattern is the **canonical fix**, but there are
+alternatives. The `angular-image-compression` showcase uses
+`NgZone.run()` because the project is on Angular 17 (stable).
+
+**Option A — `ChangeDetectorRef.detectChanges()` (Angular 2+, stable):**
+
+```ts
+import { ChangeDetectorRef, inject } from '@angular/core';
+
+export class AppComponent {
+  private readonly cdr = inject(ChangeDetectorRef);
+
+  async onFileChange(event: Event) {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    this.isCompressing.set(true);
+    this.cdr.detectChanges();  // ← trigger CD manually
+
+    const r = await this.svc.compress(file, {
+      onProgress: (p) => {
+        this.progress.set(p);
+        this.cdr.detectChanges();
+      },
+    });
+    this.result.set(r);
+    this.isCompressing.set(false);
+    this.cdr.detectChanges();
+  }
+}
+```
+
+- ✅ Works on **all Angular versions** (2+)
+- ✅ No Zone dependency
+- ❌ Must call `.detectChanges()` at **every** state-mutation site
+
+**Option B — Zoneless Angular (Angular 18+, experimental):**
+
+Angular 18 introduced `provideExperimentalZonelessChangeDetection()`. With
+Zone.js removed entirely, the Web Worker zone problem disappears
+because signals schedule CD directly.
+
+```ts
+// app.config.ts
+import { provideExperimentalZonelessChangeDetection } from '@angular/core';
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideExperimentalZonelessChangeDetection()],
+};
+
+// main.ts — NO `import 'zone.js'`
+bootstrapApplication(AppComponent, appConfig);
+```
+
+Then component code is back to being **simple**:
+
+```ts
+async onFileChange(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  this.isCompressing.set(true);
+
+  // ✅ No zone.run() or detectChanges() needed
+  const r = await this.svc.compress(file, {
+    onProgress: (p) => this.progress.set(p),
+  });
+  this.result.set(r);
+  this.isCompressing.set(false);
+}
+```
+
+- ✅ **Zero** boilerplate — signals auto-trigger CD
+- ✅ ~30% faster CD (no Zone tracking)
+- ✅ Future-proof (Zoneless is Angular's long-term direction)
+- ❌ **Experimental** API in Angular 18.x
+- ❌ May break libraries that rely on Zone (RxJS scheduling, NgRx, etc.)
+
+| Approach | Setup cost | Per-update cost | Angular version | Stability |
+|---|---|---|---|---|
+| `NgZone.run()` | Low | Wrap each signal set | 16+ | ✅ Stable |
+| `ChangeDetectorRef.detectChanges()` | Low | Call after each change | 2+ | ✅ Stable |
+| Zoneless | None | None | 18+ | ⚠️ Experimental |
+
+See [`examples/angular/README.md`](../../examples/angular/README.md#-alternatives-to-ngzonerun)
+for a more detailed discussion.
 
 ## Migration from v0.5.x
 
