@@ -1,0 +1,24 @@
+# CODEOWNERS — auto-assigns reviewers and protects critical paths
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything
+*                           @gkzlabs
+
+# Release workflow requires maintainer review
+/.github/workflows/release.yml   @gkzlabs
+
+# CI configuration
+/.github/workflows/ci.yml       @gkzlabs
+
+# Package metadata — verify before changing
+/package.json                 @gkzlabs
+/typedoc.json                 @gkzlabs
+/.size-limit.json             @gkzlabs
+
+# Public-facing docs — review carefully
+/README.md                    @gkzlabs
+/CONTRIBUTING.md              @gkzlabs
+/SECURITY.md                  @gkzlabs
+/CODE_OF_CONDUCT.md           @gkzlabs
+/CHANGELOG.md                 @gkzlabs
+/LICENSE                      @gkzlabs

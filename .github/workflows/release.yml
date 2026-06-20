@@ -1,0 +1,84 @@
+# GitHub Actions Release for @GKz/image-compression
+#
+# Publishes to npm with OIDC trusted publishing (no NPM_TOKEN secret needed)
+# and creates a GitHub Release with auto-generated notes.
+#
+# Trigger: push of tag matching v*
+# Workflow:
+#   1. Full gate (lint + test + build) — same as prepublishOnly
+#   2. npm publish with --provenance (signed by GitHub OIDC)
+#   3. Create GitHub Release with notes from CHANGELOG + commits
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to publish (e.g. v0.10.21)'
+        required: true
+
+# A tag push should never cancel — releases are critical
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm + GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Only run on tag pushes from the default branch, or manual dispatch
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write         # create GitHub Release
+      id-token: write         # OIDC for npm provenance
+      attestations: write     # npm provenance attestation
+    environment:
+      name: npm-production
+      url: https://www.npmjs.com/package/@GKz/image-compression
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history for changelog
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Checkout tag (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: git checkout ${{ github.event.inputs.tag }}
+
+      - name: Full pre-publish gate
+        run: |
+          npm ci --prefer-offline --no-audit
+          npm run lint
+          npm test
+          npm run build
+
+      - name: Verify package version matches tag
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION=${GITHUB_REF_NAME#v}
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::package.json version ($PKG_VERSION) does not match tag ($TAG_VERSION)"
+            exit 1
+          fi
+          echo "Version match: $PKG_VERSION"
+
+      - name: Publish to npm (with OIDC provenance)
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ''   # forces OIDC; do NOT set NPM_TOKEN
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
