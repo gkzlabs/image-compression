@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { tryDecodeHEICLazy } from './service';
+import { tryDecodeHEICLazy } from './heic';
 
 /**
  * Tests for `tryDecodeHEICLazy()` — the HEIC pre-decode helper.

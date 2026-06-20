@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { resolveWorker } from './service';
+import { resolveWorker } from './worker-resolution';
 
 /**
  * Tests for `resolveWorker()` — the 3-strategy worker URL resolver.
