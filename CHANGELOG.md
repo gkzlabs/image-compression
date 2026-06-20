@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.10.11] - 2026-06-20
+## [0.10.12] - 2026-06-20
+
+### Changed
+- **Test file naming:** Renamed all `.test.ts` → `.spec.ts` (8 files) for
+  consistency with the existing `.spec.ts` files. The project now uses
+  one convention (specification-style). Updated `vitest.config.ts` to
+  match.
+- **GitLab CI:** Added `.gitlab-ci.yml` with 4 stages (lint, test, build,
+  size) running on `node:20-alpine`. Build artifacts cached between jobs.
+
+### Added
+- **`size-limit` bundle budget:** 70 KB main, 10 KB worker. Current actual:
+  12.34 KB / 1.82 KB (well under). Wired into `npm run size` and
+  `prepublishOnly`.
+- **Typedoc API docs:** `typedoc.json` config + `npm run docs` → outputs
+  to `docs/api/`. Excludes private/internal members and test files.
+- **`docs/BROWSER_COMPAT.md`:** Comprehensive browser-support matrix
+  covering all cascade paths, feature detection, HEIC support, and known
+  browser quirks (Safari module-worker issues, Chrome 149 detach, etc.).
 
 ### Changed
 - **Production cleanup:** Removed broken CJS export from package.json
