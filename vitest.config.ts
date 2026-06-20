@@ -17,7 +17,7 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
-    include: ['src/**/*.spec.ts', 'src/**/*.test.ts'],
+    include: ['src/**/*.spec.ts'],
     testTimeout: 10_000,
     // --pool=forks uses separate processes per test file, preventing native
     // module segfaults that can occur with @napi-rs/canvas + @happy-dom

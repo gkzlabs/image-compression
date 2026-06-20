@@ -1,0 +1,37 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "@GKz/image-compression",
+  "entryPoints": ["./src/index.ts"],
+  "entryPointStrategy": "expand",
+  "out": "./docs/api",
+  "tsconfig": "./tsconfig.json",
+  "exclude": [
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "**/__stubs__/**",
+    "**/__tests__/**",
+    "scripts/**",
+    "vitest.setup.ts",
+    "vitest.config.ts"
+  ],
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeExternals": false,
+  "categorizeByGroup": true,
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true
+  },
+  "plugin": [],
+  "readme": "./README.md",
+  "githubPages": false,
+  "hideGenerator": true,
+  "skipErrorChecking": true,
+  "treatWarningsAsErrors": false,
+  "validation": {
+    "notExported": false,
+    "invalidLink": false,
+    "notDocumented": false
+  },
+  "sort": ["source-order"]
+}
