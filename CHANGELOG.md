@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.25] - 2026-06-20
+
+### Changed
+- CI: bump `actions/download-artifact` v4 → v8 (via Dependabot PR #5).
+
+### Fixed
+- Docs: regenerated `docs/api/` TypeDoc output with GitHub source links. Previous build had stale `gitlab.com` URLs from when the project lived on GitLab. Updated `typedoc.json` to use the `github` git remote explicitly.
+
 ## [0.10.24] - 2026-06-20
 
 ### Changed
