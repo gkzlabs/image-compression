@@ -298,6 +298,13 @@ When multiple transforms are specified, they're applied in this order:
 
 - **`angular-image-compression`** — Angular DI wrapper. Adds `Observable` variants, `@Injectable()` service. Depends on `@GKz/image-compression`.
 
+## 📚 Documentation
+
+- **[Examples Overview](examples/)** — 5 framework examples (vanilla, react, vue, svelte, angular)
+- **[Examples Guide](docs/EXAMPLES.md)** — Detailed framework patterns, lifecycle management, batch processing, HEIC support
+- **[Browser Compatibility](docs/BROWSER_COMPAT.md)** — Per-bundler setup notes (Vite, Webpack, Rollup, esbuild)
+- **[API Reference](docs/api/)** — Generated TypeDoc reference
+
 ## 📄 License
 
 [MIT](LICENSE)
