@@ -1,0 +1,37 @@
+{
+  "hash": "4132d1fe",
+  "configHash": "a0383b04",
+  "lockfileHash": "1710f064",
+  "browserHash": "c1bb9b37",
+  "optimized": {
+    "@GKz/image-compression": {
+      "src": "../../../../../../../dist/index.js",
+      "file": "@GKz_image-compression.js",
+      "fileHash": "45bae951",
+      "needsInterop": false
+    },
+    "@angular/core": {
+      "src": "../../../../../node_modules/@angular/core/fesm2022/core.mjs",
+      "file": "@angular_core.js",
+      "fileHash": "3b7ad404",
+      "needsInterop": false
+    },
+    "@angular/platform-browser": {
+      "src": "../../../../../node_modules/@angular/platform-browser/fesm2022/platform-browser.mjs",
+      "file": "@angular_platform-browser.js",
+      "fileHash": "75502c58",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-7HP6PHLZ": {
+      "file": "chunk-7HP6PHLZ.js"
+    },
+    "chunk-WDMUDEB6": {
+      "file": "chunk-WDMUDEB6.js"
+    },
+    "image-compression-2WQ6A7FY": {
+      "file": "image-compression-2WQ6A7FY.js"
+    }
+  }
+}
