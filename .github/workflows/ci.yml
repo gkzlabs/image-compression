@@ -81,5 +81,10 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
       - run: npm ci --prefer-offline --no-audit
       - run: npm run size
