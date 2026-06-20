@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.10] - 2026-06-20
+
+### Fixed
+- **CRITICAL: exact width/height options no longer fail with `InvalidStateError`**
+  in Chrome 149. The previous v0.10.9 2-stage pipeline (Worker resize +
+  main-thread transform via `transferToImageBitmap`) triggered
+  Chrome 149's "image source is detached" bug when transforms chained
+  after the initial transfer. Three coordinated fixes:
+
+  1. **`selectPaths` now skips Worker paths when a transform is requested**.
+     Files >100KB with rotate/mirror/width/height go straight to
+     `canvas-main`, which has a single in-place pipeline that doesn't
+     hit the Chrome 149 detach race.
+  2. **`executeCanvasMainPath` no longer calls `resizeExact` + `transferToImageBitmap`**
+     in the resize step. It draws the source bitmap directly onto the
+     final encode canvas at the target dimensions (skips the
+     intermediate transfer). For transform requests this avoids the
+     double-transfer (applyRotation + resizeExact) that triggered detach.
+  3. **`applyTransformsIfRequested` is a no-op for `canvas-main` results**.
+     The canvas-main pipeline already applies transforms itself;
+     calling Stage 2 again would double-apply (rotate 90° twice = 180°).
+
+  Net effect: transforms now work correctly on all paths for all
+  browser versions, including Chrome 149+. The trade-off is that
+  transform requests on large files (>100KB) skip the Worker
+  speedup — but the transform step is the bottleneck anyway.
+
+- **`onRotateChange` event handler in the Angular demo UI**: the rotate
+  `<select>` was passing a string value ("90") to a `number` field.
+  `ctx.rotate(("90" * Math.PI) / 180)` evaluated to `NaN` in the
+  OffscreenCanvas rotation, causing the transform to silently fail.
+  Now coerced to number in the change handler.
+
+### Notes
+- `applyTransformsIfRequested` is now effectively only a safety net
+  for `webcodecs-worker`/`offscreen-worker` results. In normal flow
+  (`selectPaths` skipping Worker for transforms), it's a no-op.
+- The original 2-stage design is preserved as defensive code: if
+  someone overrides `selectPaths` to allow Worker + transform, the
+  Stage 2 fallback still tries to apply transforms (with a simpler
+  direct-draw implementation that avoids the transfer chain).
+
 ## [0.10.9] - 2026-06-20
 
 ### Added

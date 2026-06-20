@@ -36,12 +36,18 @@ function makeJpegBlob(width: number, height: number): Blob {
 
 /**
  * Build a fake CompressionResult as if it came from the cascade.
+ *
+ * v0.10.10: use a non-canvas-main path. applyTransformsIfRequested is a
+ * no-op for canvas-main results (the canvas-main pipeline applies
+ * transforms itself). Tests that exercise applyTransformsIfRequested
+ * need a result that didn't already apply transforms — use
+ * 'webcodecs-worker' which is the typical Stage 1 producer.
  */
 function makeResult(
   blob: Blob,
   width: number,
   height: number,
-  path: CompressionPath = 'canvas-main',
+  path: CompressionPath = 'webcodecs-worker',
 ): CompressionResult {
   return {
     blob,
@@ -77,6 +83,16 @@ describe('v0.10.9 Compress-then-Transform (static helper)', () => {
     it('returns server-fallback unchanged even with transform options', async () => {
       const blob = makeJpegBlob(100, 50);
       const result = makeResult(blob, 100, 50, 'server-fallback');
+      const out = await ImageCompression.applyTransformsIfRequested(result, { rotate: 90 });
+      expect(out).toBe(result);
+    });
+
+    it('returns canvas-main unchanged (canvas-main applies transforms itself)', async () => {
+      // v0.10.10: canvas-main path already applies transforms during its
+      // own pipeline. Calling applyTransformsIfRequested on a canvas-main
+      // result would double-apply the transform.
+      const blob = makeJpegBlob(200, 100);
+      const result = makeResult(blob, 200, 100, 'canvas-main');
       const out = await ImageCompression.applyTransformsIfRequested(result, { rotate: 90 });
       expect(out).toBe(result);
     });

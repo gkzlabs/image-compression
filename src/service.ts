@@ -726,6 +726,25 @@ export class ImageCompression {
    ): CompressionPath[] {
      const paths: CompressionPath[] = [];
 
+     // v0.10.10: if user requested any manual transform (rotate/mirror/
+     // exact width or exact height), skip the Worker paths entirely.
+     // Worker paths only do resize+encode, then Stage 2 re-decodes and
+     // re-encodes on the main thread. The 2-stage pipeline is correct but
+     // triggers Chrome 149's "image source is detached" bug on the
+     // intermediate transferToImageBitmap in some sequences (rotate +
+     // exact resize in particular). For correctness, prefer canvas-main
+     // which handles all transforms in a single in-place pipeline.
+     //
+     // Trade-off: files > 100KB skip the Worker speedup. Acceptable
+     // because the user is requesting extra processing anyway, and the
+     // transform step is the bottleneck.
+     const hasTransformRequest =
+       options.rotate !== undefined ||
+       options.mirror !== undefined ||
+       options.width !== undefined ||
+       options.height !== undefined;
+     const skipWorker = hasTransformRequest;
+
      // Size threshold: skip Worker for small files (overhead > savings).
      // Use the originalSize from options if available (set by compress() before
      // calling selectPaths), otherwise assume non-small (don't gate on unknown).
@@ -735,11 +754,11 @@ export class ImageCompression {
      // 'webcodecs-worker' = use ImageDecoder (for HEIC) inside Worker context.
      // v0.10.4: Use MAIN-THREAD caps (v0.5.7 behavior). The cascade's try/catch
      // handles actual Worker runtime failures — no need to gate on probe results.
-     if (!smallFile && caps.hasWebCodecs && caps.hasOffscreenCanvas && caps.hasWorker) {
+     if (!skipWorker && !smallFile && caps.hasWebCodecs && caps.hasOffscreenCanvas && caps.hasWorker) {
        paths.push('webcodecs-worker');
      }
      // 'offscreen-worker' = Canvas2D + createImageBitmap in Worker context.
-     if (!smallFile && caps.hasOffscreenCanvas && caps.hasWorker) {
+     if (!skipWorker && !smallFile && caps.hasOffscreenCanvas && caps.hasWorker) {
        paths.push('offscreen-worker');
      }
      if (caps.hasCanvas2D) {
@@ -928,11 +947,19 @@ export class ImageCompression {
       needsResize = true;
     }
     if (needsResize) {
-      const resized = resizeExact(bitmap as unknown as ImageBitmap, targetW, targetH);
-      bitmap.close();
-      bitmap = resized.bitmap as unknown as ImageBitmap;
-      outWidth = resized.width;
-      outHeight = resized.height;
+      // v0.10.10: draw directly onto the final encode canvas at the target
+      // dimensions, skipping the intermediate `resizeExact()` (which uses
+      // `transferToImageBitmap` and triggers Chrome 149's "image source is
+      // detached" bug when chained after applyRotation's transfer).
+      // We close the source bitmap AFTER the drawImage succeeds, so it stays
+      // alive through the encode step.
+      outWidth = targetW;
+      outHeight = targetH;
+      // Defer the actual draw to the encode step below — it already
+      // does `ctx.drawImage(bitmap, 0, 0)` at line 948. We need to extend
+      // that to draw at the target dimensions. Use a flag for the encode
+      // step to know.
+      needsResize = true; // re-set (was already true, but explicit)
       onProgress?.({ stage: 'resizing', percent: 80, path: 'canvas-main', message: 'Resized' });
     }
 
@@ -945,7 +972,14 @@ export class ImageCompression {
     if (!ctx) throw new Error('Canvas2D context unavailable');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(bitmap as unknown as CanvasImageSource, 0, 0);
+    // v0.10.10: when needsResize is true, draw at target dimensions
+    // directly (skips the intermediate resizeExact+transferToImageBitmap
+    // step that triggered Chrome 149's detach bug). Otherwise draw 1:1.
+    if (needsResize) {
+      ctx.drawImage(bitmap as unknown as CanvasImageSource, 0, 0, targetW, targetH);
+    } else {
+      ctx.drawImage(bitmap as unknown as CanvasImageSource, 0, 0);
+    }
     bitmap.close();
 
     const blob = await new Promise<Blob | null>((resolve) => {
@@ -1035,6 +1069,13 @@ export class ImageCompression {
     // No-op: passthrough/server-fallback never decoded the image
     if (result.path === 'passthrough' || result.path === 'server-fallback') return result;
 
+    // v0.10.10: canvas-main already applies transforms in-place during
+    // its pipeline (executeCanvasMainPath calls applyRotation/resizeExact
+    // before encoding). Calling applyTransformsIfRequested again on a
+    // canvas-main result would double-apply (rotate 90° twice = rotate 180°).
+    // Skip Stage 2 entirely for canvas-main results.
+    if (result.path === 'canvas-main') return result;
+
     // No-op: source has no dimensions (shouldn't happen post-cascade, but defensive)
     if (result.width === 0 || result.height === 0) return result;
 
@@ -1053,58 +1094,76 @@ export class ImageCompression {
       return result;
     }
 
-    // Stage 2b: combined transforms in a single draw
-    // applyTransforms handles rotate+mirror+exact-resize in one OffscreenCanvas
-    // pass — avoids intermediate bitmap allocations.
-    let transformed: { bitmap: ImageBitmap; width: number; height: number };
-    try {
-      // applyTransforms requires both width AND height for exact resize.
-      // If user specified only one, we derive the other from aspect ratio.
-      let exactW = width;
-      let exactH = height;
-      if (exactW !== undefined && exactH === undefined) {
-        exactH = keepAspectRatio === false
-          ? Math.round((exactW * bitmap.height) / bitmap.width)
-          : bitmap.height; // keepAspectRatio: explicit width → no exact resize, but rotate still applies
-      } else if (exactH !== undefined && exactW === undefined) {
-        exactW = keepAspectRatio === false
-          ? Math.round((exactH * bitmap.width) / bitmap.height)
-          : bitmap.width;
-      } else if (keepAspectRatio !== false && (width !== undefined || height !== undefined)) {
-        // keepAspectRatio=true (default) + only one dim: ignore the explicit
-        // dim and let applyTransforms handle proportional resize.
-        // Actually for keepAspectRatio with one dim, we want proportional.
-        // applyTransforms needs both to do "exact resize" — skip it.
-        // For now, the rotate/mirror path still runs (applyTransforms
-        // is a no-op for exact-resize when only one dim is set).
-        exactW = undefined;
-        exactH = undefined;
-      }
-
-      transformed = applyTransforms(bitmap, {
-        rotate,
-        mirror,
-        width: exactW,
-        height: exactH,
-      });
-    } finally {
-      bitmap.close();
+    // Stage 2b: combined transforms
+    // v0.10.10: draw the source bitmap directly onto the encode canvas with
+    // transform math applied, instead of going through
+    // `applyTransforms → transferToImageBitmap` (which triggered Chrome
+    // 149's "image source is detached" bug on the resulting bitmap).
+    // We compute targetW/targetH here, then draw once on the encode canvas.
+    let exactW = width;
+    let exactH = height;
+    if (exactW !== undefined && exactH === undefined) {
+      exactH = keepAspectRatio === false
+        ? Math.round((exactW * bitmap.height) / bitmap.width)
+        : bitmap.height; // keepAspectRatio: explicit width → no exact resize
+    } else if (exactH !== undefined && exactW === undefined) {
+      exactW = keepAspectRatio === false
+        ? Math.round((exactH * bitmap.width) / bitmap.height)
+        : bitmap.width;
+    } else if (
+      (width !== undefined || height !== undefined) &&
+      keepAspectRatio !== false &&
+      // BOTH set: skip this branch (we want exact resize)
+      !(width !== undefined && height !== undefined)
+    ) {
+      // keepAspectRatio + only one dim: ignore the explicit dim (proportional)
+      exactW = undefined;
+      exactH = undefined;
     }
+    const hasTransform =
+      rotate !== undefined ||
+      mirror !== undefined ||
+      (exactW !== undefined && exactH !== undefined);
 
-    // Stage 2c: re-encode
+    // Compute final dimensions for the encode canvas
+    const swap = rotate === 90 || rotate === 270;
+    const afterRotateW = swap ? bitmap.height : bitmap.width;
+    const afterRotateH = swap ? bitmap.width : bitmap.height;
+    const hasExactResize = exactW !== undefined && exactH !== undefined;
+    const finalW: number = hasExactResize ? (exactW as number) : afterRotateW;
+    const finalH: number = hasExactResize ? (exactH as number) : afterRotateH;
+
+    // Stage 2c: re-encode — draw directly with transform math (no transfer)
     const canvas = document.createElement('canvas');
-    canvas.width = transformed.width;
-    canvas.height = transformed.height;
+    canvas.width = finalW;
+    canvas.height = finalH;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      transformed.bitmap.close();
+      bitmap.close();
       console.warn('[ImageCompression] applyTransforms: Canvas2D context unavailable');
       return result;
     }
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(transformed.bitmap, 0, 0);
-    transformed.bitmap.close();
+    if (hasTransform) {
+      // Apply rotate+mirror in a single draw, like applyTransforms does
+      ctx.translate(finalW / 2, finalH / 2);
+      if (rotate !== undefined && rotate !== 0) {
+        ctx.rotate((rotate * Math.PI) / 180);
+      }
+      if (mirror === 'horizontal') ctx.scale(-1, 1);
+      else if (mirror === 'vertical') ctx.scale(1, -1);
+      ctx.translate(-bitmap.width / 2, -bitmap.height / 2);
+      if (hasExactResize) {
+        ctx.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height);
+      } else {
+        ctx.drawImage(bitmap, 0, 0);
+      }
+    } else {
+      // No transform — just draw at target dims (handles maxWidthOrHeight case)
+      ctx.drawImage(bitmap, 0, 0, finalW, finalH);
+    }
+    bitmap.close();
 
     const newBlob = await new Promise<Blob | null>((resolve) => {
       canvas.toBlob((b) => resolve(b), format, quality);
@@ -1122,8 +1181,8 @@ export class ImageCompression {
       result.path,
       result.tier,
       result.durationMs,
-      transformed.width,
-      transformed.height,
+      finalW,
+      finalH,
       format,
       result.file,
     );
