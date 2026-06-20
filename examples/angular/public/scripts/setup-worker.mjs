@@ -22,7 +22,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const coreDir = path.resolve(root, '..', '..');
 const src = path.join(coreDir, 'dist', 'worker.js');
-const dest = path.join(root, 'src', 'assets', 'image-compression.worker.js');
+// Angular 17+ auto-serves the `public/` folder at root (/image-compression.worker.js).
+// No angular.json `assets` config needed.
+const dest = path.join(root, 'public', 'image-compression.worker.js');
 
 if (!fs.existsSync(src)) {
   console.error(`[prebuild] Source worker not found at ${src}`);
