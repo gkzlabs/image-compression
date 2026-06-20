@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["optional-peer-dep:__vite-optional-peer-dep:heic2any:@GKz/image-compression"],
-  "sourcesContent": ["throw new Error(`Could not resolve \"heic2any\" imported by \"@GKz/image-compression\". Is it installed?`)"],
-  "mappings": ";AAAA,MAAM,IAAI,MAAM,qFAAqF;",
-  "names": []
-}

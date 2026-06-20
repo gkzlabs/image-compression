@@ -1,97 +1,69 @@
-# @GKz/image-compression — Angular Example
+# @GKz/image-compression — Angular (Vite) Example
 
-Angular 17 standalone example for `@GKz/image-compression`. Same demo UI as
-the react/vue/svelte/vanilla examples — only the framework binding differs.
+Angular 18 standalone example for `@GKz/image-compression`, built with **Vite** (via `@analogjs/vite-plugin-angular`).
 
-## Quick Start
+This example exists because Angular CLI's dev server has known issues with library worker URLs — the standard `new URL('./worker.js', import.meta.url)` pattern returns 404 because Angular CLI doesn't pre-bundle workers from libraries. The workaround in [angular-image-compression](https://github.com/...) required copying the worker to `public/` and setting an `__IC_WORKER_URL` escape hatch.
+
+By migrating to **Vite**, the library's standard pattern works out of the box. **Zero worker setup required**.
+
+## Quick start
 
 ```bash
 npm install
 npm start
 ```
 
-Open <http://localhost:4200>, upload an image, see it compressed.
+Then open http://127.0.0.1:4200 and upload an image.
 
-## What's Different from Other Examples
+## What changed from Angular CLI
 
-Angular has 2 extra build steps that the other frameworks don't need:
+| Removed | Replaced with |
+|---|---|
+| `angular.json` + `tsconfig.app.json` (custom) | `vite.config.ts` (Vite config) |
+| `scripts/setup-worker.mjs` (post-build copy) | (not needed) |
+| `public/image-compression.worker.js` | (not needed) |
+| `__IC_WORKER_URL = '/assets/...'` escape hatch | (not needed) |
+| `angular.json` `polyfills: ["zone.js"]` | `import 'zone.js'` in main.ts |
 
-1. **`build:worker`** — bundles `@GKz/image-compression`'s Web Worker
-   (`dist/worker.js`) to a stable filename in the dist output. Required
-   because Angular CLI's esbuild doesn't reliably rewrite
-   `new Worker(new URL('./worker', import.meta.url))`.
+## Why Vite?
 
-2. **`build:heic2any`** — copies the optional `heic2any` WASM decoder to
-   dist so it can be loaded via the `__IC_HEIC2ANY_URL` escape hatch
-   (set in `src/main.ts` to `/heic2any.js`).
+1. **`new URL('./worker.js', import.meta.url)` works out of the box** — Vite rewrites the URL to `/node_modules/.vite/deps/worker.js?worker_file&type=module` which it serves directly.
+2. **No public/ folder setup** — Vite's dev server serves from `node_modules`.
+3. **Faster dev startup + HMR** — Vite is ~10× faster than Angular CLI for dev server.
+4. **Production build includes worker chunk automatically** — `vite build` emits `worker-*.js` chunks that get loaded by the main bundle.
 
-These run automatically as part of `npm run build`.
+## Stack
 
-## Project Structure
+- Angular 18 (standalone components, signals)
+- Vite 6 (dev server + bundler)
+- `@analogjs/vite-plugin-angular` (Angular + Vite integration)
+
+## Project structure
 
 ```
 examples/angular/
-├── angular.json                 # Angular CLI config
-├── package.json                 # Angular 17 + @GKz/image-compression
-├── tsconfig.json                # Strict TS + Angular compiler options
-├── tsconfig.app.json            # App-only TS config
-├── scripts/
-│   ├── build-worker.js          # Postbuild: bundles worker
-│   └── copy-heic2any.js         # Postbuild: copies HEIC decoder
+├── index.html                # Vite entry HTML (root)
+├── package.json
+├── tsconfig.json             # Angular compiler options
+├── tsconfig.app.json         # App-specific TS config
+├── vite.config.ts            # Vite + Analog plugin config
 └── src/
-    ├── index.html               # App entry
-    ├── main.ts                  # bootstrapApplication()
-    ├── styles.css               # Global styles
+    ├── main.ts               # bootstrapApplication + zone.js import
+    ├── styles.css            # Global styles
     └── app/
-        ├── app.component.ts     # ImageCompression logic + UI state
-        ├── app.component.html   # Template (control flow + @if)
-        └── app.component.css    # Component styles
+        ├── app.component.ts  # Angular signals demo
+        ├── app.component.html
+        └── app.component.css
 ```
 
-## Angular-Specific Patterns
+## Comparison with other framework examples
 
-### Standalone components
-Angular 17 standalone API — no `NgModule`, just `bootstrapApplication()`:
-```ts
-// main.ts
-bootstrapApplication(AppComponent).catch(console.error);
-```
+| Feature | react/vue/svelte/vanilla | Angular (this) |
+|---|---|---|
+| Bundler | Vite | Vite (via Analog plugin) |
+| Worker setup | None | None |
+| Worker URL pattern | Auto by Vite | Auto by Vite |
+| Angular CLI dep | No | No |
+| Bootstrap | `createRoot().render(...)` | `bootstrapApplication(...)` |
 
-### Signals for state
-Uses Angular 17+ signals (no `BehaviorSubject`/`getValue` boilerplate):
-```ts
-caps = signal<DeviceCapabilities | null>(null);
-result = signal<CompressionResult | null>(null);
-saved = computed(() => /* derived */);
-```
-
-### New control flow syntax
-Uses Angular 17 `@if`/`@for` instead of `*ngIf`/`*ngFor`:
-```html
-@if (caps(); as c) {
-  <p>Tier: {{ c.tier }}</p>
-}
-```
-
-## When to Use Angular
-
-- ✅ Enterprise apps with strict TypeScript
-- ✅ Apps already using Angular (the obvious choice)
-- ✅ Teams familiar with DI, RxJS, NgRx patterns
-- ❌ Small apps (Angular's bundle is heavy vs. vanilla/svelte)
-- ❌ Apps not using Angular (use react/vue/svelte instead)
-
-## Files You Can Delete for a Production App
-
-- `scripts/build-heic2any.js` if you don't need HEIC support
-- `package.json` `optionalDependencies.heic2any` if not needed
-
-## Reference
-
-- [Angular docs](https://angular.io/docs)
-- [`@GKz/image-compression` README](../../README.md)
-- [Other examples](../react/) — pick the right framework for your app
-
-## License
-
-MIT (same as `@GKz/image-compression`).
+See [`../README.md`](../README.md) for the full examples comparison.
