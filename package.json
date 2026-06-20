@@ -1,11 +1,15 @@
 {
   "name": "@gkzlabs/image-compression",
-  "version": "0.10.23",
+  "version": "0.10.24",
   "description": "Framework-agnostic image compression for the browser. Pure web APIs (WebCodecs, OffscreenCanvas, Comlink Worker). Works with any frontend framework (Angular, React, Vue, Svelte) or vanilla JS.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/gkzlabs/image-compression.git"
   },
+  "bugs": {
+    "url": "https://github.com/gkzlabs/image-compression/issues"
+  },
+  "homepage": "https://gkzlabs.github.io/image-compression/",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -45,7 +49,9 @@
     "browser",
     "framework-agnostic",
     "heic",
-    "exif"
+    "exif",
+    "demo",
+    "live-demo"
   ],
   "license": "MIT",
   "engines": {

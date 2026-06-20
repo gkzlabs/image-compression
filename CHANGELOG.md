@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.24] - 2026-06-20
+
+### Changed
+- `homepage` field now points to the GitHub Pages demo.
+- Added `demo` and `live-demo` keywords for npm search discoverability.
+
+### Added
+- **Live Demo CTA** at the top of the README, linking to https://gkzlabs.github.io/image-compression/.
+- `bugs.url` field in `package.json` (was missing).
+
 ## [0.10.23] - 2026-06-20
 
 ### Changed

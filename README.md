@@ -10,6 +10,8 @@
 [![Tests](https://img.shields.io/badge/tests-77%20passing-brightgreen.svg)](#tests)
 [![Provenance](https://img.shields.io/badge/npm-provenance-blue)](https://docs.npmjs.com/generating-provenance-statements)
 
+**🎮 [Try the live demo](https://gkzlabs.github.io/image-compression/)** — 5 framework examples (React, Vue, Svelte, Angular, Vanilla) running in your browser. No install.
+
 > **Framework-agnostic image compression for the browser.**
 > Pure web APIs. Zero framework dependencies.
 
