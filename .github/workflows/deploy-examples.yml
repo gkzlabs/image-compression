@@ -1,0 +1,171 @@
+# GitHub Actions — deploy examples to GitHub Pages
+#
+# Builds all 5 framework examples (react, vue, svelte, angular, vanilla) and
+# deploys them under /examples/{framework}/ on GitHub Pages, with a landing
+# page at the root.
+#
+# Triggers:
+#   - Manual: workflow_dispatch
+#   - Auto:   push to main when examples/ or this workflow file changes
+#
+# Required setup (one-time):
+#   1. Repo Settings → Pages → Source: "GitHub Actions"
+#
+# Output:
+#   - Landing: https://gkzlabs.github.io/image-compression/
+#   - React:   https://gkzlabs.github.io/image-compression/examples/react/
+#   - Vue:     https://gkzlabs.github.io/image-compression/examples/vue/
+#   - Svelte:  https://gkzlabs.github.io/image-compression/examples/svelte/
+#   - Angular: https://gkzlabs.github.io/image-compression/examples/angular/
+#   - Vanilla: https://gkzlabs.github.io/image-compression/examples/vanilla/
+name: Deploy Examples to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'examples/**'
+      - '.github/workflows/deploy-examples.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'src/**'
+  workflow_dispatch:
+
+# GitHub Pages deployment requires these permissions
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Don't cancel in-progress page deploys (each deploy must complete)
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Build library (creates dist/ that examples import)
+        run: |
+          npm ci --prefer-offline --no-audit
+          npm run build
+
+      - name: Build all framework examples (matrix)
+        env:
+          BASE_URL_PREFIX: /image-compression/examples
+        run: |
+          set -e
+          mkdir -p _site/examples
+          for framework in react vue svelte angular vanilla; do
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Building example: $framework"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            pushd "examples/$framework" > /dev/null
+            npm ci --prefer-offline --no-audit
+            npm run build -- --base="${BASE_URL_PREFIX}/${framework}/"
+            popd > /dev/null
+            # Vite outputs to dist/ — move into _site/examples/{framework}
+            rm -rf "_site/examples/$framework"
+            mv "examples/$framework/dist" "_site/examples/$framework"
+          done
+
+      - name: Create landing page
+        run: |
+          cat > _site/index.html << 'LANDING_EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>@gkzlabs/image-compression — Live Examples</title>
+            <style>
+              :root {
+                color-scheme: light dark;
+                --bg: #fff; --fg: #111; --muted: #666; --card: #f6f7f8; --border: #e5e7eb; --accent: #3b82f6;
+              }
+              @media (prefers-color-scheme: dark) {
+                :root { --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --card: #161b22; --border: #30363d; --accent: #58a6ff; }
+              }
+              * { box-sizing: border-box; }
+              body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; }
+              .wrap { max-width: 920px; margin: 0 auto; padding: 48px 24px; }
+              h1 { font-size: 32px; margin: 0 0 8px; }
+              .sub { color: var(--muted); margin: 0 0 32px; font-size: 16px; }
+              .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin: 24px 0; }
+              .card { display: block; padding: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--fg); transition: transform 0.15s, border-color 0.15s; }
+              .card:hover { transform: translateY(-2px); border-color: var(--accent); }
+              .card .name { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+              .card .desc { font-size: 13px; color: var(--muted); margin: 0; }
+              .links { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
+              .links a { color: var(--accent); text-decoration: none; }
+              .links a:hover { text-decoration: underline; }
+            </style>
+          </head>
+          <body>
+            <div class="wrap">
+              <h1>@gkzlabs/image-compression</h1>
+              <p class="sub">Live examples — framework-agnostic browser image compression. Each example uses the same library API.</p>
+
+              <div class="grid">
+                <a class="card" href="examples/react/">
+                  <div class="name">⚛️ React</div>
+                  <div class="desc">React 18 + Vite. Hooks, signals, async/await.</div>
+                </a>
+                <a class="card" href="examples/vue/">
+                  <div class="name">💚 Vue</div>
+                  <div class="desc">Vue 3 Composition API + Vite.</div>
+                </a>
+                <a class="card" href="examples/svelte/">
+                  <div class="name">🔥 Svelte</div>
+                  <div class="desc">Svelte 5 + Vite. Stores, transitions.</div>
+                </a>
+                <a class="card" href="examples/angular/">
+                  <div class="name">🅰️ Angular</div>
+                  <div class="desc">Angular 17 standalone + Analog/Vite plugin.</div>
+                </a>
+                <a class="card" href="examples/vanilla/">
+                  <div class="name">🟨 Vanilla</div>
+                  <div class="desc">Plain JS + TypeScript. No framework.</div>
+                </a>
+              </div>
+
+              <div class="links">
+                <a href="https://github.com/gkzlabs/image-compression">📦 GitHub Repo</a>
+                <a href="https://www.npmjs.com/package/@gkzlabs/image-compression">📥 npm Package</a>
+                <a href="https://github.com/gkzlabs/image-compression/blob/main/README.md">📖 README</a>
+                <a href="https://github.com/gkzlabs/image-compression/issues">🐛 Report Issue</a>
+              </div>
+            </div>
+          </body>
+          </html>
+          LANDING_EOF
+
+      - name: Add .nojekyll (prevents GitHub from ignoring files starting with _)
+        run: touch _site/.nojekyll
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
