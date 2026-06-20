@@ -1,108 +1,94 @@
-# Examples
+# @GKz/image-compression — Examples
 
-Framework integration examples for `@GKz/image-compression`.
+Five complete, working examples demonstrating the same library API across different frameworks. Each example:
 
-Each example is a **standalone Vite project** that demonstrates the same image
-compression demo in a different framework. They share identical UI logic — only
-the framework binding differs.
+- Uses **identical UI logic** (upload file → compress → display result → download)
+- Has a **framework-specific binding** (state, lifecycle, render)
+- Shares the **same `compress()` API** — no per-framework wrappers
+- Runs on **Vite** for dev/preview
 
-## Available Examples
+## The five examples
 
-| Example | Framework | Bundle size (gzipped) | Best for |
-|---|---|---|---|
-| [`angular/`](./angular/) | Angular 17 + standalone components | ~95 KB | Enterprise apps with strict TS |
-| [`react/`](./react/) | React 18 + TypeScript | ~45 KB | React apps, Next.js (client components) |
-| [`vue/`](./vue/) | Vue 3 + TypeScript | ~40 KB | Vue apps, Nuxt 3 |
-| [`svelte/`](./svelte/) | Svelte 4 + TypeScript | ~35 KB | SvelteKit, lean apps |
-| [`vanilla/`](./vanilla/) | TypeScript + Web Components | ~25 KB | Any framework, no dependencies |
+| Framework | Files | Bundle size | Setup time | Best for |
+|---|---|---|---|---|
+| **vanilla** | 5 | ~11 KB (gzip) | <10s | Non-framework sites, drop-in usage |
+| **react** | 5 | ~57 KB (gzip) | <10s | React 18 apps, hooks-based state |
+| **vue** | 6 | ~38 KB (gzip) | <10s | Vue 3 apps, Composition API |
+| **svelte** | 6 | ~14 KB (gzip) | <10s | Svelte 5 apps, smallest bundle |
+| **angular** | 12 | ~67 KB (gzip) | <2 min | Angular 18 apps, standalone + signals |
 
-All 5 examples share the **identical demo UI** — only the framework binding differs.
+All examples work in **dev mode** and **production build** without any worker setup. Vite handles worker bundling automatically.
 
-## Quick Start
-
-Each example is independent. Pick one and run:
+## Run any example
 
 ```bash
-cd angular    # or react, vue, svelte, vanilla
+cd examples/vanilla    # or react, vue, svelte, angular
 npm install
-npm start
+npm run dev
 ```
 
-Then open the URL shown in the terminal:
-- **Angular**: <http://localhost:4200>
-- **React/Vue/Svelte/Vanilla**: <http://localhost:5173>
+## Common API across all examples
 
-Upload an image, see it compressed.
-
-## What's the Same Across All Examples
-
-- ✅ Uses `@GKz/image-compression` v0.10.13
-- ✅ Same cascade (webcodecs-worker → offscreen-worker → canvas-main)
-- ✅ Same progress events + before/after size display
-- ✅ Same quality, max-dimension, format controls
-- ✅ Same HEIC support (Chrome 94+ native, fallback via `heic2any`)
-- ✅ Same error handling (`CompressionError`)
-
-## What's Different
-
-Only the framework binding layer:
-
-| Framework | State management | Event handlers | Build tool |
-|---|---|---|---|
-| Angular | `signal()` + `computed()` (Angular 17+) | `(change)`, `(input)` | Angular CLI |
-| React | `useState` + `useEffect` | `onClick`, `onChange` | Vite |
-| Vue | `ref()` + `reactive()` | `@click`, `@change` | Vite |
-| Svelte | `let` variables | `on:click`, `on:change` | Vite (svelte plugin) |
-| Vanilla | Plain JS class | `addEventListener` | Vite (TS) |
-
-## When to Use Which
-
-- **Angular** — Enterprise apps with strict TypeScript, large teams
-- **React** — Most popular; best for SPAs, Next.js client components
-- **Vue** — Lighter than React, great DX, popular in Asia/EU
-- **Svelte** — Smallest bundle, fastest runtime, no virtual DOM
-- **Vanilla TS** — Universal, framework-agnostic, drop into any page
-
-## File Upload Pattern (identical in all)
+Every example uses the same library calls:
 
 ```ts
-import { ImageCompression } from '@GKz/image-compression';
+import { ImageCompression, CompressionError } from '@GKz/image-compression';
 
+// 1. Initialize
 const svc = new ImageCompression();
-const fileInput = document.querySelector('input[type="file"]')!;
 
-fileInput.addEventListener('change', async (e) => {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  
-  const result = await svc.compress(file, {
-    quality: 0.85,
-    maxWidthOrHeight: 2048,
-    onProgress: (e) => console.log(`${e.percent}% ${e.stage}`),
-  });
-  
-  console.log(`${result.originalSize} → ${result.compressedSize} (${result.path})`);
+// 2. Detect capabilities (one-time)
+const caps = await svc.getCapabilities();
+
+// 3. Compress
+const result = await svc.compress(file, {
+  maxWidthOrHeight: 2048,
+  quality: 0.85,
+  format: 'image/jpeg',
 });
+
+// 4. Cleanup (terminates worker)
+svc.dispose();
 ```
 
-That's it. The library handles cascade selection, worker management, HEIC
-pre-decode, and progress events. You just call `compress()` and get a result.
+The **only differences** between examples are:
+- How state is held (ref, useState, $state, signals, plain object)
+- How lifecycle is managed (onMount, useEffect, $effect, ngOnInit)
+- How DOM is rendered (template, JSX, SFC template, signals template)
 
-## Production Tips
+## Framework-specific patterns
 
-1. **Reuse the service instance** — `new ImageCompression()` once, call
-   `compress()` many times. The service caches capabilities and the Worker.
-2. **Call `dispose()` when done** — terminates the Worker and frees memory.
-3. **Use `onProgress` for UX** — shows users the compression is happening.
-4. **Check `result.path`** — 'webcodecs-worker' is fastest on capable devices.
-5. **Listen for `CompressionError`** — typed errors with codes like
-   `HEIC_UNSUPPORTED`, `WORKER_INIT_FAILED`.
+### Vanilla (`examples/vanilla/`)
+- Single class, manual `innerHTML` updates
+- Re-attach event listeners after `innerHTML` overwrite
+- No lifecycle hooks — just constructor + manual cleanup
 
-## Common Issues
+### React (`examples/react/`)
+- `useRef` for the service (persists across renders, not reactive)
+- `useState` for reactive UI
+- `useEffect` with cleanup for lifecycle
+- `useEffect` deps array = `[]` to initialize once
 
-| Issue | Solution |
-|---|---|
-| "Worker is not defined" | Browser too old, falls back to canvas-main |
-| HEIC doesn't decode | Install `heic2any` peer dependency |
-| Bundle too large | Tree-shake unused paths; only `ImageCompression` is exported |
-| Worker fails to load | Check console for `__IC_WORKER_URL` escape hatch |
+### Vue 3 (`examples/vue/`)
+- Plain `let svc` for the service (not `ref()` — ref would be reactive)
+- `ref()` for reactive UI state
+- `onMounted` + `onUnmounted` for lifecycle
+- `<script setup>` for concise SFCs
+
+### Svelte 5 (`examples/svelte/`)
+- Plain `let svc` for the service
+- `$state(...)` for reactive UI state
+- `$effect(() => { ... return cleanup; })` for lifecycle
+- Compatible with Svelte 4 (without runes)
+
+### Angular 18 (`examples/angular/`)
+- Class field `private svc = new ImageCompression()` (created eagerly)
+- `signal<T>()` for reactive state
+- `OnInit` + `OnDestroy` for lifecycle
+- Uses **Vite** (not Angular CLI) for dev server
+
+## See also
+
+- [`docs/EXAMPLES.md`](../docs/EXAMPLES.md) — Detailed framework comparison, common pitfalls, performance tips
+- [`docs/BROWSER_COMPAT.md`](../docs/BROWSER_COMPAT.md) — Per-bundler setup notes
+- [`README.md`](../README.md) — Library overview and quick start
