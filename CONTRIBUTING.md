@@ -14,7 +14,7 @@ Thank you for your interest in contributing! This document explains how to set u
 
 ```bash
 # 1. Clone the repo
-git clone git@gitlab.com:guidekungz/image-compression.git
+git clone git@github.com:gkzlabs/image-compression.git
 cd image-compression
 
 # 2. Install dependencies
@@ -146,7 +146,7 @@ Examples: `feat/avif-support`, `fix/canvas-memory-leak`, `docs/usage-examples`
 
 ## 🐛 Reporting Bugs
 
-Use the [issue tracker](https://gitlab.com/guidekungz/image-compression/-/issues). Include:
+Use the [issue tracker](https://github.com/gkzlabs/image-compression/issues). Include:
 
 - **Description** — what happened vs. what you expected
 - **Reproduction** — minimal code snippet
@@ -163,7 +163,7 @@ Open an issue with the `enhancement` label. Explain:
 
 ## 📞 Questions?
 
-Open a discussion in the [issue tracker](https://gitlab.com/guidekungz/image-compression/-/issues) with the `question` label.
+Open a discussion in the [issue tracker](https://github.com/gkzlabs/image-compression/issues) with the `question` label.
 
 ## 📄 License
 

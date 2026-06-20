@@ -4,7 +4,7 @@
   "description": "Framework-agnostic image compression for the browser. Pure web APIs (WebCodecs, OffscreenCanvas, Comlink Worker). Works with any frontend framework (Angular, React, Vue, Svelte) or vanilla JS.",
   "repository": {
     "type": "git",
-    "url": "git@gitlab.com:guidekungz/image-compression.git"
+    "url": "git+https://github.com/gkzlabs/image-compression.git"
   },
   "type": "module",
   "main": "./dist/index.js",

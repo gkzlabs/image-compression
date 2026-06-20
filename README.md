@@ -1,8 +1,9 @@
 # @GKz/image-compression
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://gitlab.com/guidekungz/image-compression/-/releases)
+[![Version](https://img.shields.io/github/package-json/v/gkzlabs/image-compression)](https://github.com/gkzlabs/image-compression/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-65%20passing-brightgreen.svg)](#tests)
+[![CI](https://img.shields.io/github/actions/workflow/status/gkzlabs/image-compression/ci.yml?branch=main&label=CI)](https://github.com/gkzlabs/image-compression/actions/workflows/ci.yml)
 
 > **Framework-agnostic image compression for the browser.**
 > Pure web APIs. Zero framework dependencies.
@@ -28,8 +29,8 @@ A modern, progressive-enhancement image compression library that runs entirely i
 
 ```bash
 npm install @GKz/image-compression
-# or via GitLab
-npm install git+ssh://git@gitlab.com:guidekungz/image-compression.git
+# or install directly from GitHub
+npm install git+ssh://git@github.com/gkzlabs/image-compression.git
 ```
 
 ## 🚀 Quick Start
@@ -311,6 +312,6 @@ When multiple transforms are specified, they're applied in this order:
 
 ## 🔗 Links
 
-- [GitLab Repository](https://gitlab.com/guidekungz/image-compression)
-- [Issue Tracker](https://gitlab.com/guidekungz/image-compression/-/issues)
+- [GitHub Repository](https://github.com/gkzlabs/image-compression)
+- [Issue Tracker](https://github.com/gkzlabs/image-compression/issues)
 - [Changelog](CHANGELOG.md)
