@@ -54,9 +54,10 @@ export class AppComponent implements OnInit, OnDestroy {
       });
       this.result.set(r);
     } catch (err) {
-      const msg = err instanceof CompressionError
-        ? `${err.code}: ${err.message}`
-        : (err as Error).message;
+      const e = err as CompressionError | Error;
+      const msg = e instanceof CompressionError
+        ? `${e.code}: ${e.message}`
+        : e.message;
       alert(`Compression failed: ${msg}`);
     } finally {
       this.isCompressing.set(false);
