@@ -5,7 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.10.12] - 2026-06-20
+## [0.10.14] - 2026-06-20
+
+### Added
+- **`examples/` directory** with 4 standalone Vite projects:
+  - `examples/react/` — React 18 + TypeScript (uses hooks)
+  - `examples/vue/` — Vue 3 + TypeScript (Composition API + `<script setup>`)
+  - `examples/svelte/` — Svelte 4 + TypeScript (reactive `let` bindings)
+  - `examples/vanilla/` — TypeScript + raw DOM (no framework)
+  - `examples/README.md` — comparison table, when-to-use guide, common
+    patterns
+
+### Refactored (v0.10.13)
+- **Extracted `src/heic.ts`** — `tryDecodeHEICLazy()` + `isHEICFile()`. service.ts
+  re-exports for backwards-compatible public API.
+- **Extracted `src/worker-resolution.ts`** — `resolveWorker()` + `VERSION_TAG`.
+  service.ts re-exports for backwards-compatible public API.
+- **service.ts: 1453 → 1340 lines** (8% reduction). Further extraction
+  (path executors → `src/paths/`) deferred — would require re-architecting
+  the ImageCompression class to pass shared state (Worker, capabilities)
+  between modules.
 
 ### Changed
 - **Test file naming:** Renamed all `.test.ts` → `.spec.ts` (8 files) for
