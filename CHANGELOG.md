@@ -5,7 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.10.14] - 2026-06-20
+## [0.10.15] - 2026-06-20
+
+### Added
+- **`examples/angular/`** — minimal Angular 17 standalone example.
+  - **13 files** (vs the original 39-file `angular-image-compression` repo)
+  - Uses Angular 17 `signal()` + `computed()` for state management
+  - Uses Angular 17 `@if`/`@for` control flow syntax
+  - Same UI as react/vue/svelte/vanilla examples
+  - Build scripts: `build-worker.js` + `copy-heic2any.js` (Angular-specific)
+- **`examples/README.md`** updated to include Angular row in comparison
+  table and `When to use` list. Quick-start includes Angular port (4200).
+
+### Note
+The original `angular-image-compression` repo (39 files, includes Karma
+unit tests, Playwright E2E tests, 16MB test fixtures, etc.) is left
+intact for users who want the full production setup. The new
+`examples/angular/` is a **minimal reference** matching the other
+framework examples — pick whichever fits your needs.
 
 ### Added
 - **`examples/` directory** with 4 standalone Vite projects:
