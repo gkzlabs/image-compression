@@ -10,26 +10,29 @@ the framework binding differs.
 
 | Example | Framework | Bundle size (gzipped) | Best for |
 |---|---|---|---|
+| [`angular/`](./angular/) | Angular 17 + standalone components | ~95 KB | Enterprise apps with strict TS |
 | [`react/`](./react/) | React 18 + TypeScript | ~45 KB | React apps, Next.js (client components) |
 | [`vue/`](./vue/) | Vue 3 + TypeScript | ~40 KB | Vue apps, Nuxt 3 |
 | [`svelte/`](./svelte/) | Svelte 4 + TypeScript | ~35 KB | SvelteKit, lean apps |
 | [`vanilla/`](./vanilla/) | TypeScript + Web Components | ~25 KB | Any framework, no dependencies |
 
-The **Angular** demo lives in a separate repo
-[`angular-image-compression`](https://gitlab.com/guidekungz/angular-image-compression)
-because Angular CLI has different build tooling.
+All 5 examples share the **identical demo UI** — only the framework binding differs.
 
 ## Quick Start
 
 Each example is independent. Pick one and run:
 
 ```bash
-cd react    # or vue, svelte, vanilla
+cd angular    # or react, vue, svelte, vanilla
 npm install
-npm run dev
+npm start
 ```
 
-Open <http://localhost:5173>, upload an image, see it compressed.
+Then open the URL shown in the terminal:
+- **Angular**: <http://localhost:4200>
+- **React/Vue/Svelte/Vanilla**: <http://localhost:5173>
+
+Upload an image, see it compressed.
 
 ## What's the Same Across All Examples
 
@@ -46,6 +49,7 @@ Only the framework binding layer:
 
 | Framework | State management | Event handlers | Build tool |
 |---|---|---|---|
+| Angular | `signal()` + `computed()` (Angular 17+) | `(change)`, `(input)` | Angular CLI |
 | React | `useState` + `useEffect` | `onClick`, `onChange` | Vite |
 | Vue | `ref()` + `reactive()` | `@click`, `@change` | Vite |
 | Svelte | `let` variables | `on:click`, `on:change` | Vite (svelte plugin) |
@@ -53,11 +57,11 @@ Only the framework binding layer:
 
 ## When to Use Which
 
+- **Angular** — Enterprise apps with strict TypeScript, large teams
 - **React** — Most popular; best for SPAs, Next.js client components
 - **Vue** — Lighter than React, great DX, popular in Asia/EU
 - **Svelte** — Smallest bundle, fastest runtime, no virtual DOM
 - **Vanilla TS** — Universal, framework-agnostic, drop into any page
-- **Angular** — Enterprise apps with strict TypeScript (separate repo)
 
 ## File Upload Pattern (identical in all)
 

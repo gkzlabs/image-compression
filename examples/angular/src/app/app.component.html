@@ -1,0 +1,45 @@
+<div class="demo">
+  <h1>🖼️ @GKz/image-compression <span class="badge">Angular</span></h1>
+
+  @if (caps(); as c) {
+    <details>
+      <summary>📱 Device Capabilities</summary>
+      <table>
+        <tbody>
+          <tr><td>Tier</td><td>{{ c.tier }}</td></tr>
+          <tr><td>WebCodecs</td><td>{{ c.hasWebCodecs ? '✅' : '❌' }}</td></tr>
+          <tr><td>OffscreenCanvas</td><td>{{ c.hasOffscreenCanvas ? '✅' : '❌' }}</td></tr>
+          <tr><td>Web Worker</td><td>{{ c.hasWorker ? '✅' : '❌' }}</td></tr>
+          <tr><td>createImageBitmap</td><td>{{ c.hasCreateImageBitmap ? '✅' : '❌' }}</td></tr>
+        </tbody>
+      </table>
+    </details>
+  } @else {
+    <p>Loading capabilities...</p>
+  }
+
+  <label class="upload">
+    <input
+      type="file"
+      accept="image/*"
+      [disabled]="isCompressing()"
+      (change)="onFileChange($event)"
+    />
+    <span>{{ isCompressing() ? 'Compressing...' : 'Choose image' }}</span>
+  </label>
+
+  @if (result(); as r) {
+    <div class="result">
+      <h2>✅ Done</h2>
+      <p><strong>Path:</strong> {{ r.path }}</p>
+      <p><strong>Tier:</strong> {{ r.tier }}</p>
+      <p><strong>Original:</strong> {{ formatBytes(r.originalSize) }}</p>
+      <p><strong>Compressed:</strong> {{ formatBytes(r.compressedSize) }}</p>
+      <p><strong>Saved:</strong> {{ saved() }}%</p>
+      @if (r.width && r.height) {
+        <p><strong>Dimensions:</strong> {{ r.width }}×{{ r.height }}</p>
+      }
+      <a [href]="downloadUrl()" [download]="r.name">⬇️ Download</a>
+    </div>
+  }
+</div>
