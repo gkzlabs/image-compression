@@ -108,7 +108,6 @@ for (const file of readdirSync(outdir)) {
 
 console.log(`[build] ✓ Done: ${outdir}/`);
 console.log(`[build]   dist/index.js    — main library bundle`);
-console.log(`[build]   dist/worker.js   — standalone Web Worker (for `import '@GKz/image-compression/worker'`);
-console.log(`[build]   Consumers can use the standard \`new URL('./worker.js', import.meta.url)\` pattern.`);
-console.log(`[build]   For Angular CLI or other bundlers that 404 on worker URLs, set:`);
-console.log(`[build]     window.__IC_WORKER_URL = '/<path-to>/image-compression.worker.js';`);
+console.log(`[build]   dist/worker.js   — standalone Web Worker (use: import '@GKz/image-compression/worker')`);
+console.log(`[build]   Consumers can use the standard new URL pattern or set __IC_WORKER_URL escape hatch.`);
+console.log(`[build]   See docs/BROWSER_COMPAT.md for per-bundler setup notes.`);
