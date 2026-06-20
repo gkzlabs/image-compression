@@ -1,9 +1,14 @@
 # @gkzlabs/image-compression
 
-[![Version](https://img.shields.io/github/package-json/v/gkzlabs/image-compression)](https://github.com/gkzlabs/image-compression/releases)
+[![npm version](https://img.shields.io/npm/v/@gkzlabs/image-compression)](https://www.npmjs.com/package/@gkzlabs/image-compression)
+[![npm downloads](https://img.shields.io/npm/dm/@gkzlabs/image-compression)](https://www.npmjs.com/package/@gkzlabs/image-compression)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-65%20passing-brightgreen.svg)](#tests)
 [![CI](https://img.shields.io/github/actions/workflow/status/gkzlabs/image-compression/ci.yml?branch=main&label=CI)](https://github.com/gkzlabs/image-compression/actions/workflows/ci.yml)
+[![Deploy Examples](https://img.shields.io/github/actions/workflow/status/gkzlabs/image-compression/deploy-examples.yml?branch=main&label=examples)](https://gkzlabs.github.io/image-compression/)
+[![GitHub Pages](https://img.shields.io/badge/demo-live-success)](https://gkzlabs.github.io/image-compression/)
+[![Bundle Size](https://img.shields.io/bundlephobia/minzip/@gkzlabs/image-compression)](https://bundlephobia.com/package/@gkzlabs/image-compression)
+[![Tests](https://img.shields.io/badge/tests-77%20passing-brightgreen.svg)](#tests)
+[![Provenance](https://img.shields.io/badge/npm-provenance-blue)](https://docs.npmjs.com/generating-provenance-statements)
 
 > **Framework-agnostic image compression for the browser.**
 > Pure web APIs. Zero framework dependencies.
@@ -298,6 +303,20 @@ When multiple transforms are specified, they're applied in this order:
 ## 🤝 Related Packages
 
 - **`angular-image-compression`** — Angular DI wrapper. Adds `Observable` variants, `@Injectable()` service. Depends on `@gkzlabs/image-compression`.
+
+## 🎮 Live Demo
+
+Try it in your browser — no install needed:
+
+| Framework | Live Demo | Source |
+| --- | --- | --- |
+| ⚛️ React | [examples/react/](https://gkzlabs.github.io/image-compression/examples/react/) | [`examples/react/`](examples/react/) |
+| 💚 Vue | [examples/vue/](https://gkzlabs.github.io/image-compression/examples/vue/) | [`examples/vue/`](examples/vue/) |
+| 🔥 Svelte | [examples/svelte/](https://gkzlabs.github.io/image-compression/examples/svelte/) | [`examples/svelte/`](examples/svelte/) |
+| 🅰️ Angular | [examples/angular/](https://gkzlabs.github.io/image-compression/examples/angular/) | [`examples/angular/`](examples/angular/) |
+| 🟨 Vanilla | [examples/vanilla/](https://gkzlabs.github.io/image-compression/examples/vanilla/) | [`examples/vanilla/`](examples/vanilla/) |
+
+**All examples** → [landing page](https://gkzlabs.github.io/image-compression/)
 
 ## 📚 Documentation
 
