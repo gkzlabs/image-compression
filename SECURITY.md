@@ -4,16 +4,22 @@
 
 | Version | Supported          |
 |---------|--------------------|
-| 0.1.x   | :white_check_mark: |
-| < 0.1   | :x:                |
+| 0.10.x  | :white_check_mark: |
+| 0.5.x   | :white_check_mark: (last monolithic release) |
+| < 0.5   | :x:                |
+
+> The library is pre-1.0 — minor versions may include breaking changes.
+> See [CHANGELOG.md](CHANGELOG.md) for the full release history and
+> [GitHub Releases](https://github.com/gkzlabs/image-compression/releases)
+> for tagged versions.
 
 ## Reporting a Vulnerability
 
-**Please do NOT report security vulnerabilities through public GitLab issues.**
+**Please do NOT report security vulnerabilities through public GitHub issues.**
 
 Instead, please report them via email to:
 
-📧 **security@guidekungz.com** (replace with your actual security contact)
+📧 **security@guidekungz.com**
 
 You should receive a response within 48 hours. If for some reason you do not, please follow up via email to ensure we received your original message.
 
