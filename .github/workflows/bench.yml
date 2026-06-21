@@ -41,12 +41,13 @@ jobs:
           # puppeteer will use its bundled Chromium
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: ''
 
-      - name: Commit updated BENCHMARKS.md
-        # Only commit if there are changes (avoid empty commits)
+      - name: Commit updated results
+        # Commits both the human-readable BENCHMARKS.md and the JSON data
+        # that the GitHub Pages dashboard reads. Skips empty commits.
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add bench/results/BENCHMARKS.md bench/results/latest.json 2>/dev/null || true
+          git add bench/results/BENCHMARKS.md bench/results/latest.json docs/bench/data/latest.json 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "no changes to commit"
           else

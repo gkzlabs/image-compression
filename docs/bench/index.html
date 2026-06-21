@@ -1,0 +1,238 @@
+<!doctype html>
+<!--
+  @gkzlabs/image-compression — interactive benchmark dashboard
+  Reads data/latest.json (auto-updated by .github/workflows/bench.yml)
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Benchmarks — @gkzlabs/image-compression</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #fff; --fg: #111; --muted: #666; --card: #f6f7f8; --border: #e5e7eb;
+      --accent: #3b82f6;
+      --wc: #61DAFB; --ow: #9c7cff; --cm: #7aa2ff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0d1117; --fg: #e6edf3; --muted: #8b949e; --card: #161b22; --border: #30363d;
+        --accent: #58a6ff;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
+    header { margin-bottom: 32px; }
+    h1 { font-size: 28px; margin: 0 0 6px; font-weight: 700; letter-spacing: -0.5px; }
+    .sub { color: var(--muted); margin: 0; font-size: 14px; }
+    .meta { display: flex; gap: 24px; flex-wrap: wrap; margin: 16px 0; padding: 12px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+    .meta strong { color: var(--fg); font-weight: 600; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 20px; margin-top: 24px; }
+    .card { padding: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+    .card h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+    .card .sub { margin: 0 0 16px; font-size: 13px; }
+    .chart-wrap { position: relative; height: 280px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { font-weight: 600; color: var(--muted); }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; background: var(--border); padding: 1px 6px; border-radius: 3px; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .pill-fast { background: rgba(93, 211, 158, 0.15); color: #2e8b57; }
+    .pill-mid { background: rgba(122, 162, 255, 0.15); color: #4a6db5; }
+    .verdict { margin-top: 24px; padding: 16px 20px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+    .verdict h2 { margin: 0 0 8px; font-size: 16px; }
+    .verdict ul { margin: 8px 0; padding-left: 20px; }
+    .verdict li { margin: 4px 0; }
+    .links { margin-top: 32px; display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
+    .links a { color: var(--accent); text-decoration: none; }
+    .links a:hover { text-decoration: underline; }
+    .error { padding: 24px; background: rgba(255, 107, 107, 0.1); border: 1px solid #ff6b6b; border-radius: 8px; color: #c92a2a; }
+    @media (prefers-color-scheme: dark) {
+      .pill-fast { color: #5dd39e; }
+      .pill-mid { color: #7aa2ff; }
+      .error { color: #ff8787; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>⚡ Benchmarks</h1>
+      <p class="sub">Cascade path performance for <code>@gkzlabs/image-compression</code> — auto-updated on every CI run</p>
+    </header>
+
+    <div id="meta" class="meta">Loading…</div>
+
+    <div class="verdict" id="verdict">
+      <h2>Path verdict</h2>
+      <p>The cascade (<code>webcodecs-worker → offscreen-worker → canvas-main → server-fallback</code>) picks the best available path automatically. To force a specific path, the bench harness patches <code>ImageDecoder</code> and <code>Worker</code> via <code>page.evaluate</code> before calling <code>compress()</code>.</p>
+      <ul>
+        <li><strong>⚡ webcodecs-worker</strong> — best when available (Chrome 94+, Edge 94+, Safari 16.4+, Firefox 130+). GPU-accelerated decode.</li>
+        <li><strong>🥈 offscreen-worker</strong> — fallback for browsers without WebCodecs. OffscreenCanvas, ~10% slower.</li>
+        <li><strong>🥉 canvas-main</strong> — universal fallback (works everywhere, blocks main thread).</li>
+        <li><strong>server-fallback</strong> — last-resort passthrough.</li>
+      </ul>
+    </div>
+
+    <div id="charts" class="grid"></div>
+
+    <div class="links">
+      <a href="https://github.com/gkzlabs/image-compression/blob/main/bench/results/BENCHMARKS.md">📄 View raw BENCHMARKS.md</a>
+      <a href="https://github.com/gkzlabs/image-compression/tree/main/bench">🛠 Bench harness source</a>
+      <a href="https://github.com/gkzlabs/image-compression">📦 GitHub repo</a>
+    </div>
+  </div>
+
+  <script>
+    const PATH_COLORS = {
+      'webcodecs-worker': '#61DAFB',
+      'offscreen-worker': '#9c7cff',
+      'canvas-main': '#7aa2ff',
+      'server-fallback': '#6e83b8',
+    };
+
+    function fmtBytes(b) {
+      if (b < 1024) return `${b} B`;
+      if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+      return `${(b / (1024 * 1024)).toFixed(2)} MB`;
+    }
+    function fmtTime(ms) { return `${ms.toFixed(1)} ms`; }
+
+    async function init() {
+      const metaEl = document.getElementById('meta');
+      const chartsEl = document.getElementById('charts');
+      let data;
+      try {
+        const r = await fetch('./data/latest.json', { cache: 'no-store' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        data = await r.json();
+      } catch (e) {
+        metaEl.outerHTML = `<div class="error">Failed to load benchmark data: ${e.message}. <a href="data/latest.json">Try direct link</a>.</div>`;
+        return;
+      }
+
+      // Meta strip
+      const runAt = new Date(data.runAt);
+      metaEl.innerHTML = `
+        <div><strong>Library:</strong> <code>@gkzlabs/image-compression@${data.version}</code></div>
+        <div><strong>Browser:</strong> ${data.browser}</div>
+        <div><strong>Run at:</strong> ${runAt.toLocaleString()}</div>
+        <div><strong>Iterations:</strong> ${data.iterations} (median, with ${data.warmup} warmup)</div>
+      `;
+
+      // Collect all fixtures across all configs
+      const fixtureMap = new Map();
+      for (const cfg of data.configs) {
+        for (const r of cfg.results) {
+          if (!fixtureMap.has(r.fixture)) {
+            fixtureMap.set(r.fixture, { fixture: r.fixture, inputBytes: r.inputBytes, runs: [] });
+          }
+          fixtureMap.get(r.fixture).runs.push({
+            config: cfg.name,
+            path: r.path,
+            median: r.stats.median,
+            min: r.stats.min,
+            outputBytes: r.outputBytes,
+            ratio: r.ratio,
+          });
+        }
+      }
+
+      // Render a card per fixture
+      for (const [, fx] of fixtureMap) {
+        // Sort by median (fastest first)
+        fx.runs.sort((a, b) => a.median - b.median);
+        const card = document.createElement('div');
+        card.className = 'card';
+        const fastest = fx.runs[0];
+        const fastestPill = `<span class="pill pill-fast">⚡ ${fmtTime(fastest.median)}</span>`;
+        card.innerHTML = `
+          <h2>${fx.fixture} ${fastestPill}</h2>
+          <p class="sub">Input: <strong>${fmtBytes(fx.inputBytes)}</strong> · Output: <strong>${fmtBytes(fastest.outputBytes)}</strong> · Saved: <strong>${fastest.ratio.toFixed(1)}%</strong></p>
+          <div class="chart-wrap"><canvas></canvas></div>
+        `;
+        chartsEl.appendChild(card);
+
+        const ctx = card.querySelector('canvas');
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: fx.runs.map((r) => r.path),
+            datasets: [{
+              label: 'Time (median)',
+              data: fx.runs.map((r) => r.median),
+              backgroundColor: fx.runs.map((r) => PATH_COLORS[r.path] || '#7aa2ff'),
+              borderColor: fx.runs.map((r) => PATH_COLORS[r.path] || '#7aa2ff'),
+              borderWidth: 1,
+              borderRadius: 4,
+            }, {
+              label: 'Time (best)',
+              data: fx.runs.map((r) => r.min),
+              backgroundColor: fx.runs.map((r) => PATH_COLORS[r.path] || '#7aa2ff'),
+              borderColor: fx.runs.map((r) => PATH_COLORS[r.path] || '#7aa2ff'),
+              borderWidth: 1,
+              borderRadius: 4,
+              borderDash: [4, 4],
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+              legend: { display: true, position: 'bottom', labels: { font: { size: 11 } } },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.x.toFixed(1)} ms`,
+                },
+              },
+            },
+            scales: {
+              x: {
+                title: { display: true, text: 'Time (ms)', font: { size: 11 } },
+                grid: { color: 'rgba(128,128,128,0.15)' },
+                ticks: { font: { size: 11 } },
+              },
+              y: { grid: { display: false }, ticks: { font: { size: 11 } } },
+            },
+          },
+        });
+      }
+
+      // Add a "raw data" table at the bottom
+      const tableCard = document.createElement('div');
+      tableCard.className = 'card';
+      tableCard.style.gridColumn = '1 / -1';
+      const rows = [];
+      for (const cfg of data.configs) {
+        for (const r of cfg.results) {
+          rows.push(`<tr>
+            <td><code>${cfg.name}</code></td>
+            <td>${r.fixture}</td>
+            <td><code>${r.path}</code></td>
+            <td class="num">${fmtTime(r.stats.median)}</td>
+            <td class="num">${fmtTime(r.stats.min)}</td>
+            <td class="num">${fmtBytes(r.outputBytes)}</td>
+            <td class="num">${r.ratio.toFixed(1)}%</td>
+          </tr>`);
+        }
+      }
+      tableCard.innerHTML = `
+        <h2>Raw data</h2>
+        <p class="sub">All configurations × all fixtures — exact medians</p>
+        <table>
+          <thead><tr><th>Config</th><th>Fixture</th><th>Path</th><th class="num">Median</th><th class="num">Best</th><th class="num">Output</th><th class="num">Saved</th></tr></thead>
+          <tbody>${rows.join('')}</tbody>
+        </table>
+      `;
+      chartsEl.appendChild(tableCard);
+    }
+
+    init();
+  </script>
+</body>
+</html>

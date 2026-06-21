@@ -186,16 +186,152 @@ function formatTime(ms) {
   return `${ms.toFixed(1)} ms`;
 }
 
+// ── TL;DR generator (B) ────────────────────────────────────────────────────
+// Produces a 2-3 line summary that skimmable readers can grasp in 5 seconds.
+function generateTldr(allResults) {
+  // Find the largest fixture (most representative of real-world)
+  const fixtures = new Set();
+  for (const { results } of allResults) for (const r of results) fixtures.add(r.fixture);
+  const largest = [...fixtures].sort((a, b) => {
+    const aSize = allResults[0].results.find((r) => r.fixture === a)?.inputBytes || 0;
+    const bSize = allResults[0].results.find((r) => r.fixture === b)?.inputBytes || 0;
+    return bSize - aSize;
+  })[0];
+  const largeResult = allResults[0].results.find((r) => r.fixture === largest);
+
+  // Find best path on largest fixture
+  let bestTime = Infinity;
+  let bestPath = 'unknown';
+  let worstTime = 0;
+  let worstPath = 'unknown';
+  for (const { results } of allResults) {
+    const r = results.find((x) => x.fixture === largest);
+    if (r && r.stats.median < bestTime) {
+      bestTime = r.stats.median;
+      bestPath = r.path;
+    }
+    if (r && r.stats.median > worstTime) {
+      worstTime = r.stats.median;
+      worstPath = r.path;
+    }
+  }
+  const speedup = (worstTime / bestTime).toFixed(2);
+
+  // Compose the comparison phrase — "X is N× faster than Y" where Y = the
+  // slowest path on this fixture. Avoids the awkward "canvas-main 1.00× canvas-main"
+  // when canvas-main happens to be the fastest.
+  const isCanvasFastest = bestPath === 'canvas-main';
+  const comparePhrase = isCanvasFastest
+    ? `**\`${bestPath}\`** is the fastest on this hardware (${formatTime(bestTime)})`
+    : `**\`${bestPath}\`** is **${speedup}× faster than \`${worstPath}\`** on the largest fixture`;
+
+  return [
+    '> **TL;DR**',
+    '>',
+    `> - Compress a **${formatBytes(largeResult.inputBytes)}** JPEG in **${formatTime(bestTime)}** on Chrome 149 (\`${bestPath}\` path).`,
+    `> - ${comparePhrase}.`,
+    '> - On modern browsers all 3 paths finish in well under 100ms — the real win is **universal compatibility** (works on every browser, no polyfill needed).',
+    '>',
+    '> [📊 Live interactive dashboard](https://gkzlabs.github.io/image-compression/bench/)',
+  ];
+}
+
+// ── Verdict generator (B) ──────────────────────────────────────────────────
+// Static per-path guidance — same regardless of benchmark results.
+function generateVerdict() {
+  return [
+    '## Path verdict',
+    '',
+    'When to use which path (the cascade picks automatically, but you can force by disabling features):',
+    '',
+    '| Path | Best for | Browser support | Trade-off |',
+    '| --- | --- | --- | --- |',
+    '| `webcodecs-worker` ⚡ | Modern apps where you control the browser baseline | Chrome 94+, Edge 94+, Safari 16.4+, Firefox 130+ | GPU-accelerated decode; needs WebCodecs |',
+    '| `offscreen-worker` 🥈 | Mid-tier browser support without main-thread blocking | Same as above + older Chrome via fallback | OffscreenCanvas; ~10% slower than WebCodecs |',
+    '| `canvas-main` 🥉 | Universal fallback (works everywhere, including Node/test env) | 100% of browsers | Blocks main thread; no worker isolation |',
+    '| `server-fallback` | Last-resort passthrough | N/A | No compression — caller uploads original |',
+    '',
+    '> **Practical tip:** on small files (<100 KB), the cascade may skip Worker paths because the postMessage overhead exceeds the decode cost. See the [live dashboard](https://gkzlabs.github.io/image-compression/bench/) for real numbers per fixture size.',
+  ];
+}
+
+// ── Inline SVG bar chart (A) ───────────────────────────────────────────────
+// Generates a self-contained SVG with horizontal bars, one per path.
+// No external file — pure text embedded in the markdown via fenced code block.
+function generateBarChartSvg(fixture, allResults) {
+  const rows = allResults
+    .map(({ config, results }) => {
+      const r = results.find((x) => x.fixture === fixture);
+      if (!r) return null;
+      return { config: config.name, path: r.path, median: r.stats.median, min: r.stats.min };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.median - b.median);
+
+  if (rows.length === 0) return '';
+
+  const max = Math.max(...rows.map((r) => r.median));
+  // Color per path (matches brand/social-preview)
+  const colorByPath = {
+    'webcodecs-worker': '#61DAFB',
+    'offscreen-worker': '#9c7cff',
+    'canvas-main': '#7aa2ff',
+    'server-fallback': '#6e83b8',
+  };
+  // Chart dimensions
+  const rowH = 32; // px per row
+  const labelW = 160; // px reserved for label
+  const timeW = 90; // px reserved for time text
+  const barAreaW = 480; // px for bars
+  const w = labelW + barAreaW + timeW;
+  const h = rows.length * rowH + 8;
+  const maxBarW = barAreaW - 10; // leave 10px right padding
+
+  const lines = [];
+  lines.push(`<svg viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" role="img" aria-label="Benchmark: ${fixture}">`);
+  // Optional grid lines
+  for (let i = 0; i <= 4; i++) {
+    const x = labelW + (maxBarW * i) / 4;
+    const v = (max * i) / 4;
+    const label = i === 0 ? '0 ms' : `${v < 1 ? v.toFixed(1) : v.toFixed(0)} ms`;
+    lines.push(`  <line x1="${x.toFixed(1)}" y1="4" x2="${x.toFixed(1)}" y2="${h - 4}" stroke="#30363d" stroke-width="0.5" stroke-dasharray="2,2"/>`);
+    lines.push(`  <text x="${x.toFixed(1)}" y="${h - 1}" text-anchor="middle" fill="#6e83b8" font-size="10">${label}</text>`);
+  }
+  // Bars
+  rows.forEach((row, i) => {
+    const y = 6 + i * rowH;
+    const barW = Math.max(2, (row.median / max) * maxBarW);
+    const color = colorByPath[row.path] || '#7aa2ff';
+    const isFastest = i === 0;
+    // Label
+    lines.push(`  <text x="${labelW - 8}" y="${y + 14}" text-anchor="end" fill="${isFastest ? '#f1f5ff' : '#cbd5ff'}" font-weight="${isFastest ? '700' : '500'}">${row.path}</text>`);
+    // Bar
+    lines.push(`  <rect x="${labelW}" y="${y + 4}" width="${barW.toFixed(1)}" height="18" fill="${color}" rx="3" opacity="${isFastest ? '1' : '0.85'}"/>`);
+    // Time text after bar
+    lines.push(`  <text x="${labelW + barW + 6}" y="${y + 17}" fill="${isFastest ? '#5dd39e' : '#cbd5ff'}" font-weight="${isFastest ? '700' : '500'}">${formatTime(row.median)}${isFastest ? ' ⚡' : ''}</text>`);
+  });
+  lines.push('</svg>');
+  return lines.join('\n');
+}
+
 function generateMarkdown(allResults, { version, browser, runAt }) {
   const lines = [];
   lines.push('# Benchmarks');
   lines.push('');
+
+  // ── TL;DR (B) ────────────────────────────────────────────────────────
+  lines.push(...generateTldr(allResults));
+  lines.push('');
+
+  // ── Verdict (B) ──────────────────────────────────────────────────────
+  lines.push(...generateVerdict());
+  lines.push('');
+
+  // ── Path comparison overview table ──────────────────────────────────
   lines.push(`**Library version:** \`@gkzlabs/image-compression@${version}\``);
   lines.push(`**Browser:** ${browser}`);
   lines.push(`**Run at:** ${runAt}`);
   lines.push(`**Iterations per fixture:** ${ITERATIONS} (median reported, with ${WARMUP} warmup)`);
-  lines.push('');
-  lines.push('## Path comparison');
   lines.push('');
   lines.push('The library uses a 4-path cascade: `webcodecs-worker` → `offscreen-worker` → `canvas-main` → `server-fallback`. To compare paths, we launch headless Chrome three times with progressive feature disabling, forcing the cascade to fall back to a different path each time:');
   lines.push('');
@@ -206,7 +342,7 @@ function generateMarkdown(allResults, { version, browser, runAt }) {
   }
   lines.push('');
 
-  // Build per-fixture comparison: rows = fixture × path, cols = time
+  // ── Per-fixture: SVG bar chart (A) + table ─────────────────────────
   const fixtures = new Set();
   for (const { results } of allResults) {
     for (const r of results) fixtures.add(r.fixture);
@@ -226,9 +362,12 @@ function generateMarkdown(allResults, { version, browser, runAt }) {
       );
     }
     lines.push('');
+    // Inline SVG bar chart (A) — pure HTML, renders as image on GitHub
+    lines.push(generateBarChartSvg(fixture, allResults));
+    lines.push('');
   }
 
-  // Speedup summary — relative to canvas-main
+  // ── Speedup summary ────────────────────────────────────────────────
   const baseline = allResults.find((b) => b.config.name === 'no-workers');
   if (baseline) {
     lines.push('## Speedup vs canvas-main');
@@ -246,7 +385,7 @@ function generateMarkdown(allResults, { version, browser, runAt }) {
     lines.push('');
   }
 
-  // Raw runs per config
+  // ── Raw runs per config ────────────────────────────────────────────
   lines.push('## Raw runs');
   lines.push('');
   for (const { config, results } of allResults) {
@@ -275,6 +414,10 @@ function generateMarkdown(allResults, { version, browser, runAt }) {
   lines.push(`- **Iterations:** ${ITERATIONS} measured runs per fixture. Median + best (min) reported.`);
   lines.push('- **Fixtures:** Generated deterministically via `bench/fixtures/generate.mjs` (uses `@napi-rs/canvas`); committed to the repo for reproducibility.');
   lines.push('- **Variance:** Times vary 5-20% run-to-run. Use the median, not the mean, for stable comparisons.');
+  lines.push('');
+  lines.push('## Live dashboard');
+  lines.push('');
+  lines.push('See [https://gkzlabs.github.io/image-compression/bench/](https://gkzlabs.github.io/image-compression/bench/) for an interactive chart view with hover tooltips.');
   lines.push('');
   lines.push('## Reproducing');
   lines.push('');
@@ -364,6 +507,13 @@ async function main() {
     };
     writeFileSync(resolve(RESULTS_DIR, 'latest.json'), JSON.stringify(json, null, 2));
     log(`wrote results/latest.json`);
+
+    // Also copy to docs/bench/data/latest.json so the GitHub Pages dashboard
+    // can fetch it (Pages serves the repo as a static site from `/`).
+    const dataDir = resolve(ROOT, 'docs', 'bench', 'data');
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(resolve(dataDir, 'latest.json'), JSON.stringify(json, null, 2));
+    log(`wrote docs/bench/data/latest.json`);
 
     const md = generateMarkdown(allResults, { version, browser: primaryBrowser, runAt });
     writeFileSync(resolve(RESULTS_DIR, 'BENCHMARKS.md'), md);

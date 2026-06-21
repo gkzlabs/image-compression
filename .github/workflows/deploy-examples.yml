@@ -1,31 +1,29 @@
-# GitHub Actions — deploy examples to GitHub Pages
+# GitHub Actions — deploy examples + bench dashboard to GitHub Pages
 #
-# Builds all 5 framework examples (react, vue, svelte, angular, vanilla) and
-# deploys them under /examples/{framework}/ on GitHub Pages, with a landing
-# page at the root.
+# Builds all 5 framework examples (react, vue, svelte, angular, vanilla) AND
+# the benchmark dashboard, then deploys them under /examples/{framework}/ and
+# /bench/ on GitHub Pages. Landing page at the root links to both.
 #
 # Triggers:
 #   - Manual: workflow_dispatch
-#   - Auto:   push to main when examples/ or this workflow file changes
+#   - Auto:   push to main when examples/, bench/, or this workflow file changes
 #
 # Required setup (one-time):
 #   1. Repo Settings → Pages → Source: "GitHub Actions"
 #
 # Output:
-#   - Landing: https://gkzlabs.github.io/image-compression/
-#   - React:   https://gkzlabs.github.io/image-compression/examples/react/
-#   - Vue:     https://gkzlabs.github.io/image-compression/examples/vue/
-#   - Svelte:  https://gkzlabs.github.io/image-compression/examples/svelte/
-#   - Angular: https://gkzlabs.github.io/image-compression/examples/angular/
-#   - Vanilla: https://gkzlabs.github.io/image-compression/examples/vanilla/
-name: Deploy Examples to GitHub Pages
+#   - Landing:  https://gkzlabs.github.io/image-compression/
+#   - React:    https://gkzlabs.github.io/image-compression/examples/react/
+#   - Bench:    https://gkzlabs.github.io/image-compression/bench/
+name: Deploy Examples + Bench to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
       - 'examples/**'
-      - '.github/workflows/deploy-examples.yml'
+      - 'bench/**'
+      - '.github/workflows/deploy.yml'
       - 'package.json'
       - 'package-lock.json'
       - 'src/**'
@@ -103,8 +101,9 @@ jobs:
               .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin: 24px 0; }
               .card { display: block; padding: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; text-decoration: none; color: var(--fg); transition: transform 0.15s, border-color 0.15s; }
               .card:hover { transform: translateY(-2px); border-color: var(--accent); }
-              .card .name { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
-              .card .desc { font-size: 13px; color: var(--muted); margin: 0; }
+              .card .logo { vertical-align: middle; margin-right: 10px; }
+              .card .name { display: inline; font-size: 18px; font-weight: 600; margin: 0; vertical-align: middle; }
+              .card .desc { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
               .links { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
               .links a { color: var(--accent); text-decoration: none; }
               .links a:hover { text-decoration: underline; }
@@ -117,24 +116,34 @@ jobs:
 
               <div class="grid">
                 <a class="card" href="examples/react/">
-                  <div class="name">⚛️ React</div>
+                  <img src="assets/logos/react.svg" alt="" width="28" height="28" class="logo">
+                  <div class="name">React</div>
                   <div class="desc">React 18 + Vite. Hooks, signals, async/await.</div>
                 </a>
                 <a class="card" href="examples/vue/">
-                  <div class="name">💚 Vue</div>
+                  <img src="assets/logos/vue.svg" alt="" width="28" height="28" class="logo">
+                  <div class="name">Vue</div>
                   <div class="desc">Vue 3 Composition API + Vite.</div>
                 </a>
                 <a class="card" href="examples/svelte/">
-                  <div class="name">🔥 Svelte</div>
+                  <img src="assets/logos/svelte.svg" alt="" width="28" height="28" class="logo">
+                  <div class="name">Svelte</div>
                   <div class="desc">Svelte 5 + Vite. Stores, transitions.</div>
                 </a>
                 <a class="card" href="examples/angular/">
-                  <div class="name">🅰️ Angular</div>
+                  <img src="assets/logos/angular.svg" alt="" width="28" height="28" class="logo">
+                  <div class="name">Angular</div>
                   <div class="desc">Angular 17 standalone + Analog/Vite plugin.</div>
                 </a>
                 <a class="card" href="examples/vanilla/">
-                  <div class="name">🟨 Vanilla</div>
+                  <img src="assets/logos/javascript.svg" alt="" width="28" height="28" class="logo">
+                  <div class="name">Vanilla</div>
                   <div class="desc">Plain JS + TypeScript. No framework.</div>
+                </a>
+                <a class="card" href="bench/">
+                  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f7df1e'%3E%3Cpath d='M13 2L3 14h7v8l10-12h-7z'/%3E%3C/svg%3E" alt="" width="28" height="28" class="logo">
+                  <div class="name">⚡ Benchmarks</div>
+                  <div class="desc">Cascade path performance — auto-updated weekly.</div>
                 </a>
               </div>
 
@@ -151,6 +160,20 @@ jobs:
 
       - name: Add .nojekyll (prevents GitHub from ignoring files starting with _)
         run: touch _site/.nojekyll
+
+      - name: Copy benchmark dashboard + logos into _site/bench/
+        # The bench data is generated by the Bench workflow (./bench.yml) and
+        # committed to docs/bench/data/latest.json on main. We just copy the
+        # static dashboard files into _site/bench/ alongside the examples.
+        run: |
+          mkdir -p _site/bench/data
+          cp docs/bench/index.html _site/bench/index.html
+          cp docs/bench/data/latest.json _site/bench/data/latest.json
+          # Copy logo assets (used by both landing page and bench dashboard)
+          mkdir -p _site/assets/logos
+          cp docs/assets/logos/*.svg _site/assets/logos/
+          echo "Bench dashboard files:"
+          ls -la _site/bench/ _site/bench/data/ _site/assets/logos/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
