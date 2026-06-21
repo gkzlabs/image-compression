@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.26] - 2026-06-21
+
+### Added
+- **Benchmark suite** (`npm run bench`) — runs all 3 cascade paths (`webcodecs-worker` / `offscreen-worker` / `canvas-main`) in headless Chromium against deterministic fixtures, writes `bench/results/BENCHMARKS.md` (TL;DR + Verdict + inline SVG bar charts) and `bench/results/latest.json`.
+- **Live interactive benchmark dashboard** at [gkzlabs.github.io/image-compression/bench/](https://gkzlabs.github.io/image-compression/bench/) — Chart.js horizontal bar charts per fixture (median + best), theme-aware (light/dark), auto-updated weekly by `.github/workflows/bench.yml`.
+- **Path-forcing technique** in `bench/harness.html` — patches `ImageDecoder` and `Worker` via `page.evaluate` (more reliable than `--disable-features` flags because the lib uses optimistic capability detection).
+- **Real framework brand logos** in README + Pages landing (`docs/assets/logos/{react,vue,svelte,angular,javascript}.svg`) — replaces emoji placeholders with simpleicons.org SVGs.
+- `npm run bench:fixtures` script — regenerates deterministic JPEG fixtures.
+
+### Changed
+- README: all relative links → absolute GitHub URLs (so they work on both github.com AND npmjs.com where relative paths don't resolve).
+- GitHub Pages workflow (`deploy-examples.yml` → `Deploy Examples + Bench to GitHub Pages`) also deploys the bench dashboard + logo assets to `/bench/` and updates the landing page to use real logos.
+- GitHub Pages landing page now has 6 cards (5 frameworks + Benchmarks).
+
 ## [0.10.25] - 2026-06-20
 
 ### Changed

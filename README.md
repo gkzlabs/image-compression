@@ -312,25 +312,25 @@ Try it in your browser — no install needed:
 
 | Framework | Live Demo | Source |
 | --- | --- | --- |
-| <img src="docs/assets/logos/react.svg" width="18" height="18" valign="middle" alt="React"> React | [examples/react/](https://gkzlabs.github.io/image-compression/examples/react/) | [`examples/react/`](examples/react/) |
-| <img src="docs/assets/logos/vue.svg" width="18" height="18" valign="middle" alt="Vue"> Vue | [examples/vue/](https://gkzlabs.github.io/image-compression/examples/vue/) | [`examples/vue/`](examples/vue/) |
-| <img src="docs/assets/logos/svelte.svg" width="18" height="18" valign="middle" alt="Svelte"> Svelte | [examples/svelte/](https://gkzlabs.github.io/image-compression/examples/svelte/) | [`examples/svelte/`](examples/svelte/) |
-| <img src="docs/assets/logos/angular.svg" width="18" height="18" valign="middle" alt="Angular"> Angular | [examples/angular/](https://gkzlabs.github.io/image-compression/examples/angular/) | [`examples/angular/`](examples/angular/) |
-| <img src="docs/assets/logos/javascript.svg" width="18" height="18" valign="middle" alt="Vanilla JS"> Vanilla | [examples/vanilla/](https://gkzlabs.github.io/image-compression/examples/vanilla/) | [`examples/vanilla/`](examples/vanilla/) |
+| <img src="https://raw.githubusercontent.com/gkzlabs/image-compression/main/docs/assets/logos/react.svg" width="18" height="18" valign="middle" alt="React"> React | [examples/react/](https://gkzlabs.github.io/image-compression/examples/react/) | [`examples/react/`](https://github.com/gkzlabs/image-compression/tree/main/examples/react/) |
+| <img src="https://raw.githubusercontent.com/gkzlabs/image-compression/main/docs/assets/logos/vue.svg" width="18" height="18" valign="middle" alt="Vue"> Vue | [examples/vue/](https://gkzlabs.github.io/image-compression/examples/vue/) | [`examples/vue/`](https://github.com/gkzlabs/image-compression/tree/main/examples/vue/) |
+| <img src="https://raw.githubusercontent.com/gkzlabs/image-compression/main/docs/assets/logos/svelte.svg" width="18" height="18" valign="middle" alt="Svelte"> Svelte | [examples/svelte/](https://gkzlabs.github.io/image-compression/examples/svelte/) | [`examples/svelte/`](https://github.com/gkzlabs/image-compression/tree/main/examples/svelte/) |
+| <img src="https://raw.githubusercontent.com/gkzlabs/image-compression/main/docs/assets/logos/angular.svg" width="18" height="18" valign="middle" alt="Angular"> Angular | [examples/angular/](https://gkzlabs.github.io/image-compression/examples/angular/) | [`examples/angular/`](https://github.com/gkzlabs/image-compression/tree/main/examples/angular/) |
+| <img src="https://raw.githubusercontent.com/gkzlabs/image-compression/main/docs/assets/logos/javascript.svg" width="18" height="18" valign="middle" alt="Vanilla JS"> Vanilla | [examples/vanilla/](https://gkzlabs.github.io/image-compression/examples/vanilla/) | [`examples/vanilla/`](https://github.com/gkzlabs/image-compression/tree/main/examples/vanilla/) |
 
 **All examples** → [landing page](https://gkzlabs.github.io/image-compression/)
 
 ## 📚 Documentation
 
-- **[Examples Overview](examples/)** — 5 framework examples (vanilla, react, vue, svelte, angular)
-- **[Examples Guide](docs/EXAMPLES.md)** — Detailed framework patterns, lifecycle management, batch processing, HEIC support
-- **[Browser Compatibility](docs/BROWSER_COMPAT.md)** — Per-bundler setup notes (Vite, Webpack, Rollup, esbuild)
-- **[API Reference](docs/api/)** — Generated TypeDoc reference
-- **[Benchmarks](bench/results/BENCHMARKS.md)** — Real-world performance numbers for all 3 cascade paths
+- **[Examples Overview](https://github.com/gkzlabs/image-compression/tree/main/examples)** — 5 framework examples (vanilla, react, vue, svelte, angular)
+- **[Examples Guide](https://github.com/gkzlabs/image-compression/blob/main/docs/EXAMPLES.md)** — Detailed framework patterns, lifecycle management, batch processing, HEIC support
+- **[Browser Compatibility](https://github.com/gkzlabs/image-compression/blob/main/docs/BROWSER_COMPAT.md)** — Per-bundler setup notes (Vite, Webpack, Rollup, esbuild)
+- **[API Reference](https://github.com/gkzlabs/image-compression/tree/main/docs/api)** — Generated TypeDoc reference
+- **[Benchmarks](https://github.com/gkzlabs/image-compression/blob/main/bench/results/BENCHMARKS.md)** — Real-world performance numbers for all 3 cascade paths
 
 ## ⚡ Benchmarks
 
-Run `npm run bench` to measure `webcodecs-worker` vs `offscreen-worker` vs `canvas-main` on your machine. Latest numbers in [bench/results/BENCHMARKS.md](bench/results/BENCHMARKS.md).
+Run `npm run bench` to measure `webcodecs-worker` vs `offscreen-worker` vs `canvas-main` on your machine. Latest numbers in the [📊 live dashboard](https://gkzlabs.github.io/image-compression/bench/) (interactive Chart.js view) or [raw BENCHMARKS.md](https://github.com/gkzlabs/image-compression/blob/main/bench/results/BENCHMARKS.md).
 
 ## 📄 License
 
@@ -340,4 +340,4 @@ Run `npm run bench` to measure `webcodecs-worker` vs `offscreen-worker` vs `canv
 
 - [GitHub Repository](https://github.com/gkzlabs/image-compression)
 - [Issue Tracker](https://github.com/gkzlabs/image-compression/issues)
-- [Changelog](CHANGELOG.md)
+- [Changelog](https://github.com/gkzlabs/image-compression/blob/main/CHANGELOG.md)
