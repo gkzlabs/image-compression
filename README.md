@@ -312,11 +312,11 @@ Try it in your browser — no install needed:
 
 | Framework | Live Demo | Source |
 | --- | --- | --- |
-| ⚛️ React | [examples/react/](https://gkzlabs.github.io/image-compression/examples/react/) | [`examples/react/`](examples/react/) |
-| 💚 Vue | [examples/vue/](https://gkzlabs.github.io/image-compression/examples/vue/) | [`examples/vue/`](examples/vue/) |
-| 🔥 Svelte | [examples/svelte/](https://gkzlabs.github.io/image-compression/examples/svelte/) | [`examples/svelte/`](examples/svelte/) |
-| 🅰️ Angular | [examples/angular/](https://gkzlabs.github.io/image-compression/examples/angular/) | [`examples/angular/`](examples/angular/) |
-| 🟨 Vanilla | [examples/vanilla/](https://gkzlabs.github.io/image-compression/examples/vanilla/) | [`examples/vanilla/`](examples/vanilla/) |
+| <img src="docs/assets/logos/react.svg" width="18" height="18" valign="middle" alt="React"> React | [examples/react/](https://gkzlabs.github.io/image-compression/examples/react/) | [`examples/react/`](examples/react/) |
+| <img src="docs/assets/logos/vue.svg" width="18" height="18" valign="middle" alt="Vue"> Vue | [examples/vue/](https://gkzlabs.github.io/image-compression/examples/vue/) | [`examples/vue/`](examples/vue/) |
+| <img src="docs/assets/logos/svelte.svg" width="18" height="18" valign="middle" alt="Svelte"> Svelte | [examples/svelte/](https://gkzlabs.github.io/image-compression/examples/svelte/) | [`examples/svelte/`](examples/svelte/) |
+| <img src="docs/assets/logos/angular.svg" width="18" height="18" valign="middle" alt="Angular"> Angular | [examples/angular/](https://gkzlabs.github.io/image-compression/examples/angular/) | [`examples/angular/`](examples/angular/) |
+| <img src="docs/assets/logos/javascript.svg" width="18" height="18" valign="middle" alt="Vanilla JS"> Vanilla | [examples/vanilla/](https://gkzlabs.github.io/image-compression/examples/vanilla/) | [`examples/vanilla/`](examples/vanilla/) |
 
 **All examples** → [landing page](https://gkzlabs.github.io/image-compression/)
 
