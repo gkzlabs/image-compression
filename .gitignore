@@ -5,3 +5,10 @@ coverage/
 *.log
 .DS_Store
 GKz-image-compression-*.tgz
+
+# Hermes Agent — supplementary knowledge base (NOT committed on public repo)
+# See ~/.hermes/skills/wiki-memory-routing/SKILL.md
+.hermes_memory/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
