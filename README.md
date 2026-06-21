@@ -326,6 +326,11 @@ Try it in your browser — no install needed:
 - **[Examples Guide](docs/EXAMPLES.md)** — Detailed framework patterns, lifecycle management, batch processing, HEIC support
 - **[Browser Compatibility](docs/BROWSER_COMPAT.md)** — Per-bundler setup notes (Vite, Webpack, Rollup, esbuild)
 - **[API Reference](docs/api/)** — Generated TypeDoc reference
+- **[Benchmarks](bench/results/BENCHMARKS.md)** — Real-world performance numbers for all 3 cascade paths
+
+## ⚡ Benchmarks
+
+Run `npm run bench` to measure `webcodecs-worker` vs `offscreen-worker` vs `canvas-main` on your machine. Latest numbers in [bench/results/BENCHMARKS.md](bench/results/BENCHMARKS.md).
 
 ## 📄 License
 

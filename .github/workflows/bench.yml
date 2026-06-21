@@ -1,0 +1,57 @@
+name: Bench
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+  # Weekly schedule — Sunday 09:00 UTC
+  schedule:
+    - cron: '0 9 * * 0'
+  # Auto-run on release publish (after tag v*)
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # commit updated BENCHMARKS.md back
+
+jobs:
+  bench:
+    name: Run benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build lib
+        run: npm run build
+
+      - name: Run benchmarks
+        run: |
+          BENCH_ITERATIONS=10 npm run bench
+        env:
+          # CI runs in a clean environment — no GUI, no system Chrome
+          # puppeteer will use its bundled Chromium
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: ''
+
+      - name: Commit updated BENCHMARKS.md
+        # Only commit if there are changes (avoid empty commits)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add bench/results/BENCHMARKS.md bench/results/latest.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "no changes to commit"
+          else
+            git commit -m "bench: update results ($(date -u +%Y-%m-%d))"
+            git push
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

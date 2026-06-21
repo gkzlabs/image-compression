@@ -1,0 +1,162 @@
+<!doctype html>
+<!--
+  Benchmark harness — runs the @gkzlabs/image-compression library in browser.
+  Loaded by runner.mjs via puppeteer. Posts results to window.__benchResults.
+  The library's worker.js must be accessible at the same origin (resolved via
+  new URL('./worker.js', import.meta.url)). comlink is provided via import map
+  pointing at the vendored copy.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Bench Harness — @gkzlabs/image-compression</title>
+  <style>
+    body { font-family: ui-monospace, monospace; padding: 20px; background: #0a0f1f; color: #cbd5ff; }
+    #log { white-space: pre-wrap; }
+    .ok { color: #5dd39e; }
+    .err { color: #ff6b6b; }
+  </style>
+  <!-- comlink is `external` in the lib's esbuild config — import map resolves it
+       to a vendored ESM build copied into the serve dir by runner.mjs. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "comlink": "./vendor/comlink.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <h1>Bench Harness</h1>
+  <div id="log">starting...</div>
+  <input type="file" id="fixture" accept="image/jpeg" style="display:none">
+
+  <script type="module">
+    import { ImageCompression, compress$ } from './dist/index.js';
+
+    const log = (msg, cls) => {
+      const el = document.getElementById('log');
+      el.innerHTML += `\n${cls ? `<span class="${cls}">${msg}</span>` : msg}`;
+    };
+
+    /**
+     * Force a specific cascade path by patching browser APIs BEFORE the lib
+     * probes them. This is more reliable than --disable-features flags because
+     * the lib uses "optimistic" capability detection (per v0.10.4 fix).
+     *
+     *   webcodecs-worker  — delete ImageDecoder → cascade falls past it
+     *   offscreen-worker  — delete Worker      → cascade falls past it (to canvas-main)
+     *   canvas-main       — delete both        → cascade goes to canvas-main
+     *   (none)            — full cascade, picks best available
+     */
+    function applyForceMode(mode) {
+      if (mode === 'no-webcodecs' || mode === 'no-workers') {
+        // Patch ImageDecoder to throw
+        window.ImageDecoder = undefined;
+        log('  [force] ImageDecoder removed');
+      }
+      if (mode === 'no-workers') {
+        // Patch Worker to throw on construction
+        const RealWorker = window.Worker;
+        window.Worker = function PatchedWorker() {
+          throw new Error('Worker disabled for benchmark');
+        };
+        log('  [force] Worker disabled');
+      }
+    }
+
+    /**
+     * Decode a base64 string to Uint8Array.
+     */
+    function b64ToBytes(b64) {
+      const bin = atob(b64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return arr;
+    }
+
+    /**
+     * Run a single benchmark iteration: decode the fixture and compress it
+     * with the library's default cascade (which picks webcodecs-worker in
+     * Chrome, offscreen-worker if WebCodecs unavailable, canvas-main if
+     * Workers unavailable, server-fallback as last resort).
+     *
+     * Returns: { path, timeMs, inputBytes, outputBytes, ratio }
+     */
+    async function runOnce(bytes, name) {
+      const file = new File([bytes], name, { type: 'image/jpeg' });
+      const svc = new ImageCompression();
+      const t0 = performance.now();
+      const result = await svc.compress(file, { quality: 0.85, maxWidthOrHeight: 2048 });
+      const t1 = performance.now();
+      svc.dispose();
+      return {
+        path: result.path,
+        timeMs: t1 - t0,
+        inputBytes: file.size,
+        outputBytes: result.compressedSize,
+        ratio: (1 - result.compressedSize / file.size) * 100,
+        width: result.width,
+        height: result.height,
+      };
+    }
+
+    /**
+     * Run N iterations of the benchmark on a base64-encoded fixture.
+     * Posts results to window.__benchResults.
+     */
+    async function runBenchmark({ fixtureBase64, fixtureName, iterations = 5, warmup = 1, force = null }) {
+      const log2 = (m, c) => log(m, c);
+
+      // Apply path-forcing patches before any compression call.
+      // Must happen INSIDE the page (so window.Worker etc. are accessible).
+      if (force) applyForceMode(force);
+
+      log2(`fixture: ${fixtureName} (${(b64ToBytes(fixtureBase64).length / 1024).toFixed(0)} KB)`);
+      if (force) log2(`  force mode: ${force}`);
+
+      const bytes = b64ToBytes(fixtureBase64);
+
+      // Warmup runs (JIT, V8 caches, browser caches)
+      for (let i = 0; i < warmup; i++) {
+        log2(`  warmup ${i + 1}/${warmup}...`);
+        await runOnce(bytes, fixtureName);
+      }
+
+      // Measured runs
+      const runs = [];
+      for (let i = 0; i < iterations; i++) {
+        const r = await runOnce(bytes, fixtureName);
+        runs.push(r);
+        log2(`  run ${i + 1}/${iterations}: ${r.path} ${r.timeMs.toFixed(1)}ms ${r.ratio.toFixed(1)}%`, 'ok');
+      }
+
+      // Aggregate — median (robust to outliers), min (best case)
+      const times = runs.map((r) => r.timeMs).sort((a, b) => a - b);
+      const median = times[Math.floor(times.length / 2)];
+      const min = times[0];
+      const max = times[times.length - 1];
+      const mean = times.reduce((a, b) => a + b, 0) / times.length;
+
+      return {
+        fixture: fixtureName,
+        inputBytes: bytes.length,
+        iterations,
+        warmup,
+        path: runs[0].path, // all runs should pick the same path
+        runs: runs.map((r) => ({ path: r.path, timeMs: r.timeMs, ratio: r.ratio })),
+        stats: { min, median, mean, max, unit: 'ms' },
+        outputBytes: runs[0].outputBytes,
+        ratio: runs[0].ratio,
+      };
+    }
+
+    // Expose to puppeteer via window
+    window.__bench = { runBenchmark };
+
+    // Signal ready
+    window.__benchReady = true;
+    log('harness ready', 'ok');
+  </script>
+</body>
+</html>

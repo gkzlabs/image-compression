@@ -36,6 +36,8 @@
     "test:watch": "vitest",
     "lint": "tsc --noEmit -p tsconfig.json",
     "size": "size-limit",
+    "bench:fixtures": "node bench/fixtures/generate.mjs",
+    "bench": "node bench/runner.mjs",
     "prepublishOnly": "npm run lint && npm test && npm run build && npm run size && npm run docs",
     "docs": "typedoc"
   },
@@ -73,6 +75,7 @@
     "@size-limit/preset-app": "^12.1.0",
     "@types/node": "^20.10.0",
     "happy-dom": "^15.0.0",
+    "puppeteer": "^25.1.0",
     "size-limit": "^12.1.0",
     "typedoc": "^0.28.19",
     "typescript": "^5.4.0",

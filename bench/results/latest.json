@@ -1,0 +1,288 @@
+{
+  "version": "0.10.25",
+  "browser": "Chrome/149.0.7827.22",
+  "runAt": "2026-06-21T14:22:29.569Z",
+  "iterations": 5,
+  "warmup": 1,
+  "configs": [
+    {
+      "name": "full",
+      "description": "Chrome (all features available)",
+      "browser": "Chrome/149.0.7827.22",
+      "results": [
+        {
+          "fixture": "medium-1500x1000.jpg",
+          "inputBytes": 565767,
+          "iterations": 5,
+          "warmup": 1,
+          "path": "webcodecs-worker",
+          "runs": [
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 24.80000000447035,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 29.600000001490116,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 27.400000005960464,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 23.200000002980232,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 21.700000002980232,
+              "ratio": 18.77486668540229
+            }
+          ],
+          "stats": {
+            "min": 21.700000002980232,
+            "median": 24.80000000447035,
+            "mean": 25.34000000357628,
+            "max": 29.600000001490116,
+            "unit": "ms"
+          },
+          "outputBytes": 459545,
+          "ratio": 18.77486668540229
+        },
+        {
+          "fixture": "large-4000x3000.jpg",
+          "inputBytes": 4345482,
+          "iterations": 5,
+          "warmup": 1,
+          "path": "webcodecs-worker",
+          "runs": [
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 76.20000000298023,
+              "ratio": 90.41254802114011
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 76.20000000298023,
+              "ratio": 90.41254802114011
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 73.19999999552965,
+              "ratio": 90.41254802114011
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 75,
+              "ratio": 90.41254802114011
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 76.5,
+              "ratio": 90.41254802114011
+            }
+          ],
+          "stats": {
+            "min": 73.19999999552965,
+            "median": 76.20000000298023,
+            "mean": 75.42000000029802,
+            "max": 76.5,
+            "unit": "ms"
+          },
+          "outputBytes": 416621,
+          "ratio": 90.41254802114011
+        }
+      ]
+    },
+    {
+      "name": "no-webcodecs",
+      "description": "Chrome with ImageDecoder disabled → offscreen-worker",
+      "browser": "Chrome/149.0.7827.22",
+      "results": [
+        {
+          "fixture": "medium-1500x1000.jpg",
+          "inputBytes": 565767,
+          "iterations": 5,
+          "warmup": 1,
+          "path": "offscreen-worker",
+          "runs": [
+            {
+              "path": "offscreen-worker",
+              "timeMs": 34.100000001490116,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "offscreen-worker",
+              "timeMs": 31.5,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "offscreen-worker",
+              "timeMs": 23.899999998509884,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "offscreen-worker",
+              "timeMs": 23.19999999552965,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "offscreen-worker",
+              "timeMs": 22.100000001490116,
+              "ratio": 18.77486668540229
+            }
+          ],
+          "stats": {
+            "min": 22.100000001490116,
+            "median": 23.899999998509884,
+            "mean": 26.959999999403955,
+            "max": 34.100000001490116,
+            "unit": "ms"
+          },
+          "outputBytes": 459545,
+          "ratio": 18.77486668540229
+        },
+        {
+          "fixture": "large-4000x3000.jpg",
+          "inputBytes": 4345482,
+          "iterations": 5,
+          "warmup": 1,
+          "path": "offscreen-worker",
+          "runs": [
+            {
+              "path": "offscreen-worker",
+              "timeMs": 89.20000000298023,
+              "ratio": 90.41254802114011
+            },
+            {
+              "path": "offscreen-worker",
+              "timeMs": 85.09999999403954,
+              "ratio": 90.41254802114011
+            },
+            {
+              "path": "offscreen-worker",
+              "timeMs": 81.09999999403954,
+              "ratio": 90.41254802114011
+            },
+            {
+              "path": "offscreen-worker",
+              "timeMs": 81.5,
+              "ratio": 90.41254802114011
+            },
+            {
+              "path": "offscreen-worker",
+              "timeMs": 80.80000000447035,
+              "ratio": 90.41254802114011
+            }
+          ],
+          "stats": {
+            "min": 80.80000000447035,
+            "median": 81.5,
+            "mean": 83.53999999910593,
+            "max": 89.20000000298023,
+            "unit": "ms"
+          },
+          "outputBytes": 416621,
+          "ratio": 90.41254802114011
+        }
+      ]
+    },
+    {
+      "name": "no-workers",
+      "description": "Chrome with ImageDecoder + Worker disabled → canvas-main",
+      "browser": "Chrome/149.0.7827.22",
+      "results": [
+        {
+          "fixture": "medium-1500x1000.jpg",
+          "inputBytes": 565767,
+          "iterations": 5,
+          "warmup": 1,
+          "path": "canvas-main",
+          "runs": [
+            {
+              "path": "canvas-main",
+              "timeMs": 22.5,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "canvas-main",
+              "timeMs": 22.19999999552965,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "canvas-main",
+              "timeMs": 26.899999998509884,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "canvas-main",
+              "timeMs": 19.600000001490116,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "canvas-main",
+              "timeMs": 19.30000000447035,
+              "ratio": 18.77486668540229
+            }
+          ],
+          "stats": {
+            "min": 19.30000000447035,
+            "median": 22.19999999552965,
+            "mean": 22.1,
+            "max": 26.899999998509884,
+            "unit": "ms"
+          },
+          "outputBytes": 459545,
+          "ratio": 18.77486668540229
+        },
+        {
+          "fixture": "large-4000x3000.jpg",
+          "inputBytes": 4345482,
+          "iterations": 5,
+          "warmup": 1,
+          "path": "canvas-main",
+          "runs": [
+            {
+              "path": "canvas-main",
+              "timeMs": 84,
+              "ratio": 90.41254802114011
+            },
+            {
+              "path": "canvas-main",
+              "timeMs": 83.69999999552965,
+              "ratio": 90.41254802114011
+            },
+            {
+              "path": "canvas-main",
+              "timeMs": 84.70000000298023,
+              "ratio": 90.41254802114011
+            },
+            {
+              "path": "canvas-main",
+              "timeMs": 80.19999999552965,
+              "ratio": 90.41254802114011
+            },
+            {
+              "path": "canvas-main",
+              "timeMs": 75.10000000149012,
+              "ratio": 90.41254802114011
+            }
+          ],
+          "stats": {
+            "min": 75.10000000149012,
+            "median": 83.69999999552965,
+            "mean": 81.53999999910593,
+            "max": 84.70000000298023,
+            "unit": "ms"
+          },
+          "outputBytes": 416621,
+          "ratio": 90.41254802114011
+        }
+      ]
+    }
+  ]
+}
