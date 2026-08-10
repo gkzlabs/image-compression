@@ -2,6 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@gkzlabs/image-compression)](https://www.npmjs.com/package/@gkzlabs/image-compression)
 [![npm downloads](https://img.shields.io/npm/dm/@gkzlabs/image-compression)](https://www.npmjs.com/package/@gkzlabs/image-compression)
+[![npm monthly](https://img.shields.io/npm/dw/@gkzlabs/image-compression)](https://www.npmjs.com/package/@gkzlabs/image-compression)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](https://www.npmjs.com/package/@gkzlabs/image-compression)
 [![CI](https://img.shields.io/github/actions/workflow/status/gkzlabs/image-compression/ci.yml?branch=main&label=CI)](https://github.com/gkzlabs/image-compression/actions/workflows/ci.yml)
