@@ -142,8 +142,41 @@
       };
     }
 
+    /**
+     * v1.1.0: compare output SIZE across formats (JPEG vs WebP vs AVIF).
+     * Compresses the same fixture once per format and reports the resulting
+     * bytes — the "how much smaller is AVIF really?" question. AVIF falls
+     * back to WebP/JPEG on browsers without an AVIF encoder (report actual
+     * mimeType so the table is honest).
+     */
+    async function compareFormats({ fixtureBase64, fixtureName }) {
+      const bytes = b64ToBytes(fixtureBase64);
+      const file = new File([bytes], fixtureName, { type: 'image/jpeg' });
+      const formats = ['image/jpeg', 'image/webp', 'image/avif'];
+      const out = { fixture: fixtureName, inputBytes: bytes.length, formats: {} };
+      for (const format of formats) {
+        const svc = new ImageCompression();
+        try {
+          const result = await svc.compress(file, {
+            quality: 0.85,
+            maxWidthOrHeight: 2048,
+            format,
+          });
+          out.formats[format] = {
+            outputBytes: result.compressedSize,
+            mimeType: result.mimeType,
+          };
+        } catch (err) {
+          out.formats[format] = { outputBytes: 0, mimeType: 'error', error: String(err) };
+        } finally {
+          svc.dispose();
+        }
+      }
+      return out;
+    }
+
     // Expose to puppeteer via window
-    window.__bench = { runBenchmark };
+    window.__bench = { runBenchmark, compareFormats };
 
     // Signal ready
     window.__benchReady = true;

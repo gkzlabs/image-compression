@@ -314,7 +314,7 @@ function generateBarChartSvg(fixture, allResults) {
   return lines.join('\n');
 }
 
-function generateMarkdown(allResults, { version, browser, runAt }) {
+function generateMarkdown(allResults, { version, browser, runAt }, formatData = null) {
   const lines = [];
   lines.push('# Benchmarks');
   lines.push('');
@@ -383,6 +383,36 @@ function generateMarkdown(allResults, { version, browser, runAt }) {
       }
     }
     lines.push('');
+  }
+
+  // ── Output size by format (v1.1.0) ─────────────────────────────────
+  if (formatData && formatData.length > 0) {
+    lines.push('## Output size by format');
+    lines.push('');
+    lines.push('Same fixture, same quality (0.85), same max dimension (2048) — only the output format changes. AVIF falls back to WebP/JPEG on browsers without an AVIF encoder (the reported mime type is shown).');
+    lines.push('');
+    for (const f of formatData) {
+      const { fixture, inputBytes, formats } = f;
+      lines.push(`### Fixture: \`${fixture}\``);
+      lines.push('');
+      lines.push(`**Input:** ${formatBytes(inputBytes)}`);
+      lines.push('');
+      lines.push('| Requested format | Actual output | Size | vs JPEG |');
+      lines.push('| --- | --- | --- | --- |');
+      const jpeg = formats['image/jpeg'];
+      const jpegBytes = jpeg ? jpeg.outputBytes : 0;
+      for (const req of ['image/jpeg', 'image/webp', 'image/avif']) {
+        const r = formats[req];
+        if (!r) continue;
+        const sizeStr = r.outputBytes > 0 ? formatBytes(r.outputBytes) : 'n/a';
+        const vsJpeg = jpegBytes > 0 && r.outputBytes > 0
+          ? `${((1 - r.outputBytes / jpegBytes) * 100).toFixed(1)}%`
+          : '—';
+        const actual = r.mimeType === req ? req : `\`${req}\` → ${r.mimeType}`;
+        lines.push(`| ${req} | ${actual} | ${sizeStr} | ${vsJpeg} |`);
+      }
+      lines.push('');
+    }
   }
 
   // ── Raw runs per config ────────────────────────────────────────────
@@ -486,12 +516,45 @@ async function main() {
     const runAt = new Date().toISOString();
     const primaryBrowser = allResults[0].browserVersion;
 
+    // v1.1.0: format size comparison — run once in the FIRST browser config
+    // (formats don't depend on the path-forcing patches). AVIF may fall back
+    // to WebP/JPEG; the harness reports the actual mimeType.
+    let formatData = null;
+    try {
+      const fixtures = [
+        resolve(FIXTURES_DIR, 'medium-1500x1000.jpg'),
+        resolve(FIXTURES_DIR, 'large-4000x3000.jpg'),
+      ].filter((f) => existsSync(f));
+      const cmpBrowser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      });
+      const cmpPage = await cmpBrowser.newPage();
+      await cmpPage.goto(`http://127.0.0.1:${port}/harness.html`, { waitUntil: 'networkidle0' });
+      await cmpPage.waitForFunction(() => window.__benchReady === true, { timeout: 10000 });
+      formatData = [];
+      for (const fixture of fixtures) {
+        const fixtureBase64 = fileToBase64(fixture);
+        const cmp = await cmpPage.evaluate(
+          async ({ fixtureBase64, fixtureName }) =>
+            await window.__bench.compareFormats({ fixtureBase64, fixtureName }),
+          { fixtureBase64, fixtureName: fixture.split('/').pop() },
+        );
+        formatData.push(cmp);
+        log(`  format-cmp ${cmp.fixture}: jpeg=${formatBytes(cmp.formats['image/jpeg']?.outputBytes ?? 0)} webp=${formatBytes(cmp.formats['image/webp']?.outputBytes ?? 0)} avif=${formatBytes(cmp.formats['image/avif']?.outputBytes ?? 0)}`);
+      }
+      await cmpBrowser.close();
+    } catch (err) {
+      log(`[bench] format comparison skipped: ${err.message}`);
+    }
+
     const json = {
       version,
       browser: primaryBrowser,
       runAt,
       iterations: ITERATIONS,
       warmup: WARMUP,
+      formatComparison: formatData,
       configs: allResults.map(({ config, results, browserVersion }) => ({
         name: config.name,
         description: config.description,
@@ -509,7 +572,7 @@ async function main() {
     writeFileSync(resolve(dataDir, 'latest.json'), JSON.stringify(json, null, 2));
     log(`wrote docs/bench/data/latest.json`);
 
-    const md = generateMarkdown(allResults, { version, browser: primaryBrowser, runAt });
+    const md = generateMarkdown(allResults, { version, browser: primaryBrowser, runAt }, formatData);
     writeFileSync(resolve(RESULTS_DIR, 'BENCHMARKS.md'), md);
     log(`wrote results/BENCHMARKS.md`);
 

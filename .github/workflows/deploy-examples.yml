@@ -107,12 +107,16 @@ jobs:
               .links { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
               .links a { color: var(--accent); text-decoration: none; }
               .links a:hover { text-decoration: underline; }
+              .version-line { font-size: 14px; color: var(--muted); margin: -20px 0 24px; }
+              .version-line strong { color: var(--fg); }
+              .version-line a { color: var(--accent); }
             </style>
           </head>
           <body>
             <div class="wrap">
               <h1>@gkzlabs/image-compression</h1>
               <p class="sub">Live examples — framework-agnostic browser image compression. Each example uses the same library API.</p>
+              <p class="version-line">lib <strong>v1.0.2</strong> · 0 runtime dependencies · AVIF/WebP/JPEG/PNG · HEIC decode · <a href="bench/">benchmarks</a></p>
 
               <div class="grid">
                 <a class="card" href="examples/react/">

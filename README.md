@@ -18,6 +18,21 @@
 
 A modern, progressive-enhancement image compression library that runs entirely in the browser using native Web APIs. Works with **any** frontend framework (Angular, React, Vue, Svelte) or vanilla JS.
 
+### 🚀 Quick Start (3 lines)
+
+```ts
+import { ImageCompression } from '@gkzlabs/image-compression';
+
+const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2048, quality: 0.85 });
+// → { file, compressedSize, width, height, mimeType, path, ... }
+```
+
+<p align="center">
+  <img src="https://github.com/gkzlabs/image-compression/raw/main/docs/assets/demo-screenshot.png" alt="Live demo — compress.gkz.info" width="720">
+</p>
+
+> 🎬 **Want the full experience?** [Try the live demo](https://compress.gkz.info) (full-featured) or the [5 framework examples](https://gkzlabs.github.io/image-compression/).
+
 ## ✨ Features
 
 - 🚀 **4-path cascade** — WebCodecs → OffscreenCanvas → Canvas2D → server-fallback
