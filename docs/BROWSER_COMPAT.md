@@ -1,7 +1,7 @@
 # Browser Compatibility Matrix
 
-> Last updated: 2026-06-20
-> Library version: v0.10.11
+> Last updated: 2026-08-10
+> Library version: v1.0.2
 
 This matrix shows which browser features each compression path depends on, and the
 minimum browser versions that support them. Use it to predict which cascade paths
@@ -15,6 +15,21 @@ will be selected on a given device.
 | **`offscreen-worker`** | OffscreenCanvas + createImageBitmap + Worker (`type: 'module'`) | 69 | 105 | 16.4 | 79 |
 | **`canvas-main`** | HTMLCanvasElement + Canvas2D + createImageBitmap (fallback path on main thread) | 50 | 19 | 11 | 12 |
 | **`server-fallback`** | None — just returns the original file for server-side processing | All | All | All | All |
+
+## Output Format Encoding (v1.0.0+)
+
+The library supports `format: 'image/jpeg' | 'image/webp' | 'image/png' | 'image/avif'`.
+Native **encode** support varies by browser — `resolveOutputFormat()` probes at
+runtime and falls back `avif → webp → jpeg` automatically:
+
+| Format | Chrome | Firefox | Safari | Notes |
+|---|---|---|---|---|
+| `image/jpeg` | ✅ all | ✅ all | ✅ all | Universal |
+| `image/webp` | ✅ 50+ | ✅ 65+ | ✅ 16.4+ (17+ encode) | Safari < 16.4 decode-only |
+| `image/png` | ✅ all | ✅ all | ✅ all | Lossless — quality ignored |
+| `image/avif` | ✅ **130+** (encode) | ❌ encode | ❌ encode | Decode: Chrome 85+, Safari 16.4+, FF 77+. Encode via `canvas` is **Chromium-only**; others fall back to WebP/JPEG |
+
+> ℹ️ A progress event (`⚠️ image/avif encode not supported in this browser — using image/webp instead`) is emitted when a requested format falls back. `canEncodeFormat()` / `resolveEncodeFormat()` are exported for pre-flight checks.
 
 ## Feature Detection (DeviceCapabilities)
 

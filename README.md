@@ -8,7 +8,7 @@
 [![Deploy Examples](https://img.shields.io/github/actions/workflow/status/gkzlabs/image-compression/deploy-examples.yml?branch=main&label=examples)](https://gkzlabs.github.io/image-compression/)
 [![GitHub Pages](https://img.shields.io/badge/demo-live-success)](https://gkzlabs.github.io/image-compression/)
 [![Bundle Size](https://img.shields.io/bundlephobia/minzip/@gkzlabs/image-compression)](https://bundlephobia.com/package/@gkzlabs/image-compression)
-[![Tests](https://img.shields.io/badge/tests-188%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-194%20passing-brightgreen.svg)](#tests)
 [![Provenance](https://img.shields.io/badge/npm-provenance-blue)](https://docs.npmjs.com/generating-provenance-statements)
 
 **🎮 [Try the live demo](https://gkzlabs.github.io/image-compression/)** — 5 framework examples (React, Vue, Svelte, Angular, Vanilla) running in your browser. No install.
@@ -32,7 +32,7 @@ A modern, progressive-enhancement image compression library that runs entirely i
 - 🖼️ **HEIC decode** — Lazy-loaded via `heic2any` (optional, ~256 KB)
 - ⚡ **Smart pass-through** — Skip compression for already-small JPEGs (`passThroughUnderBytes`)
 - 🛑 **Cancellable** — `AbortSignal` support for clean cancellation
-- 🧪 **Well-tested** — 188 unit tests covering all paths and edge cases
+- 🧪 **Well-tested** — 194 unit tests covering all paths and edge cases
 - 📱 **Mobile-friendly** — Bounded concurrency (default 2) prevents OOM on phones
 
 ## 📦 Installation

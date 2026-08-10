@@ -4,11 +4,11 @@
 
 | Version | Supported          |
 |---------|--------------------|
-| 0.10.x  | :white_check_mark: |
-| 0.5.x   | :white_check_mark: (last monolithic release) |
-| < 0.5   | :x:                |
+| 1.0.x   | :white_check_mark: |
+| 0.10.x  | :white_check_mark: (maintenance only) |
+| < 0.10  | :x:                |
 
-> The library is pre-1.0 — minor versions may include breaking changes.
+> v1.0.0 (2026-08-10) is the first stable release — the public API is frozen.
 > See [CHANGELOG.md](CHANGELOG.md) for the full release history and
 > [GitHub Releases](https://github.com/gkzlabs/image-compression/releases)
 > for tagged versions.
