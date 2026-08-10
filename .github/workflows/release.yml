@@ -81,9 +81,31 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Extract changelog section for release notes
+        id: changelog
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          # Extract the CHANGELOG.md section for this version (from "## [V]"
+          # up to the next "## [" heading). Use index() for LITERAL match —
+          # "[1.0.2]" as a regex would be a character class, not a literal.
+          awk -v ver="[$VERSION]" '
+            index($0, "## ") == 1 && index($0, ver) > 0 { capture=1; next }
+            capture && index($0, "## ") == 1 { capture=0 }
+            capture { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          if [ -s /tmp/release-notes.md ]; then
+            echo "notes_found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "notes_found=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Release notes extracted ($(wc -l < /tmp/release-notes.md | tr -d ' ') lines)"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           name: ${{ github.ref_name }}
-          generate_release_notes: true
+          # Prefer the curated CHANGELOG.md section (features/fixes per
+          # release); fall back to auto-generated notes when absent.
+          body_path: /tmp/release-notes.md
+          generate_release_notes: ${{ steps.changelog.outputs.notes_found != 'true' }}
           fail_on_unmatched_files: false
