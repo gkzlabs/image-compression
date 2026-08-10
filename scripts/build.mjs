@@ -87,7 +87,8 @@ await build({
     // produces a properly-escaped JS string literal.
     __WORKER_SOURCE__: JSON.stringify(workerSource),
   },
-  external: ['comlink'],
+  // v0.11.0: zero runtime dependencies — nothing is external. The in-repo
+  // rpc.ts replaces comlink, so the main bundle is fully self-contained.
   sourcemap: true,
   minify: false,
 });

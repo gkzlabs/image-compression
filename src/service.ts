@@ -1,10 +1,11 @@
-import * as Comlink from 'comlink';
 import { detectCapabilities } from './capabilities';
+import { wrap as rpcWrap } from './rpc';
 import { CompressionError, CompressionErrorCode, extensionForMimeType } from './types';
 import {
   applyExifOrientation,
   applyRotation,
   applyTransforms,
+  canEncodeFormat,
   resizeExact,
 } from './worker-helpers';
 import type {
@@ -14,6 +15,7 @@ import type {
   CompressionResult,
   DeviceCapabilities,
   ImageWorkerApi,
+  OutputFormat,
 } from './types';
 
 /**
@@ -127,12 +129,14 @@ export class ImageCompression {
 
   private capabilities: DeviceCapabilities | null = null;
   private capabilitiesPromise: Promise<DeviceCapabilities> | null = null;
-  private worker: Comlink.Remote<ImageWorkerApi> | null = null;
-  private workerPromise: Promise<Comlink.Remote<ImageWorkerApi> | null> | null = null;
+  private worker: ImageWorkerApi | null = null;
+  private workerPromise: Promise<ImageWorkerApi | null> | null = null;
   /** Raw Worker reference (for .terminate() cleanup). Comlink wraps the worker but doesn't expose terminate. */
   private rawWorker: Worker | null = null;
   /** Timer for idle-worker cleanup. */
   private workerIdleTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Cache of format-encode support probes (per instance, avoids re-probing) */
+  private formatSupportCache = new Map<string, boolean>();
 
   /**
    * Lazy-init: detect capabilities on first call, cache forever.
@@ -218,10 +222,44 @@ export class ImageCompression {
   }
 
   /**
+   * Resolve the requested output format to one the browser can actually
+   * encode. Falls back down the ladder: avif → webp → jpeg.
+   *
+   * AVIF encode is not universal (Safari can decode AVIF but not encode it
+   * via canvas yet; older Chrome/Edge also lack it). Without this step,
+   * `canvas.toBlob('image/avif')` silently falls back to PNG — which is
+   * LOSSLESS, so a 4MB photo becomes a 20MB PNG and the user thinks the
+   * library is broken. Probes once per format per instance (cached).
+   *
+   * @param requested The format the caller asked for
+   * @returns A format the browser can encode (never 'image/avif' if unsupported)
+   */
+  async resolveOutputFormat(requested: string): Promise<OutputFormat> {
+    const cached = this.formatSupportCache.get(requested);
+    if (cached !== undefined) return cached ? (requested as OutputFormat) : await this.fallbackFormat(requested);
+    const supported = await canEncodeFormat(requested);
+    this.formatSupportCache.set(requested, supported);
+    return supported ? (requested as OutputFormat) : await this.fallbackFormat(requested);
+  }
+
+  /** Pick the best encodable fallback for an unsupported requested format. */
+  private async fallbackFormat(requested: string): Promise<OutputFormat> {
+    const ladder: string[] = ['image/webp', 'image/jpeg'];
+    for (const candidate of ladder) {
+      if (candidate === requested) continue;
+      const cached = this.formatSupportCache.get(candidate);
+      const supported = cached ?? (await canEncodeFormat(candidate));
+      if (cached === undefined) this.formatSupportCache.set(candidate, supported);
+      if (supported) return candidate as OutputFormat;
+    }
+    return 'image/jpeg';
+  }
+
+  /**
    * Lazy-init: create Worker on first call, reuse for all subsequent calls.
    * Returns null if Worker cannot be created.
    */
-  private async getWorker(): Promise<Comlink.Remote<ImageWorkerApi> | null> {
+  private async getWorker(): Promise<ImageWorkerApi | null> {
     if (this.worker) {
       this.resetWorkerIdleTimer();
       return Promise.resolve(this.worker);
@@ -254,7 +292,7 @@ export class ImageCompression {
     }, ImageCompression.WORKER_IDLE_TIMEOUT_MS);
   }
 
-  private async createWorker(): Promise<Comlink.Remote<ImageWorkerApi> | null> {
+  private async createWorker(): Promise<ImageWorkerApi | null> {
     // Verify worker context will have what we need
     if (typeof Worker === 'undefined') return null;
     try {
@@ -262,7 +300,7 @@ export class ImageCompression {
       if (!worker) return null;
       // Keep raw reference so terminate() can actually kill the worker
       this.rawWorker = worker;
-      return Comlink.wrap<ImageWorkerApi>(worker);
+      return rpcWrap<ImageWorkerApi>(worker);
     } catch (err) {
       console.warn('[ImageCompression] failed to spawn worker:', err);
       return null;
@@ -357,7 +395,13 @@ export class ImageCompression {
 
     // Smart pass-through: skip compression if file is already small + correct format.
     // Saves CPU/RAM and preserves EXIF (no decode/re-encode).
-    const targetFormat = options.format ?? 'image/jpeg';
+    const targetFormat = await this.resolveOutputFormat(options.format ?? 'image/jpeg');
+    // Propagate the resolved format (e.g. AVIF → WebP fallback on browsers
+    // that can't encode AVIF) so every downstream path encodes the SAME
+    // format the pass-through check compared against.
+    if (targetFormat !== options.format) {
+      options = { ...options, format: targetFormat };
+    }
     if (
       options.passThroughUnderBytes !== undefined &&
       originalSize <= options.passThroughUnderBytes &&
@@ -470,8 +514,11 @@ export class ImageCompression {
           );
           const finalResult = await ImageCompression.applyTransformsIfRequested(baseResult, options);
           this.checkAborted(options.signal);
-          emit({ stage: 'done', percent: 100, path: finalResult.path, attempt, message: 'Compression complete' });
-          return finalResult;
+          // v0.10.27: target-size mode — re-encode until ≤ maxSizeMB
+          const sizedResult = await ImageCompression.reachTargetSize(finalResult, options);
+          this.checkAborted(options.signal);
+          emit({ stage: 'done', percent: 100, path: sizedResult.path, attempt, message: 'Compression complete' });
+          return sizedResult;
         }
       } catch (err) {
         const errMsg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
@@ -701,9 +748,9 @@ export class ImageCompression {
     options: CompressionOptions,
     path: CompressionPath,
   ): Promise<Omit<CompressionResult, 'originalSize' | 'path' | 'durationMs' | 'tier' | 'file' | 'name'> | null> {
-    // Comlink/structured-clone cannot transfer raw function values via postMessage.
-    // Comlink.proxy only detects the marker on TOP-LEVEL arguments, not nested
-    // in options. So we pass onProgress as a SEPARATE top-level argument.
+    // v0.11.0: rpcWrap() serializes function args to CallbackRefs automatically,
+    // so onProgress is passed as a plain top-level function arg (it travels
+    // as { __callbackId } over postMessage; the worker resolves it back).
     const { onProgress, ...optionsOnly } = options;
     const workerOptions = optionsOnly as CompressionOptions;
     // Stage 2: Load worker (if not already cached)
@@ -712,11 +759,10 @@ export class ImageCompression {
     }
     const worker = await this.getWorker();
     if (!worker) return null;
-    const progressProxy = onProgress ? Comlink.proxy(onProgress) : undefined;
     const { blob, width, height, mimeType } = await worker.compress(
       file,
       workerOptions,
-      progressProxy,
+      onProgress,
     );
     return { blob, compressedSize: blob.size, width, height, mimeType };
   }
@@ -1087,6 +1133,124 @@ export class ImageCompression {
   }
 
   /**
+   * v0.10.27: Target-size mode (`maxSizeMB`).
+   *
+   * If the compressed result is still larger than the requested target,
+   * re-encode iteratively until it fits:
+   *   1. **Quality ladder** — step quality down from the caller's `quality`
+   *      (default 0.85) toward 0.15 at the SAME dimensions.
+   *   2. **Dimension ladder** — if min quality still overshoots, reduce
+   *      dimensions by 10% per step (down to 50%) and re-try the quality
+   *      ladder at each size.
+   *
+   * Returns the smallest result that meets the target. If the target is
+   * unreachable (e.g. extremely noisy input where even 50% size + q0.15
+   * overshoots), returns the smallest achievable output.
+   *
+   * No-op conditions:
+   *   - `maxSizeMB` not set (or ≤ 0)
+   *   - Result already ≤ target
+   *   - `passthrough` / `server-fallback` results (no decode happened —
+   *     there's nothing to re-encode)
+   *   - 0×0 placeholder dimensions
+   *
+   * Main-thread only (uses `document.createElement('canvas')` + `toBlob`),
+   * matching `applyTransformsIfRequested`'s Stage 2 design. No Worker
+   * involvement, no Chrome 149 detach risk (no transferToImageBitmap chain).
+   *
+   * Exposed as a static for direct unit testing.
+   */
+  static async reachTargetSize(
+    result: CompressionResult,
+    options: CompressionOptions,
+  ): Promise<CompressionResult> {
+    const maxMB = options.maxSizeMB;
+    if (maxMB === undefined || maxMB <= 0) return result;
+    if (result.path === 'passthrough' || result.path === 'server-fallback') return result;
+    const targetBytes = maxMB * 1024 * 1024;
+    if (result.compressedSize <= targetBytes) return result;
+    if (result.width === 0 || result.height === 0) return result;
+
+    const format = result.mimeType || 'image/jpeg';
+    const baseQuality = options.quality ?? 0.85;
+    // PNG is lossless — quality is ignored by toBlob. Use a single quality
+    // entry so the dimension ladder is the only lever (no wasted encodes).
+    const qualityLadder: number[] =
+      format === 'image/png'
+        ? [0.92]
+        : Array.from(new Set([baseQuality, 0.7, 0.5, 0.3, 0.15])).sort((a, b) => b - a);
+    const dimLadder = [1, 0.9, 0.8, 0.7, 0.6, 0.5];
+
+    // Decode the compressed output once; reuse for every ladder step.
+    let bitmap: ImageBitmap;
+    try {
+      bitmap = await createImageBitmap(result.blob);
+    } catch (err) {
+      console.warn('[ImageCompression] reachTargetSize: failed to decode output blob', err);
+      return result;
+    }
+
+    let best: { blob: Blob; width: number; height: number } | null = null;
+    try {
+      for (const dimScale of dimLadder) {
+        const w = Math.max(1, Math.round(result.width * dimScale));
+        const h = Math.max(1, Math.round(result.height * dimScale));
+        for (const q of qualityLadder) {
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) continue;
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(bitmap, 0, 0, w, h);
+          const blob = await new Promise<Blob | null>((resolve) => {
+            canvas.toBlob((b) => resolve(b), format, q);
+          });
+          if (!blob) continue;
+          if (!best || blob.size < best.blob.size) {
+            best = { blob, width: w, height: h };
+          }
+          if (blob.size <= targetBytes) {
+            return ImageCompression.buildResult(
+              blob,
+              result.originalSize,
+              result.path,
+              result.tier,
+              result.durationMs,
+              w,
+              h,
+              format,
+              result.file,
+            );
+          }
+        }
+      }
+    } finally {
+      bitmap.close();
+    }
+
+    // Target unreachable — return the smallest result we produced.
+    if (best) {
+      console.warn(
+        `[ImageCompression] reachTargetSize: could not reach ${maxMB}MB target, returning smallest achievable (${(best.blob.size / 1024).toFixed(0)}KB)`,
+      );
+      return ImageCompression.buildResult(
+        best.blob,
+        result.originalSize,
+        result.path,
+        result.tier,
+        result.durationMs,
+        best.width,
+        best.height,
+        format,
+        result.file,
+      );
+    }
+    return result;
+  }
+
+  /**
    * Execute a single forced path (no cascade). Used when `forcePath` is set.
    * Validates the path, then either returns the result or throws CompressionError.
    */
@@ -1152,14 +1316,17 @@ export class ImageCompression {
         );
         const finalResult = await ImageCompression.applyTransformsIfRequested(baseResult, options);
         this.checkAborted(options.signal);
+        // v0.10.27: target-size mode — re-encode until ≤ maxSizeMB
+        const sizedResult = await ImageCompression.reachTargetSize(finalResult, options);
+        this.checkAborted(options.signal);
         emit({
           stage: 'done',
           percent: 100,
-          path: finalResult.path,
+          path: sizedResult.path,
           attempt: 1,
           message: 'Compression complete (forced path)',
         });
-        return finalResult;
+        return sizedResult;
       }
       // executePath returned null (path not viable for this device)
       throw new CompressionError(

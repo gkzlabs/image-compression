@@ -451,17 +451,11 @@ async function main() {
   // 3. Copy dist/ into a serve directory (recursive — dist/__stubs__ is a folder)
   mkdirSync(SERVE_DIR, { recursive: true });
   copyDirSync(join(ROOT, 'dist'), join(SERVE_DIR, 'dist'));
-  // Copy comlink ESM build (the lib declares it as `external` in esbuild, so the
-  // browser needs to resolve it via import map → ./vendor/comlink.js)
-  const comlinkSrc = join(ROOT, 'node_modules', 'comlink', 'dist', 'esm', 'comlink.js');
-  if (!existsSync(comlinkSrc)) {
-    throw new Error('comlink ESM build not found at ' + comlinkSrc);
-  }
-  mkdirSync(join(SERVE_DIR, 'vendor'), { recursive: true });
-  copyFileSync(comlinkSrc, join(SERVE_DIR, 'vendor', 'comlink.js'));
+  // v0.11.0: no vendor copy needed — the lib is zero-dependency, the main
+  // bundle and worker are fully self-contained (no external imports).
   // Copy harness.html to serve root
   copyFileSync(resolve(__dirname, 'harness.html'), join(SERVE_DIR, 'harness.html'));
-  log(`serve dir: ${SERVE_DIR} (harness.html + dist/ + vendor/comlink.js)`);
+  log(`serve dir: ${SERVE_DIR} (harness.html + dist/)`);
 
   // 4. Start HTTP server
   const { server, port } = await startServer(SERVE_DIR, PORT);

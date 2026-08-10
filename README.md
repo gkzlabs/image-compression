@@ -3,23 +3,26 @@
 [![npm version](https://img.shields.io/npm/v/@gkzlabs/image-compression)](https://www.npmjs.com/package/@gkzlabs/image-compression)
 [![npm downloads](https://img.shields.io/npm/dm/@gkzlabs/image-compression)](https://www.npmjs.com/package/@gkzlabs/image-compression)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](https://www.npmjs.com/package/@gkzlabs/image-compression)
 [![CI](https://img.shields.io/github/actions/workflow/status/gkzlabs/image-compression/ci.yml?branch=main&label=CI)](https://github.com/gkzlabs/image-compression/actions/workflows/ci.yml)
 [![Deploy Examples](https://img.shields.io/github/actions/workflow/status/gkzlabs/image-compression/deploy-examples.yml?branch=main&label=examples)](https://gkzlabs.github.io/image-compression/)
 [![GitHub Pages](https://img.shields.io/badge/demo-live-success)](https://gkzlabs.github.io/image-compression/)
 [![Bundle Size](https://img.shields.io/bundlephobia/minzip/@gkzlabs/image-compression)](https://bundlephobia.com/package/@gkzlabs/image-compression)
-[![Tests](https://img.shields.io/badge/tests-77%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-188%20passing-brightgreen.svg)](#tests)
 [![Provenance](https://img.shields.io/badge/npm-provenance-blue)](https://docs.npmjs.com/generating-provenance-statements)
 
 **🎮 [Try the live demo](https://gkzlabs.github.io/image-compression/)** — 5 framework examples (React, Vue, Svelte, Angular, Vanilla) running in your browser. No install.
 
 > **Framework-agnostic image compression for the browser.**
-> Pure web APIs. Zero framework dependencies.
+> Pure web APIs. **Zero runtime dependencies.**
 
 A modern, progressive-enhancement image compression library that runs entirely in the browser using native Web APIs. Works with **any** frontend framework (Angular, React, Vue, Svelte) or vanilla JS.
 
 ## ✨ Features
 
 - 🚀 **4-path cascade** — WebCodecs → OffscreenCanvas → Canvas2D → server-fallback
+- 🎯 **Target-size mode** — `maxSizeMB` guarantees the output fits under a size budget (auto quality → dimension ladder)
+- 🖼️ **AVIF / WebP / JPEG / PNG output** — `format: 'image/avif'` encodes 30-50% smaller than JPEG, with automatic fallback on browsers that can't encode AVIF
 - 🔄 **Manual rotation** — `rotate: 0 | 90 | 180 | 270` (overrides EXIF auto-rotation)
 - 🪞 **Mirror/flip** — `mirror: 'horizontal' | 'vertical'`
 - 📐 **Exact resize** — `width` / `height` / `keepAspectRatio` for precise dimensions
@@ -29,7 +32,7 @@ A modern, progressive-enhancement image compression library that runs entirely i
 - 🖼️ **HEIC decode** — Lazy-loaded via `heic2any` (optional, ~256 KB)
 - ⚡ **Smart pass-through** — Skip compression for already-small JPEGs (`passThroughUnderBytes`)
 - 🛑 **Cancellable** — `AbortSignal` support for clean cancellation
-- 🧪 **Well-tested** — 77 unit tests covering all paths and edge cases
+- 🧪 **Well-tested** — 188 unit tests covering all paths and edge cases
 - 📱 **Mobile-friendly** — Bounded concurrency (default 2) prevents OOM on phones
 
 ## 📦 Installation
@@ -157,9 +160,16 @@ interface CompressionOptions {
   mirror?: 'horizontal' | 'vertical';
   /** Strip EXIF from output (default true). Re-encoding strips most EXIF anyway */
   stripExif?: boolean;
-  /** JPEG/WebP quality 0..1 (default 0.85) */
+  /** JPEG/WebP/AVIF quality 0..1 (default 0.85) */
   quality?: number;
-  /** Output format (default 'image/jpeg') */
+  /**
+   * Target maximum output size in MB — re-encodes iteratively until the
+   * output fits: quality ladder first (down to 0.15), then dimension
+   * ladder (down to 50%). Returns the smallest result that meets the
+   * target, or the smallest achievable with a warning.
+   */
+  maxSizeMB?: number;
+  /** Output format: 'image/jpeg' | 'image/webp' | 'image/png' | 'image/avif' (default 'image/jpeg') */
   format?: OutputFormat;
   /** Force server-side processing (skip client compression) */
   forceServer?: boolean;
@@ -188,6 +198,31 @@ import type {
   DeviceTier,
 } from '@gkzlabs/image-compression';
 ```
+
+## 🆚 vs `browser-image-compression`
+
+The most popular browser compression lib (~6M downloads/month). Here's how
+`@gkzlabs/image-compression` compares:
+
+| Capability | **@gkzlabs/image-compression** | browser-image-compression |
+|---|---|---|
+| Runtime dependencies | **0** (self-contained RPC + Worker) | 1 (`uzip`) |
+| Worker encode path | **WebCodecs + OffscreenCanvas** (hardware-accelerated) | Canvas2D |
+| Output formats | **JPEG / WebP / PNG / AVIF** (auto-fallback if encoder unsupported) | JPEG / WebP / PNG |
+| Target file size (`maxSizeMB`) | ✅ quality + dimension ladder | ✅ quality iteration only |
+| HEIC decode | ✅ native ImageDecoder + WASM fallback | ❌ no |
+| Transforms (rotate/mirror/exact size) | ✅ main-thread, Chrome-149-safe | partial (EXIF only) |
+| Streaming API | ✅ `AsyncIterable` (no RxJS) | ❌ callback only |
+| Cancellation | ✅ `AbortSignal` | ✅ |
+| Batch with bounded concurrency | ✅ `compressAll()` (anti-OOM) | ❌ manual loop |
+| Bundle (main, brotlied) | **~14 KB** | ~30 KB+ |
+| Framework examples | 5 (Angular/React/Vue/Svelte/Vanilla) | docs only |
+
+**TL;DR** — same core job, but ours is smaller, zero-dependency, encodes AVIF,
+decodes HEIC, exposes a streaming API, and runs the resize/encode on WebCodecs
+when available. If you only need a simple JPEG shrink, either works; if you
+need format conversion, HEIC support, or hard size guarantees, this library
+fits better.
 
 ## 🌐 Browser Support
 

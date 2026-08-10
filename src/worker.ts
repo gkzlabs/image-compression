@@ -1,7 +1,8 @@
-import * as Comlink from 'comlink';
+import { expose, callbackOrNoop } from './rpc';
 import type {
   CompressionOptions,
   CompressionPath,
+  CompressionProgress,
   CompressionStage,
   ImageWorkerApi,
 } from './types';
@@ -16,11 +17,13 @@ import {
 /**
  * Image compression Web Worker.
  *
- * Runs in Worker context (no DOM). Exposed via Comlink so the main thread
- * can call methods like normal async functions.
+ * Runs in Worker context (no DOM). Exposed via the zero-dependency RPC
+ * layer (`src/rpc.ts`) so the main thread can call methods like normal
+ * async functions.
  *
- * Pure helper logic lives in `worker-helpers.ts` so it can be unit-tested
- * without spinning up a Worker context.
+ * v0.11.0: replaced Comlink with the in-repo `rpc.ts` protocol
+ * (postMessage + id mapping). The public API is unchanged — the main
+ * thread still calls `worker.compress(...)` and receives progress events.
  *
  * v0.10.7: REVERTED to v0.5.7 structure exactly. The extract-to-core
  * refactor (v0.6.0+) added an `applyTransforms` step (v0.3.0 optimization)
@@ -38,16 +41,22 @@ import {
  * them via separate steps).
  */
 const api: ImageWorkerApi = {
-  async compress(file, options) {
+  // v0.11.0 fix: onProgress arrives as the 3rd arg (a CallbackRef — structured
+  // clone can't transfer raw functions). Pre-v0.11.0 the worker only accepted
+  // (file, options), so worker progress events were silently dropped.
+  // The main thread strips onProgress from options (see service.ts
+  // executeWorkerPath) and passes it as a top-level arg instead.
+  async compress(file, options, onProgressRef) {
     const {
       maxWidthOrHeight = 2048,
       quality = 0.85,
       format = 'image/jpeg',
-      onProgress,
     } = options;
 
+    // Resolve the CallbackRef ({ __callbackId }) to a real event emitter.
+    const emitProgress = callbackOrNoop<CompressionProgress>(onProgressRef);
     const emit = (stage: CompressionStage, percent: number) => {
-      onProgress?.({
+      emitProgress({
         stage,
         percent,
         path: 'webcodecs-worker' satisfies CompressionPath,
@@ -178,4 +187,4 @@ const api: ImageWorkerApi = {
   },
 };
 
-Comlink.expose(api);
+expose(api);

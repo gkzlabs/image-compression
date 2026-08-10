@@ -60,4 +60,6 @@ export {
   applyRotation,
   resizeExact,
   applyTransforms,
+  canEncodeFormat,
+  resolveEncodeFormat,
 } from './worker-helpers';

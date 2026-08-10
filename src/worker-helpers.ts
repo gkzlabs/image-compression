@@ -212,6 +212,57 @@ export async function encodeViaOffscreenCanvas(
 }
 
 /**
+ * Check whether the browser can actually ENCODE a given image format.
+ *
+ * Not all browsers support all output formats:
+ * - `image/avif` encode — Chrome 130+, Firefox (2024+); Safari does NOT
+ *   support AVIF encoding yet (decode only, via ImageDecoder).
+ * - `image/webp` encode — all modern browsers (Safari 16.4+).
+ *
+ * Detection: encode a tiny 1x1 canvas to the requested format and verify
+ * the resulting blob's type actually matches. Browsers that don't support
+ * the format silently fall back to PNG (canvas.toBlob spec behavior), so
+ * checking `blob.type === format` is the reliable probe.
+ *
+ * @param format MIME type to test ('image/avif', 'image/webp', 'image/jpeg', 'image/png')
+ * @returns true if the browser encodes to the requested type
+ */
+export async function canEncodeFormat(format: string): Promise<boolean> {
+  try {
+    const canvas = new OffscreenCanvas(1, 1);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, 1, 1);
+    const blob = await canvas.convertToBlob({ type: format, quality: 0.5 });
+    return blob.type === format;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve a requested output format to one the browser can actually encode.
+ * Falls back down the ladder: avif → webp → jpeg (jpeg is universally
+ * supported by every canvas implementation).
+ *
+ * @param requested The format the caller asked for
+ * @returns A format the browser can encode (never 'image/avif' if unsupported)
+ */
+export async function resolveEncodeFormat(
+  requested: string,
+): Promise<string> {
+  if (await canEncodeFormat(requested)) return requested;
+  const ladder = ['image/webp', 'image/jpeg'];
+  for (const candidate of ladder) {
+    if (candidate !== requested && (await canEncodeFormat(candidate))) {
+      return candidate;
+    }
+  }
+  return 'image/jpeg';
+}
+
+/**
  * Try to decode HEIC via ImageDecoder.
  * Returns null if browser doesn't support it.
  *

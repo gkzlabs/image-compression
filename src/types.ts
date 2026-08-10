@@ -17,7 +17,7 @@ export type CompressionPath =
   /** File was already small and in target format — no processing done */
   | 'passthrough';
 
-export type OutputFormat = 'image/jpeg' | 'image/webp' | 'image/png';
+export type OutputFormat = 'image/jpeg' | 'image/webp' | 'image/png' | 'image/avif';
 
 export type DeviceTier = 'high' | 'mid' | 'low';
 
@@ -125,8 +125,22 @@ export interface CompressionOptions {
    * use `passThroughUnderBytes` (which returns the original file unchanged).
    */
   stripExif?: boolean;
-  /** JPEG/WebP quality 0..1 (default 0.85) */
+  /** JPEG/WebP/AVIF quality 0..1 (default 0.85) */
   quality?: number;
+  /**
+   * Target maximum output size in megabytes. When set, the library
+   * re-encodes iteratively until the output fits under this limit:
+   *   1. Quality ladder — steps down from `quality` toward 0.15
+   *   2. Dimension ladder — if still too large at min quality, reduces
+   *      dimensions by 10% per step (down to 50% of the current size)
+   * The smallest result that meets the target is returned. If the target
+   * is unreachable (e.g. extremely noisy input), the smallest achievable
+   * output is returned instead.
+   *
+   * No-op for `passthrough` / `server-fallback` results (no decode happened).
+   * Default: undefined (no size target).
+   */
+  maxSizeMB?: number;
   /** Output format (default 'image/jpeg') */
   format?: OutputFormat;
   /** If true, prefer server-side (skip client processing) */

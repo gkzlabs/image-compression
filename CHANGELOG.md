@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-08-10
+
+### Added
+- **`maxSizeMB` target-size mode** — guarantee the output fits under a size budget. `reachTargetSize()` re-encodes iteratively: quality ladder (from `quality` down to 0.15) at the same dimensions, then a dimension ladder (10% steps down to 50%) if still too large. Returns the smallest result that meets the target; falls back to the smallest achievable output with a warning when the target is physically unreachable. No-op for `passthrough` / `server-fallback`.
+- **AVIF output format** — `format: 'image/avif'` is now a valid `OutputFormat`. AVIF encodes 30-50% smaller than JPEG at equivalent quality. `resolveOutputFormat()` probes the browser's encoder support and falls back `avif → webp → jpeg` on browsers that can't encode AVIF (e.g. Safari) — preventing the silent `toBlob` fallback to lossless PNG that would produce a *larger* file.
+- **`canEncodeFormat()` / `resolveEncodeFormat()`** — exported helpers to probe which output formats the current browser can actually encode.
+- **Zero runtime dependencies** — Comlink replaced with an in-repo RPC layer (`src/rpc.ts`, ~1KB minified): plain `postMessage` with id-mapped method calls and a callback registry for progress events. `package.json` `dependencies` is now `{}`.
+
+### Changed
+- **1.0.0 milestone** — stable public API. The `blob` result field remains as a deprecated alias for `file` (removal scheduled for 2.0).
+- Worker `compress(file, options, onProgress)` now actually receives `onProgress` — pre-1.0.0 the worker only accepted `(file, options)`, so worker-path progress events were silently dropped. Progress events now flow end-to-end from the worker to the caller.
+- `bench/runner.mjs` + `bench/harness.html` no longer vendor Comlink (no import map needed — bundle is self-contained).
+
+### Fixed
+- Worker progress callbacks were never delivered (worker signature accepted only 2 args while the main thread passed `onProgress` as arg 3). Fixed as part of the RPC migration.
+
 ## [0.10.26] - 2026-06-21
 
 ### Added

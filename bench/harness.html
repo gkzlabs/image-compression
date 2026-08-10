@@ -3,8 +3,8 @@
   Benchmark harness — runs the @gkzlabs/image-compression library in browser.
   Loaded by runner.mjs via puppeteer. Posts results to window.__benchResults.
   The library's worker.js must be accessible at the same origin (resolved via
-  new URL('./worker.js', import.meta.url)). comlink is provided via import map
-  pointing at the vendored copy.
+  new URL('./worker.js', import.meta.url)). v0.11.0: the lib is zero-dependency
+  — no import map needed, the main bundle and worker are fully self-contained.
 -->
 <html lang="en">
 <head>
@@ -16,15 +16,6 @@
     .ok { color: #5dd39e; }
     .err { color: #ff6b6b; }
   </style>
-  <!-- comlink is `external` in the lib's esbuild config — import map resolves it
-       to a vendored ESM build copied into the serve dir by runner.mjs. -->
-  <script type="importmap">
-  {
-    "imports": {
-      "comlink": "./vendor/comlink.js"
-    }
-  }
-  </script>
 </head>
 <body>
   <h1>Bench Harness</h1>
