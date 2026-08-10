@@ -886,7 +886,9 @@ export class ImageCompression {
         }
       }
       needsResize = targetW !== outWidth || targetH !== outHeight;
-    } else if (outWidth > maxWidthOrHeight || outHeight > maxWidthOrHeight) {
+    } else if (maxWidthOrHeight > 0 && (outWidth > maxWidthOrHeight || outHeight > maxWidthOrHeight)) {
+      // v1.0.2: maxWidthOrHeight <= 0 means "no resize" — guard prevents
+      // targetW=0 → canvas 0x0 → encode failure. Only resize when > 0.
       const ratio = outWidth / outHeight;
       if (outWidth >= outHeight) {
         targetW = Math.min(maxWidthOrHeight, outWidth);

@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-08-10
+
+### Fixed
+- **`maxWidthOrHeight: 0` (or negative) now means "no resize"** instead of crashing the cascade. Previously 0 computed a 0×0 target canvas → `transferToImageBitmap()` threw "ImageBitmap construction failed" on every worker path, forcing `server-fallback`. Now `resizeOffscreen()` and the canvas-main path both treat `<= 0` as keep-original-size. Verified by 6 new tests (`src/no-resize.spec.ts`).
+
 ## [1.0.1] - 2026-08-10
 
 ### Fixed

@@ -32,8 +32,14 @@ export async function resizeOffscreen(
   const bitmap = await createImageBitmap(file);
   const { width: srcW, height: srcH } = bitmap;
 
-  // No resize needed if already small
-  if (srcW <= maxWidthOrHeight && srcH <= maxWidthOrHeight) {
+  // v1.0.2: maxWidthOrHeight <= 0 means "no resize" (keep original size).
+  // Without this guard, 0 would compute targetW=0 → new OffscreenCanvas(0,0)
+  // → transferToImageBitmap() throws "ImageBitmap construction failed" and
+  // the whole cascade falls through to server-fallback.
+  if (
+    maxWidthOrHeight <= 0 ||
+    (srcW <= maxWidthOrHeight && srcH <= maxWidthOrHeight)
+  ) {
     return { bitmap, width: srcW, height: srcH };
   }
 
