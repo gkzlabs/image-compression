@@ -71,12 +71,15 @@ jobs:
           fi
           echo "Version match: $PKG_VERSION"
 
-      - name: Publish to npm (with OIDC provenance)
+      - name: Publish to npm (with provenance)
         run: |
-          # npm 10 (bundled with node 20) supports --provenance since npm 9.5.
-          # Do NOT `npm install -g npm@latest` — npm 12 requires node >= 22
-          # and breaks the publish step on node 20.
+          # v1.0.0: publish with NPM_TOKEN (GitHub secret) — OIDC trusted
+          # publishing needs npm 11.4+ which requires node >= 22; the CI
+          # runs node 20, so a classic automation token is the reliable path.
+          # npm 10 supports --provenance natively.
           npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
