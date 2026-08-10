@@ -77,7 +77,17 @@ jobs:
           # publishing needs npm 11.4+ which requires node >= 22; the CI
           # runs node 20, so a classic automation token is the reliable path.
           # npm 10 supports --provenance natively.
-          npm publish --provenance --access public
+          #
+          # Idempotent: if this exact version is already on the registry
+          # (e.g. tag re-pushed after a workflow fix), skip the publish —
+          # npm rejects re-publishing the same version with 403. The GitHub
+          # Release step below still runs with the curated changelog.
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view "$(node -p "require('./package.json').name")@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "Version $PKG_VERSION already published — skipping npm publish"
+          else
+            npm publish --provenance --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
