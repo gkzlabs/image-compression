@@ -73,7 +73,9 @@ jobs:
 
       - name: Publish to npm (with OIDC provenance)
         run: |
-          npm install -g npm@latest
+          # npm 10 (bundled with node 20) supports --provenance since npm 9.5.
+          # Do NOT `npm install -g npm@latest` — npm 12 requires node >= 22
+          # and breaks the publish step on node 20.
           npm publish --provenance --access public
 
       - name: Create GitHub Release
