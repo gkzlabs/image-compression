@@ -395,11 +395,19 @@ export class ImageCompression {
 
     // Smart pass-through: skip compression if file is already small + correct format.
     // Saves CPU/RAM and preserves EXIF (no decode/re-encode).
-    const targetFormat = await this.resolveOutputFormat(options.format ?? 'image/jpeg');
+    const requestedFormat = options.format ?? 'image/jpeg';
+    const targetFormat = await this.resolveOutputFormat(requestedFormat);
     // Propagate the resolved format (e.g. AVIF → WebP fallback on browsers
     // that can't encode AVIF) so every downstream path encodes the SAME
     // format the pass-through check compared against.
-    if (targetFormat !== options.format) {
+    if (targetFormat !== requestedFormat) {
+      // v1.0.1: surface format fallback to the caller instead of silently
+      // returning a different format. The UI can show this message.
+      emit({
+        stage: 'detecting',
+        percent: 8,
+        message: `⚠️ ${requestedFormat} encode not supported in this browser — using ${targetFormat} instead`,
+      });
       options = { ...options, format: targetFormat };
     }
     if (

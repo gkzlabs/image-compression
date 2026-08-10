@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-08-10
+
+### Fixed
+- **Format fallback is now surfaced** — when the requested output format can't be encoded by the browser (e.g. `image/avif` on Safari, or AVIF→WebP on Chrome), `compress()` emits a `detecting` progress event explaining the fallback (`⚠️ image/avif encode not supported in this browser — using image/webp instead`) instead of silently returning a different format. Consumers can display this via `onProgress` / `compress$()`.
+
 ## [1.0.0] - 2026-08-10
 
 ### Added
