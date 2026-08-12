@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-08-10
+
+### Added
+- **`unpkg` / `jsdelivr` / `browser` fields** — the ESM bundle is now directly loadable from CDNs (`https://cdn.jsdelivr.net/npm/@gkzlabs/image-compression`), no config needed.
+- **`sideEffects: false`** — bundlers (Vite/Rollup/Webpack) can now tree-shake harder; the package is a pure module.
+- **`exports["./package.json"]`** — consumers can now read the version via `import pkg from '@gkzlabs/image-compression/package.json'` instead of reaching into `node_modules` (fixes the wrapper-demo hack).
+- **Socket.dev badge** in the README.
+
+### Changed
+- **CI runs Node 22** (was 20) across all workflows (ci/bench/deploy/release) — current LTS, faster, future-proofs OIDC publishing.
+- **`tsconfig.build.json` excludes `__stubs__`** + build script strips `dist/__stubs__` — test-only HEIC stubs no longer ship in the npm tarball (was leaking 4 files into every publish).
+
+### Fixed
+- npm tarball now only contains `dist/`, `README.md`, `LICENSE` (source maps included) — no test artifacts.
+
 ## [1.0.2] - 2026-08-10
 
 ### Fixed

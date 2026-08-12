@@ -105,7 +105,10 @@ for (const file of readdirSync(outdir)) {
   writeFileSync(path, src);
 }
 
-// Step 5: removed (worker source is now inlined at Step 3 via source-file modification)
+// Step 5: remove test-only artifacts from dist (src/__stubs__ is used by
+// vitest via alias, never shipped to consumers)
+console.log('[build] Removing test-only __stubs__ from dist...');
+rmSync(join(outdir, '__stubs__'), { recursive: true, force: true });
 
 console.log(`[build] ✓ Done: ${outdir}/`);
 console.log(`[build]   dist/index.js    — main library bundle`);
