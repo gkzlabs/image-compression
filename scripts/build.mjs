@@ -22,6 +22,7 @@
 
 import { build } from 'esbuild';
 import { readFileSync, writeFileSync, readdirSync, rmSync } from 'fs';
+import { join } from 'node:path';
 import { execSync } from 'child_process';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf8'));
