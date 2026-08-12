@@ -4,11 +4,13 @@
 
 | Version | Supported          |
 |---------|--------------------|
+| 1.1.x   | :white_check_mark: |
 | 1.0.x   | :white_check_mark: |
 | 0.10.x  | :white_check_mark: (maintenance only) |
 | < 0.10  | :x:                |
 
 > v1.0.0 (2026-08-10) is the first stable release — the public API is frozen.
+> v1.1.0 (2026-08-12) adds quality features (multi-step downscale, `sharpen`, `qualityBoost`, binary-search target-size) — all opt-in, defaults unchanged.
 > See [CHANGELOG.md](CHANGELOG.md) for the full release history and
 > [GitHub Releases](https://github.com/gkzlabs/image-compression/releases)
 > for tagged versions.

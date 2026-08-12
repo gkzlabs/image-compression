@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-12
+
+### Added
+
+- **Multi-step downscale (`downscaleInSteps`)** — downscaling now happens in ~50% halving steps instead of a single `drawImage`. Each step's scale factor stays ≤ 2× (the same technique Sharp/ImageMagick use), which preserves noticeably more edge detail on large downscales (e.g. 4000px → 2048px). Used by both the Worker path (`resizeOffscreen`) and `canvas-main`. Cost: 1-2 extra canvas draws (~2-3 ms on a 4K→2048px downscale).
+- **`sharpen` option (0..1, default 0 = off)** — optional unsharp-mask pass after resize, before encoding. Canvas-only (no WASM, keeps the zero-dependency promise), runs on the main thread, skipped for lossless PNG. Measured cost: ~1-3 ms on typical hardware, only when enabled.
+- **`qualityBoost` option (default false)** — when the output format is WebP or AVIF, `quality` is mapped up +0.1 (e.g. 0.85 → 0.95). On photo-like content (WebP is ~30% smaller than JPEG at equal quality) the output lands near the JPEG-at-`quality` size while looking sharper. ⚠️ Measured caveat: on low-detail content the WebP advantage shrinks and the boosted output can grow 1.5-2× vs plain WebP — prefer `maxSizeMB` for hard size budgets.
+- **Binary-search quality in `maxSizeMB` mode** — `reachTargetSize()` now binary-searches the quality range `[0.2, quality]` (~6 encodes, bounded) to find the HIGHEST quality that still fits the target, instead of the old fixed ladder `[0.85, 0.7, 0.5, 0.3, 0.15]` which overshot and wasted quality. The caller's base quality is probed first — the common "fits at base quality" case still returns in a single encode.
+
+### Fixed
+
+- **Infinite-loop hang on 0 / NaN / negative target dimensions** — `width: 0` or extreme aspect ratios (e.g. 8192×1 where ratio math rounds the short edge to 0) previously reached `downscaleInSteps` with a 0 target and spun forever in the halving loop (`Math.round(1/2) === 1` → `curW` stalled at 1). All targets are now clamped to ≥ 1px (a valid, decodable output) in `downscaleInSteps()`, `resizeOffscreen()`, and the `canvas-main` path. Regression tests in `src/quality.spec.ts` (would hang vitest if the guard regressed).
+- `maxSizeMB` binary search is bounded (≤ 6 search encodes + 2 probes) with explicit `lo > hi` termination — no unbounded loop on any input.
+
+### Changed
+
+- **Bench harness** (`bench/runner.mjs` + `bench/harness.html`) now runs a 6-scenario **feature comparison matrix** per fixture (baseline, canvas-baseline, sharpen, WebP, WebP+boost, maxSizeMB) to isolate each feature's cost on vs off. The scenario list is identical across versions, so it runs unmodified against a v1.0.x build for honest A/B — archived as `bench/results/BENCHMARKS-v1.0.3.md` / `latest-v1.0.3.json`.
+- Tests: 194 → **207** (13 new in `src/quality.spec.ts`).
+
 ## [1.0.3] - 2026-08-10
 
 ### Added

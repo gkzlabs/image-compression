@@ -10,7 +10,7 @@
 [![Deploy Examples](https://img.shields.io/github/actions/workflow/status/gkzlabs/image-compression/deploy-examples.yml?branch=main&label=examples)](https://gkzlabs.github.io/image-compression/)
 [![GitHub Pages](https://img.shields.io/badge/demo-live-success)](https://gkzlabs.github.io/image-compression/)
 [![Bundle Size](https://img.shields.io/bundlephobia/minzip/@gkzlabs/image-compression)](https://bundlephobia.com/package/@gkzlabs/image-compression)
-[![Tests](https://img.shields.io/badge/tests-194%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-207%20passing-brightgreen.svg)](#tests)
 [![Provenance](https://img.shields.io/badge/npm-provenance-blue)](https://docs.npmjs.com/generating-provenance-statements)
 
 **🎮 [Try the live demo](https://gkzlabs.github.io/image-compression/)** — 5 framework examples (React, Vue, Svelte, Angular, Vanilla) running in your browser. No install.
@@ -38,8 +38,11 @@ const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2
 ## ✨ Features
 
 - 🚀 **4-path cascade** — WebCodecs → OffscreenCanvas → Canvas2D → server-fallback
-- 🎯 **Target-size mode** — `maxSizeMB` guarantees the output fits under a size budget (auto quality → dimension ladder)
+- 🎯 **Target-size mode** — `maxSizeMB` guarantees the output fits under a size budget (**binary-search quality** finds the highest usable quality, then a dimension ladder — v1.1.0 replaced the old fixed quality ladder)
 - 🖼️ **AVIF / WebP / JPEG / PNG output** — `format: 'image/avif'` encodes 30-50% smaller than JPEG, with automatic fallback on browsers that can't encode AVIF
+- ✨ **`qualityBoost`** — WebP/AVIF quality is raised (+0.1) so photos land near JPEG-at-`quality` size while looking sharper; low-detail content may grow (see caveat in options)
+- 🪄 **`sharpen`** — optional post-resize unsharp-mask (0..1, default 0 = off) to restore edge definition lost during downscaling
+- 🔍 **Multi-step downscale** — downscaling in ~50% halving steps (same technique as Sharp/Photoshop) preserves noticeably more detail than a single one-shot draw
 - 🔄 **Manual rotation** — `rotate: 0 | 90 | 180 | 270` (overrides EXIF auto-rotation)
 - 🪞 **Mirror/flip** — `mirror: 'horizontal' | 'vertical'`
 - 📐 **Exact resize** — `width` / `height` / `keepAspectRatio` for precise dimensions
@@ -49,7 +52,7 @@ const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2
 - 🖼️ **HEIC decode** — Lazy-loaded via `heic2any` (optional, ~256 KB)
 - ⚡ **Smart pass-through** — Skip compression for already-small JPEGs (`passThroughUnderBytes`)
 - 🛑 **Cancellable** — `AbortSignal` support for clean cancellation
-- 🧪 **Well-tested** — 194 unit tests covering all paths and edge cases
+- 🧪 **Well-tested** — 207 unit tests covering all paths and edge cases
 - 📱 **Mobile-friendly** — Bounded concurrency (default 2) prevents OOM on phones
 
 ## 📦 Installation
@@ -180,14 +183,33 @@ interface CompressionOptions {
   /** JPEG/WebP/AVIF quality 0..1 (default 0.85) */
   quality?: number;
   /**
-   * Target maximum output size in MB — re-encodes iteratively until the
-   * output fits: quality ladder first (down to 0.15), then dimension
-   * ladder (down to 50%). Returns the smallest result that meets the
-   * target, or the smallest achievable with a warning.
+   * Target maximum output size in MB — re-encodes until the output fits.
+   * v1.1.0: **binary search** finds the highest quality that still fits
+   * the budget (instead of the old fixed quality ladder, which overshot
+   * and wasted quality), then a dimension ladder (down to 50%). Returns
+   * the best result that meets the target, or the smallest achievable
+   * with a warning.
    */
   maxSizeMB?: number;
   /** Output format: 'image/jpeg' | 'image/webp' | 'image/png' | 'image/avif' (default 'image/jpeg') */
   format?: OutputFormat;
+  /**
+   * Post-resize sharpening strength 0..1 (default 0 = off). A light
+   * unsharp mask restores edge definition lost during downscaling.
+   *   0.2 subtle · 0.5 noticeable · 1 strong
+   * Runs on the main thread before encoding (canvas-only; ignored for
+   * lossless PNG). See the benchmark feature comparison for cost.
+   */
+  sharpen?: number;
+  /**
+   * When the output format is WebP/AVIF, map `quality` up (+0.1, e.g.
+   * 0.85 → 0.95). On typical photos (WebP ~30% smaller than JPEG at
+   * equal quality) the boosted output lands near the JPEG-at-`quality`
+   * size while being visibly sharper. On low-detail content (flat
+   * graphics, screenshots) the WebP advantage shrinks and the output
+   * can grow 1.5-2× — measure with your own content. Default false.
+   */
+  qualityBoost?: boolean;
   /** Force server-side processing (skip client compression) */
   forceServer?: boolean;
   /** Force a specific path: 'webcodecs-worker' | 'offscreen-worker' | 'canvas-main' | 'server-fallback' */
@@ -285,9 +307,9 @@ Measured on the same 1920×1080 landscape photo (libwebp 1.3 / libaom 3.8):
 ## 🧪 Tests
 
 ```bash
-npm test              # 77 passed, 7 skipped, 0 failing
+npm test              # 207 passed, 5 skipped, 0 failing
 npm run lint          # tsc clean
-npm run build         # 33 dist files
+npm run build         # ESM bundle + worker
 ```
 
 **Coverage:**
@@ -296,11 +318,12 @@ npm run build         # 33 dist files
 - `types.ts` — `CompressionError`, all union types
 - `capabilities.ts` — device feature detection
 - `exif.ts` — JPEG EXIF orientation (1-8)
-- `worker-helpers.ts` — EXIF auto-rotation, manual `applyRotation()`, exact `resizeExact()` (real Canvas2D via @napi-rs/canvas)
+- `worker-helpers.ts` — EXIF auto-rotation, manual `applyRotation()`, exact `resizeExact()`, multi-step `downscaleInSteps()`, `applySharpen()` (real Canvas2D via @napi-rs/canvas)
+- `quality.spec.ts` — v1.1.0 features: multi-step downscale, sharpen, qualityBoost, no-hang guards for 0/NaN/negative targets
 - `transforms.test.ts` — 12 tests for rotation, mirror, exact resize, aspect ratio
 
-**Skipped tests** (7) — require real browser environment:
-- 5 tests assume Chrome 149+ environment (run via Playwright e2e)
+**Skipped tests** (5) — require real browser environment:
+- 3 tests assume Chrome 149+ environment (run via Playwright e2e)
 - 2 tier-downgrade tests require real hardware mocks
 
 ## 🔄 Transform Order
@@ -408,7 +431,7 @@ Try it in your browser — no install needed:
 
 ## ⚡ Benchmarks
 
-Run `npm run bench` to measure `webcodecs-worker` vs `offscreen-worker` vs `canvas-main` on your machine. Latest numbers in the [📊 live dashboard](https://gkzlabs.github.io/image-compression/bench/) (interactive Chart.js view) or [raw BENCHMARKS.md](https://github.com/gkzlabs/image-compression/blob/main/bench/results/BENCHMARKS.md).
+Run `npm run bench` to measure `webcodecs-worker` vs `offscreen-worker` vs `canvas-main` on your machine, plus the **v1.1.0 feature comparison** (cost of `sharpen`, `qualityBoost`, multi-step downscale, binary-search target-size — each feature measured on vs off). Latest numbers in the [📊 live dashboard](https://gkzlabs.github.io/image-compression/bench/) (interactive Chart.js view) or [raw BENCHMARKS.md](https://github.com/gkzlabs/image-compression/blob/main/bench/results/BENCHMARKS.md).
 
 ## 📄 License
 

@@ -54,14 +54,18 @@ export async function resizeOffscreen(
     targetW = Math.round(targetH * ratio);
   }
 
-  const canvas = new OffscreenCanvas(targetW, targetH);
-  const ctx = canvas.getContext('2d', { willReadFrequently: false });
-  if (!ctx) {
-    throw new Error('OffscreenCanvas 2d context unavailable');
-  }
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(bitmap, 0, 0, targetW, targetH);
+  // v1.1.0: MULTI-STEP downscale. Downscaling a large image in ONE draw
+  // (e.g. 4000px → 2048px) discards high-frequency detail — each pixel
+  // averages a huge source area and edges alias. Downscaling in ~50% steps
+  // with high-quality smoothing preserves noticeably more detail/edge
+  // definition (standard practice in image editors; same trick Sharp uses).
+  // Cost: 1-2 extra canvas draws only when a real downscale is needed.
+  // v1.1.0 fix: clamp rounded-to-0 targets (extreme aspect ratios) to 1px —
+  // downscaleInSteps itself also clamps, this keeps the returned width/height
+  // consistent with what the caller reports.
+  targetW = Math.max(1, Math.round(targetW));
+  targetH = Math.max(1, Math.round(targetH));
+  const resized = downscaleInSteps(bitmap, targetW, targetH);
 
   // Release the original bitmap (no longer needed)
   bitmap.close();
@@ -69,8 +73,80 @@ export async function resizeOffscreen(
   // Convert canvas back to ImageBitmap for next steps.
   // transferToImageBitmap() is sync and detaches the canvas backing
   // — the new bitmap is independent of the canvas.
-  const resized = canvas.transferToImageBitmap();
-  return { bitmap: resized, width: targetW, height: targetH };
+  const outCanvas = resized.canvas as unknown as OffscreenCanvas;
+  const finalBitmap = outCanvas.transferToImageBitmap();
+  return { bitmap: finalBitmap, width: targetW, height: targetH };
+}
+
+/**
+ * v1.1.0: Downscale a bitmap to target dimensions in ~50% steps.
+ *
+ * Why steps: single-shot downscaling averages too many source pixels per
+ * output pixel and loses edge definition. Halving repeatedly keeps each
+ * draw's scale factor ≤ 2×, which is the classic "quality downscale"
+ * technique (Sharp, ImageMagick's "filter: triangle cascade", Photoshop).
+ *
+ * The intermediate canvases are drawn with `imageSmoothingQuality: 'high'`.
+ * Returns the LAST canvas (at target dims) — the caller owns it and decides
+ * whether to transferToImageBitmap() (worker) or draw it further (main).
+ *
+ * @param bitmap Source bitmap (must remain open; caller closes it)
+ * @param targetW Target width
+ * @param targetH Target height
+ */
+export function downscaleInSteps(
+  bitmap: ImageBitmap,
+  targetW: number,
+  targetH: number,
+): { canvas: OffscreenCanvas; width: number; height: number } {
+  // v1.1.0: NEVER allow a 0 (or NaN/negative) target dimension. A 0 target
+  // makes the halving loop below spin forever: Math.round(1/2) === 1 in JS,
+  // so curW stalls at 1 and `curW > 0` stays true → infinite loop (reachable
+  // via `width: 0` options or extreme aspect ratios like 24576×3, where
+  // Math.round(2048 / 8192) rounds to 0). Clamp to ≥ 1px — a 1px edge is a
+  // valid, decodable output; an infinite loop is not.
+  if (!Number.isFinite(targetW) || targetW < 1) targetW = 1;
+  if (!Number.isFinite(targetH) || targetH < 1) targetH = 1;
+  targetW = Math.round(targetW);
+  targetH = Math.round(targetH);
+
+  let curW = bitmap.width;
+  let curH = bitmap.height;
+  let source: CanvasImageSource = bitmap as unknown as CanvasImageSource;
+  let canvas = new OffscreenCanvas(curW, curH);
+  let ctx = canvas.getContext('2d', { willReadFrequently: false });
+
+  while (curW > targetW * 2 || curH > targetH * 2) {
+    // Halve (at most), keeping aspect ratio
+    const nextW = Math.max(targetW, Math.round(curW / 2));
+    const nextH = Math.max(targetH, Math.round(curH / 2));
+    const step = new OffscreenCanvas(nextW, nextH);
+    const stepCtx = step.getContext('2d', { willReadFrequently: false });
+    if (!stepCtx) break;
+    stepCtx.imageSmoothingEnabled = true;
+    stepCtx.imageSmoothingQuality = 'high';
+    stepCtx.drawImage(source, 0, 0, nextW, nextH);
+    source = step as unknown as CanvasImageSource;
+    canvas = step;
+    ctx = stepCtx;
+    curW = nextW;
+    curH = nextH;
+  }
+
+  // Final draw to exact target dims (usually a ≤2× step from here)
+  if (curW !== targetW || curH !== targetH) {
+    const final = new OffscreenCanvas(targetW, targetH);
+    const finalCtx = final.getContext('2d', { willReadFrequently: false });
+    if (finalCtx) {
+      finalCtx.imageSmoothingEnabled = true;
+      finalCtx.imageSmoothingQuality = 'high';
+      finalCtx.drawImage(source, 0, 0, targetW, targetH);
+      canvas = final;
+      ctx = finalCtx;
+    }
+  }
+
+  return { canvas, width: targetW, height: targetH };
 }
 
 /**
@@ -464,6 +540,96 @@ export function applyTransforms(
     width: finalW,
     height: finalH,
   };
+}
+
+/**
+ * v1.1.0: Apply a light unsharp-mask style sharpen to a bitmap.
+ *
+ * Technique (cheap, canvas-only — no WASM):
+ *   1. Draw source onto a small canvas (the "blurred" approximation comes
+ *      from a box blur: draw at half size then scale back up with low
+ *      smoothing — a practical 2-tap approximation of a gaussian).
+ *   2. Difference between original and blurred = edge detail.
+ *   3. Add `strength × difference` back to the original.
+ *
+ * All steps are canvas drawImage/composite ops — no pixel loops, so it's
+ * fast (getImageData/putImageData only where the compositor can't express
+ * the operation).
+ *
+ * @param source Source bitmap (drawn, not closed)
+ * @param strength 0..1 (0.2 subtle, 0.5 noticeable, 1 strong)
+ * @param width Target width
+ * @param height Target height
+ * @returns New canvas at (width, height) with sharpening applied
+ */
+export function applySharpen(
+  source: CanvasImageSource,
+  strength: number,
+  width: number,
+  height: number,
+): HTMLCanvasElement {
+  // 1. Source canvas at final dims
+  // Use OffscreenCanvas (not document.createElement) — consistent with the
+  // rest of worker-helpers, and works in both Worker + happy-dom test env
+  // (vitest polyfills OffscreenCanvas to @napi-rs/canvas).
+  const base = new OffscreenCanvas(width, height);
+  const baseCtx = base.getContext('2d');
+  if (!baseCtx) {
+    throw new Error('OffscreenCanvas 2d context unavailable for sharpen');
+  }
+  baseCtx.imageSmoothingEnabled = true;
+  baseCtx.imageSmoothingQuality = 'high';
+  baseCtx.drawImage(source, 0, 0, width, height);
+
+  // 2. Blur pass: draw at 1/4 size → scale back up with low smoothing.
+  // This is a cheap box-blur approximation that survives the next step.
+  // (Canvas has no native gaussian blur; `filter: blur()` exists in modern
+  // browsers but is slow per-pixel. The 2-tap downsample/upsample trick is
+  // the classic fast alternative and direction-independent.)
+  const smallW = Math.max(1, Math.round(width / 4));
+  const smallH = Math.max(1, Math.round(height / 4));
+  const small = new OffscreenCanvas(smallW, smallH);
+  const smallCtx = small.getContext('2d');
+  if (!smallCtx) {
+    throw new Error('OffscreenCanvas 2d context unavailable for sharpen');
+  }
+  smallCtx.imageSmoothingEnabled = true;
+  smallCtx.imageSmoothingQuality = 'medium';
+  smallCtx.drawImage(base, 0, 0, smallW, smallH);
+
+  const blur = new OffscreenCanvas(width, height);
+  const blurCtx = blur.getContext('2d');
+  if (!blurCtx) {
+    throw new Error('OffscreenCanvas 2d context unavailable for sharpen');
+  }
+  blurCtx.imageSmoothingEnabled = true;
+  blurCtx.imageSmoothingQuality = 'low';
+  blurCtx.drawImage(small, 0, 0, width, height);
+
+  // 3. Difference = |original − blurred|. Using 'difference' composite.
+  const diff = new OffscreenCanvas(width, height);
+  const diffCtx = diff.getContext('2d');
+  if (diffCtx) {
+    diffCtx.drawImage(base, 0, 0);
+    diffCtx.globalCompositeOperation = 'difference';
+    diffCtx.drawImage(blur, 0, 0);
+  }
+
+  // 4. Add back scaled: result = original + strength × difference
+  const out = new OffscreenCanvas(width, height);
+  const outCtx = out.getContext('2d');
+  if (!outCtx) {
+    throw new Error('OffscreenCanvas 2d context unavailable for sharpen');
+  }
+  outCtx.drawImage(base, 0, 0);
+  outCtx.globalAlpha = Math.min(1, Math.max(0, strength));
+  outCtx.globalCompositeOperation = 'lighter'; // additive → brighten edges
+  outCtx.drawImage(diff, 0, 0);
+
+  // Return as whatever the caller draws with. In the browser this is an
+  // OffscreenCanvas (drawable by both OffscreenCanvas and main canvas ctx);
+  // cast to HTMLCanvasElement for API compatibility with the return type.
+  return out as unknown as HTMLCanvasElement;
 }
 
 export type { ExifOrientation } from './exif';

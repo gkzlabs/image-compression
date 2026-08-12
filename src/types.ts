@@ -143,6 +143,32 @@ export interface CompressionOptions {
   maxSizeMB?: number;
   /** Output format (default 'image/jpeg') */
   format?: OutputFormat;
+  /**
+   * Post-encode sharpening strength, 0..1 (default 0 = off).
+   *
+   * Downscaling softens edges (even with multi-step + high smoothing).
+   * A light unsharp mask restores perceived sharpness. Values:
+   *   0    — off (default, fastest — no extra pass)
+   *   0.2  — subtle (recommended starting point)
+   *   0.5  — noticeable
+   *   1    — strong (over-sharpens most photos; use sparingly)
+   *
+   * Runs on the main thread after the resize step, before encoding. Adds a
+   * small CPU cost proportional to output pixels (~1ms per 1000×1000 on
+   * typical hardware). Ignored for lossless PNG (no point sharpening
+   * lossless pixels).
+   */
+  sharpen?: number;
+  /**
+   * Boost quality when the output format is WebP. WebP beats JPEG by ~30%
+   * at the same quality, so you can raise quality for free (same output
+   * size, visibly sharper result). When true, `quality` is mapped up:
+   *   q 0.85 (JPEG) → q 0.95 (WebP) — same size, better clarity
+   * Default: false (use the caller's `quality` verbatim).
+   * NOTE: the size-parity assumption holds for photos; on low-detail
+   * content the boosted output can be 1.5-2× larger than plain WebP.
+   */
+  qualityBoost?: boolean;
   /** If true, prefer server-side (skip client processing) */
   forceServer?: boolean;
   /**

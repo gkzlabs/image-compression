@@ -21,12 +21,12 @@
 </ol>
 <p>Each path has try/catch fallback to the next. Never throws to the caller.</p>
 <p>Usage:</p>
-<pre><code class="ts"><span class="hl-4">import</span><span class="hl-1"> { </span><span class="hl-5">ImageCompression</span><span class="hl-1"> } </span><span class="hl-4">from</span><span class="hl-1"> </span><span class="hl-2">&#39;@gkzlabs/image-compression&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-6">const</span><span class="hl-1"> </span><span class="hl-7">svc</span><span class="hl-1"> = </span><span class="hl-6">new</span><span class="hl-1"> </span><span class="hl-0">ImageCompression</span><span class="hl-1">();</span><br/><span class="hl-6">const</span><span class="hl-1"> </span><span class="hl-7">result</span><span class="hl-1"> = </span><span class="hl-4">await</span><span class="hl-1"> </span><span class="hl-5">svc</span><span class="hl-1">.</span><span class="hl-0">compress</span><span class="hl-1">(</span><span class="hl-5">file</span><span class="hl-1">, { </span><span class="hl-5">quality:</span><span class="hl-1"> </span><span class="hl-8">0.85</span><span class="hl-1"> });</span><br/><span class="hl-3">// result.blob, result.file, result.name, result.path, etc.</span><br/><br/><span class="hl-3">// Cleanup when done</span><br/><span class="hl-5">svc</span><span class="hl-1">.</span><span class="hl-0">dispose</span><span class="hl-1">();</span>
+<pre><code class="ts"><span class="hl-0">import</span><span class="hl-1"> { </span><span class="hl-2">ImageCompression</span><span class="hl-1"> } </span><span class="hl-0">from</span><span class="hl-1"> </span><span class="hl-3">&#39;@gkzlabs/image-compression&#39;</span><span class="hl-1">;</span><br/><br/><span class="hl-4">const</span><span class="hl-1"> </span><span class="hl-5">svc</span><span class="hl-1"> = </span><span class="hl-4">new</span><span class="hl-1"> </span><span class="hl-6">ImageCompression</span><span class="hl-1">();</span><br/><span class="hl-4">const</span><span class="hl-1"> </span><span class="hl-5">result</span><span class="hl-1"> = </span><span class="hl-0">await</span><span class="hl-1"> </span><span class="hl-2">svc</span><span class="hl-1">.</span><span class="hl-6">compress</span><span class="hl-1">(</span><span class="hl-2">file</span><span class="hl-1">, { </span><span class="hl-2">quality:</span><span class="hl-1"> </span><span class="hl-7">0.85</span><span class="hl-1"> });</span><br/><span class="hl-8">// result.blob, result.file, result.name, result.path, etc.</span><br/><br/><span class="hl-8">// Cleanup when done</span><br/><span class="hl-2">svc</span><span class="hl-1">.</span><span class="hl-6">dispose</span><span class="hl-1">();</span>
 </code><button type="button">Copy</button></pre>
 
 </div></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L110">src/service.ts:110</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L111">src/service.ts:111</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -80,7 +80,7 @@ the main thread, so the Worker overhead would be a net loss.</p>
 <p>Exposed for testing. Not part of the public API.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L128">src/service.ts:128</a></li></ul></aside></section></section></details>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L129">src/service.ts:129</a></li></ul></aside></section></section></details>
 <details class="tsd-panel-group tsd-member-group tsd-accordion" open><summary class="tsd-accordion-summary" data-key="section-Methods"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
 <h2 class="tsd-anchor-link" id="methods-1">Methods<a href="#methods-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2></summary>
 <section>
@@ -127,7 +127,7 @@ Worker's resize+encode speed (Stage 1) AND get correct transforms
 <code>applyTransformsIfRequested.spec.ts</code>.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1011">src/service.ts:1011</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1051">src/service.ts:1051</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="reachtargetsize"><code class="tsd-tag">Static</code><span>reach<wbr/>Target<wbr/>Size</span><a href="#reachtargetsize" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -167,7 +167,7 @@ involvement, no Chrome 149 detach risk (no transferToImageBitmap chain).</p>
 <li><span><span class="tsd-kind-parameter">options</span>: <a href="../interfaces/CompressionOptions.html" class="tsd-signature-type tsd-kind-interface">CompressionOptions</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/CompressionResult.html" class="tsd-signature-type tsd-kind-interface">CompressionResult</a><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1173">src/service.ts:1173</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1213">src/service.ts:1213</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getcapabilities"><span>get<wbr/>Capabilities</span><a href="#getcapabilities" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -185,7 +185,7 @@ be slower for the first call after page load.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/DeviceCapabilities.html" class="tsd-signature-type tsd-kind-interface">DeviceCapabilities</a><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L153">src/service.ts:153</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L154">src/service.ts:154</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="resolveoutputformat"><span>resolve<wbr/>Output<wbr/>Format</span><a href="#resolveoutputformat" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -209,7 +209,7 @@ library is broken. Probes once per format per instance (cached).</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../types/OutputFormat.html" class="tsd-signature-type tsd-kind-type-alias">OutputFormat</a><span class="tsd-signature-symbol">&gt;</span></h4><p>A format the browser can encode (never 'image/avif' if unsupported)</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L237">src/service.ts:237</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L238">src/service.ts:238</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="compress"><span>compress</span><a href="#compress" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -237,7 +237,7 @@ Never throws — falls back to server-fallback (returns original).</p>
 <li><span><span class="tsd-kind-parameter">options</span>: <a href="../interfaces/CompressionOptions.html" class="tsd-signature-type tsd-kind-interface">CompressionOptions</a><span class="tsd-signature-symbol"> = {}</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/CompressionResult.html" class="tsd-signature-type tsd-kind-interface">CompressionResult</a><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L368">src/service.ts:368</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L369">src/service.ts:369</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="compressall"><span>compress<wbr/>All</span><a href="#compressall" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -265,7 +265,7 @@ Recommended: 2-3 for mobile, 4-8 for desktop.</p>
 </div></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/CompressionResult.html" class="tsd-signature-type tsd-kind-interface">CompressionResult</a><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L569">src/service.ts:569</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L584">src/service.ts:584</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member tsd-is-protected">
 <h3 class="tsd-anchor-link" id="selectpaths"><code class="tsd-tag">Protected</code><span>select<wbr/>Paths</span><a href="#selectpaths" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures tsd-is-protected">
@@ -308,7 +308,7 @@ v0.5.7 Angular wrapper.</p>
 <li><span><span class="tsd-kind-parameter">options</span>: <a href="../interfaces/CompressionOptions.html" class="tsd-signature-type tsd-kind-interface">CompressionOptions</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="../types/CompressionPath.html" class="tsd-signature-type tsd-kind-type-alias">CompressionPath</a><span class="tsd-signature-symbol">[]</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L675">src/service.ts:675</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L690">src/service.ts:690</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="terminate"><span>terminate</span><a href="#terminate" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -321,7 +321,7 @@ Safe to call multiple times.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1496">src/service.ts:1496</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1610">src/service.ts:1610</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="dispose"><span>dispose</span><a href="#dispose" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -334,7 +334,7 @@ Safe to call multiple times.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1514">src/service.ts:1514</a></li></ul></aside></div></li></ul></section></section></details></div>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1628">src/service.ts:1628</a></li></ul></aside></div></li></ul></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

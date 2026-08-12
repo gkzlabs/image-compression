@@ -1,6 +1,6 @@
 {
   "name": "@gkzlabs/image-compression",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Framework-agnostic image compression for the browser. Zero dependencies — pure web APIs (WebCodecs, OffscreenCanvas, Worker). AVIF/WebP/JPEG output, target-size mode, HEIC decode. Works with any frontend framework (Angular, React, Vue, Svelte) or vanilla JS.",
   "repository": {
     "type": "git",

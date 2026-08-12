@@ -26,6 +26,29 @@ const ITERATIONS = parseInt(process.env.BENCH_ITERATIONS || '5', 10);
 const WARMUP = parseInt(process.env.BENCH_WARMUP || '1', 10);
 const PORT = parseInt(process.env.BENCH_PORT || '0', 10); // 0 = auto
 
+// ─── v1.1.0 feature-comparison scenarios ───────────────────────────────────
+// Answers "does the new feature cost anything?" by running the SAME fixture
+// through different option/force combinations:
+//   baseline       — defaults on the best cascade path (webcodecs-worker)
+//   canvas-baseline— canvas-main WITHOUT sharpen (the fair sharpen baseline)
+//   sharpen-0.3    — canvas-main WITH sharpen: 0.3 (sharpen only runs on the
+//                    canvas-main path — workers don't apply it)
+//   webp / webp-boost — WebP at q0.85 vs qualityBoost:true (same bytes, more
+//                    quality). On v1.0.x builds (no qualityBoost) both are
+//                    identical — which makes old-vs-new comparison honest.
+//   maxsize        — maxSizeMB 0.4 exercises the binary-search quality path
+//                    (v1.1.0) vs the fixed quality ladder (v1.0.x).
+// NOTE: unknown options are silently ignored by old builds, so the exact
+// same scenario list runs unmodified against v1.0.x dist for A/B comparison.
+const FEATURE_SCENARIOS = [
+  { key: 'baseline', label: 'Baseline (q0.85, ≤2048px, cascade)', opts: { quality: 0.85, maxWidthOrHeight: 2048 }, force: null },
+  { key: 'canvas-baseline', label: 'canvas-main baseline (no sharpen)', opts: { quality: 0.85, maxWidthOrHeight: 2048 }, force: 'no-workers' },
+  { key: 'sharpen-0.3', label: 'canvas-main + sharpen 0.3', opts: { quality: 0.85, maxWidthOrHeight: 2048, sharpen: 0.3 }, force: 'no-workers' },
+  { key: 'webp', label: 'WebP (q0.85)', opts: { quality: 0.85, maxWidthOrHeight: 2048, format: 'image/webp' }, force: null },
+  { key: 'webp-boost', label: 'WebP + qualityBoost', opts: { quality: 0.85, maxWidthOrHeight: 2048, format: 'image/webp', qualityBoost: true }, force: null },
+  { key: 'maxsize', label: 'maxSizeMB: 0.4 (target-size mode)', opts: { maxSizeMB: 0.4 }, force: null },
+];
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function log(msg) {
@@ -314,7 +337,7 @@ function generateBarChartSvg(fixture, allResults) {
   return lines.join('\n');
 }
 
-function generateMarkdown(allResults, { version, browser, runAt }, formatData = null) {
+function generateMarkdown(allResults, { version, browser, runAt }, formatData = null, featureData = null) {
   const lines = [];
   lines.push('# Benchmarks');
   lines.push('');
@@ -411,6 +434,37 @@ function generateMarkdown(allResults, { version, browser, runAt }, formatData = 
         const actual = r.mimeType === req ? req : `\`${req}\` → ${r.mimeType}`;
         lines.push(`| ${req} | ${actual} | ${sizeStr} | ${vsJpeg} |`);
       }
+      lines.push('');
+    }
+  }
+
+  // ── v1.1.0 feature comparison (D) ────────────────────────────────────
+  if (featureData && featureData.length > 0) {
+    lines.push('## Feature comparison (v1.1.0)');
+    lines.push('');
+    lines.push('Same fixtures, different option combinations — isolates the cost of each new feature (`sharpen`, `qualityBoost`, multi-step downscale, binary-search target-size). The scenario list is identical across library versions, so old vs new runs are directly comparable.');
+    lines.push('');
+
+    const fixtures = new Set();
+    for (const f of featureData) fixtures.add(f.fixture);
+    for (const fixture of fixtures) {
+      const rows = featureData.filter((f) => f.fixture === fixture);
+      const baseline = rows.find((r) => r.scenario === 'baseline');
+      lines.push(`### Fixture: \`${fixture}\``);
+      lines.push('');
+      lines.push('| Scenario | Path | Median | Output | vs baseline (time) | vs baseline (size) |');
+      lines.push('| --- | --- | --- | --- | --- | --- |');
+      for (const r of rows) {
+        const timeDelta = baseline && r.scenario !== 'baseline' && baseline.stats.median > 0
+          ? `${(r.stats.median / baseline.stats.median).toFixed(2)}× (${r.stats.median >= baseline.stats.median ? '+' : ''}${(r.stats.median - baseline.stats.median).toFixed(1)} ms)`
+          : '—';
+        const sizeDelta = baseline && r.scenario !== 'baseline' && baseline.outputBytes > 0
+          ? `${((1 - r.outputBytes / baseline.outputBytes) * 100).toFixed(1)}%`
+          : '—';
+        lines.push(`| ${r.scenarioLabel} | \`${r.path}\` | ${formatTime(r.stats.median)} | ${formatBytes(r.outputBytes)} | ${timeDelta} | ${sizeDelta} |`);
+      }
+      lines.push('');
+      lines.push('_Note: `sharpen` only applies on the `canvas-main` path (workers don\'t sharpen). On builds before v1.1.0 the `sharpen`/`qualityBoost` scenarios are no-ops (options ignored), so they report the un-featured baseline — exactly the "feature on vs off" comparison._');
       lines.push('');
     }
   }
@@ -548,6 +602,43 @@ async function main() {
       log(`[bench] format comparison skipped: ${err.message}`);
     }
 
+    // v1.1.0: feature comparison matrix — same scenario list, one fresh page
+    // per scenario (path-forcing patches are page-scoped). Runs on the first
+    // browser config's data path; maxSizeMB re-encodes on the main thread
+    // regardless of cascade path, so one browser is representative.
+    let featureData = null;
+    try {
+      const fixtures = [
+        resolve(FIXTURES_DIR, 'medium-1500x1000.jpg'),
+        resolve(FIXTURES_DIR, 'large-4000x3000.jpg'),
+      ].filter((f) => existsSync(f));
+      const featBrowser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      });
+      featureData = [];
+      for (const fixture of fixtures) {
+        const fixtureBase64 = fileToBase64(fixture);
+        const fixtureName = fixture.split('/').pop();
+        for (const scenario of FEATURE_SCENARIOS) {
+          const featPage = await featBrowser.newPage();
+          await featPage.goto(`http://127.0.0.1:${port}/harness.html`, { waitUntil: 'networkidle0' });
+          await featPage.waitForFunction(() => window.__benchReady === true, { timeout: 10000 });
+          const out = await featPage.evaluate(
+            async ({ fixtureBase64, fixtureName, scenario, iterations, warmup }) =>
+              await window.__bench.runScenario({ fixtureBase64, fixtureName, scenario, iterations, warmup }),
+            { fixtureBase64, fixtureName, scenario, iterations: ITERATIONS, warmup: WARMUP },
+          );
+          featureData.push(out);
+          log(`  feat ${scenario.key} ${fixtureName}: ${out.path} | median ${formatTime(out.stats.median)} | out ${formatBytes(out.outputBytes)}`);
+          await featPage.close();
+        }
+      }
+      await featBrowser.close();
+    } catch (err) {
+      log(`[bench] feature comparison skipped: ${err.message}`);
+    }
+
     const json = {
       version,
       browser: primaryBrowser,
@@ -555,6 +646,7 @@ async function main() {
       iterations: ITERATIONS,
       warmup: WARMUP,
       formatComparison: formatData,
+      featureComparison: featureData,
       configs: allResults.map(({ config, results, browserVersion }) => ({
         name: config.name,
         description: config.description,
@@ -572,7 +664,7 @@ async function main() {
     writeFileSync(resolve(dataDir, 'latest.json'), JSON.stringify(json, null, 2));
     log(`wrote docs/bench/data/latest.json`);
 
-    const md = generateMarkdown(allResults, { version, browser: primaryBrowser, runAt }, formatData);
+    const md = generateMarkdown(allResults, { version, browser: primaryBrowser, runAt }, formatData, featureData);
     writeFileSync(resolve(RESULTS_DIR, 'BENCHMARKS.md'), md);
     log(`wrote results/BENCHMARKS.md`);
 

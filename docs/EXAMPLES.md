@@ -72,7 +72,10 @@ interface DeviceCapabilities {
 interface CompressionOptions {
   maxWidthOrHeight?: number;            // default 2048
   quality?: number;                     // 0-1, default 0.85
-  format?: 'image/jpeg' | 'image/webp' | 'image/png';  // default 'image/jpeg'
+  format?: 'image/jpeg' | 'image/webp' | 'image/png' | 'image/avif';  // default 'image/jpeg'
+  maxSizeMB?: number;                   // v1.1.0: binary-search quality + dimension ladder
+  sharpen?: number;                     // v1.1.0: 0..1 unsharp mask after resize (default 0 = off)
+  qualityBoost?: boolean;               // v1.1.0: raise WebP/AVIF quality +0.1 (same size, sharper)
   rotate?: 0 | 90 | 180 | 270;          // manual rotation
   mirror?: 'horizontal' | 'vertical';   // manual mirror
   width?: number;                       // exact width
@@ -436,6 +439,44 @@ const result = await svc.compress(file, {
 ```
 
 The library returns the original if compression doesn't save space.
+
+### 5. v1.1.0: `qualityBoost` raises WebP quality — enable it for photos
+
+WebP encodes ~30% smaller than JPEG at the same quality on photo-like
+content, so you can raise the quality and still land near the JPEG size:
+
+```ts
+const result = await svc.compress(file, {
+  format: 'image/webp',
+  quality: 0.85,
+  qualityBoost: true,   // → effective quality 0.95
+  // photos: ~same size as JPEG@0.85, visibly sharper
+});
+```
+
+⚠️ **Content caveat (measured):** on low-detail content (flat graphics,
+screenshots, synthetic patterns) WebP's size advantage shrinks and the
+boosted output can grow 1.5-2× vs plain WebP — see the [benchmark feature
+comparison](../bench/results/BENCHMARKS.md). If you have a hard size
+budget, use `maxSizeMB` instead.
+
+### 6. v1.1.0: `sharpen` is opt-in — only pay for it when downscaling hard
+
+Downscaling softens edges (even with multi-step + high smoothing). A light
+unsharp mask restores perceived sharpness, but it costs CPU time and only
+runs on the `canvas-main` path (workers don't sharpen):
+
+```ts
+const result = await svc.compress(file, {
+  maxWidthOrHeight: 2048,
+  sharpen: 0.2,   // subtle — recommended starting point; 0 = off (default)
+});
+```
+
+Measured cost on a 4K→2048px downscale: ~1-3 ms on typical hardware
+(main thread, before encode). Skip it for tiny images (no detail lost) and
+for lossless PNG (ignored). Start at `0.2`; `0.5` is noticeable, `1` is
+strong.
 
 ## Common pitfalls
 

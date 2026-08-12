@@ -74,11 +74,11 @@
      *
      * Returns: { path, timeMs, inputBytes, outputBytes, ratio }
      */
-    async function runOnce(bytes, name) {
+    async function runOnce(bytes, name, opts = {}) {
       const file = new File([bytes], name, { type: 'image/jpeg' });
       const svc = new ImageCompression();
       const t0 = performance.now();
-      const result = await svc.compress(file, { quality: 0.85, maxWidthOrHeight: 2048 });
+      const result = await svc.compress(file, { quality: 0.85, maxWidthOrHeight: 2048, ...opts });
       const t1 = performance.now();
       svc.dispose();
       return {
@@ -96,7 +96,7 @@
      * Run N iterations of the benchmark on a base64-encoded fixture.
      * Posts results to window.__benchResults.
      */
-    async function runBenchmark({ fixtureBase64, fixtureName, iterations = 5, warmup = 1, force = null }) {
+    async function runBenchmark({ fixtureBase64, fixtureName, iterations = 5, warmup = 1, force = null, opts = {} }) {
       const log2 = (m, c) => log(m, c);
 
       // Apply path-forcing patches before any compression call.
@@ -105,19 +105,20 @@
 
       log2(`fixture: ${fixtureName} (${(b64ToBytes(fixtureBase64).length / 1024).toFixed(0)} KB)`);
       if (force) log2(`  force mode: ${force}`);
+      if (Object.keys(opts).length > 0) log2(`  opts: ${JSON.stringify(opts)}`);
 
       const bytes = b64ToBytes(fixtureBase64);
 
       // Warmup runs (JIT, V8 caches, browser caches)
       for (let i = 0; i < warmup; i++) {
         log2(`  warmup ${i + 1}/${warmup}...`);
-        await runOnce(bytes, fixtureName);
+        await runOnce(bytes, fixtureName, opts);
       }
 
       // Measured runs
       const runs = [];
       for (let i = 0; i < iterations; i++) {
-        const r = await runOnce(bytes, fixtureName);
+        const r = await runOnce(bytes, fixtureName, opts);
         runs.push(r);
         log2(`  run ${i + 1}/${iterations}: ${r.path} ${r.timeMs.toFixed(1)}ms ${r.ratio.toFixed(1)}%`, 'ok');
       }
@@ -139,6 +140,43 @@
         stats: { min, median, mean, max, unit: 'ms' },
         outputBytes: runs[0].outputBytes,
         ratio: runs[0].ratio,
+        width: runs[0].width,
+        height: runs[0].height,
+      };
+    }
+
+    /**
+     * v1.1.0: scenario runner for the feature comparison matrix. Each
+     * scenario is a (label, opts, force) triple — measured with the same
+     * warmup/iterations loop as runBenchmark. Returns one aggregate result
+     * per scenario.
+     */
+    async function runScenario({ fixtureBase64, fixtureName, scenario, iterations = 5, warmup = 1 }) {
+      const log2 = (m, c) => log(m, c);
+      if (scenario.force) applyForceMode(scenario.force);
+      log2(`scenario: ${scenario.label} (force: ${scenario.force ?? 'cascade'})`);
+      const bytes = b64ToBytes(fixtureBase64);
+      for (let i = 0; i < warmup; i++) await runOnce(bytes, fixtureName, scenario.opts);
+      const runs = [];
+      for (let i = 0; i < iterations; i++) {
+        const r = await runOnce(bytes, fixtureName, scenario.opts);
+        runs.push(r);
+      }
+      const times = runs.map((r) => r.timeMs).sort((a, b) => a - b);
+      return {
+        scenario: scenario.key,
+        scenarioLabel: scenario.label,
+        fixture: fixtureName,
+        inputBytes: bytes.length,
+        iterations,
+        warmup,
+        path: runs[0].path,
+        runs: runs.map((r) => ({ path: r.path, timeMs: r.timeMs, ratio: r.ratio })),
+        stats: { min: times[0], median: times[Math.floor(times.length / 2)], mean: times.reduce((a, b) => a + b, 0) / times.length, max: times[times.length - 1], unit: 'ms' },
+        outputBytes: runs[0].outputBytes,
+        ratio: runs[0].ratio,
+        width: runs[0].width,
+        height: runs[0].height,
       };
     }
 
@@ -176,7 +214,7 @@
     }
 
     // Expose to puppeteer via window
-    window.__bench = { runBenchmark, compareFormats };
+    window.__bench = { runBenchmark, runScenario, compareFormats };
 
     // Signal ready
     window.__benchReady = true;

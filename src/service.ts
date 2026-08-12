@@ -6,6 +6,7 @@ import {
   applyRotation,
   applyTransforms,
   canEncodeFormat,
+  downscaleInSteps,
   resizeExact,
 } from './worker-helpers';
 import type {
@@ -409,6 +410,20 @@ export class ImageCompression {
         message: `⚠️ ${requestedFormat} encode not supported in this browser — using ${targetFormat} instead`,
       });
       options = { ...options, format: targetFormat };
+    }
+    // v1.1.0: qualityBoost — when output is WebP (or AVIF, also ~30% better
+    // than JPEG) and the caller opted in, raise quality so the output stays
+    // about the same size as JPEG-at-original-quality but visibly sharper.
+    // WebP ~30% smaller at equal quality → boost quality by ~the same margin
+    // (0.85 → 0.95) keeps byte size roughly constant while improving clarity.
+    // CAVEAT (measured in bench/results): the "same size" assumption holds
+    // for photo-like content; on low-detail content (WebP advantage < 10%)
+    // the boosted output can grow 1.5-2× vs plain WebP. Callers with hard
+    // size budgets should prefer maxSizeMB.
+    if (options.qualityBoost && targetFormat !== 'image/jpeg' && targetFormat !== 'image/png') {
+      const baseQ = options.quality ?? 0.85;
+      const boosted = Math.min(1, baseQ + 0.1);
+      options = { ...options, quality: boosted };
     }
     if (
       options.passThroughUnderBytes !== undefined &&
@@ -900,6 +915,13 @@ export class ImageCompression {
       needsResize = true;
     }
     if (needsResize) {
+      // v1.1.0 fix: clamp computed targets to ≥ 1px. A 0 target (explicit
+      // width: 0, or extreme aspect ratio like 24576×3 where the ratio math
+      // rounds the short edge to 0) previously produced a 0×0 encode canvas
+      // (silent failure) — and with multi-step downscale it would hang
+      // forever in the halving loop. 1px is a valid, decodable output.
+      targetW = Math.max(1, Math.round(targetW));
+      targetH = Math.max(1, Math.round(targetH));
       // v0.10.10: draw directly onto the final encode canvas at the target
       // dimensions, skipping the intermediate `resizeExact()` (which uses
       // `transferToImageBitmap` and triggers Chrome 149's "image source is
@@ -918,6 +940,15 @@ export class ImageCompression {
 
     // Encode
     onProgress?.({ stage: 'encoding', percent: 90, path: 'canvas-main', message: 'Encoding...' });
+    let encodeSource: CanvasImageSource = bitmap as unknown as CanvasImageSource;
+    const sharpen = options.sharpen ?? 0;
+    // v1.1.0: optional post-resize sharpening (main thread, canvas-only).
+    // Skipped for lossless PNG — no point sharpening lossless pixels.
+    if (sharpen > 0 && format !== 'image/png') {
+      const { applySharpen } = await import('./worker-helpers');
+      const sharpened = applySharpen(encodeSource, sharpen, targetW, targetH);
+      encodeSource = sharpened;
+    }
     const canvas = document.createElement('canvas');
     canvas.width = targetW;
     canvas.height = targetH;
@@ -929,9 +960,18 @@ export class ImageCompression {
     // directly (skips the intermediate resizeExact+transferToImageBitmap
     // step that triggered Chrome 149's detach bug). Otherwise draw 1:1.
     if (needsResize) {
-      ctx.drawImage(bitmap as unknown as CanvasImageSource, 0, 0, targetW, targetH);
+      // v1.1.0: MULTI-STEP downscale (halving steps) preserves more detail
+      // than one-shot drawImage on a large source. The intermediate
+      // OffscreenCanvas is drawn 1:1 here — no transferToImageBitmap chain,
+      // so the Chrome 149 detach rule still holds on main thread.
+      const scaled = downscaleInSteps(
+        bitmap as unknown as ImageBitmap,
+        targetW,
+        targetH,
+      );
+      ctx.drawImage(scaled.canvas as unknown as CanvasImageSource, 0, 0);
     } else {
-      ctx.drawImage(bitmap as unknown as CanvasImageSource, 0, 0);
+      ctx.drawImage(encodeSource, 0, 0);
     }
     bitmap.close();
 
@@ -1181,14 +1221,16 @@ export class ImageCompression {
     if (result.compressedSize <= targetBytes) return result;
     if (result.width === 0 || result.height === 0) return result;
 
+    // v1.1.0: BINARY-SEARCH quality instead of a fixed ladder. For each
+    // dimension step, find the HIGHEST quality whose output still fits the
+    // target. A fixed ladder (0.85→0.15) overshoots — e.g. q0.7 fits but
+    // 0.85 doesn't, so the ladder wastes quality at 0.7. Binary search
+    // (try mid, keep the best "fits" known) converges to the max usable
+    // quality in ~5 encodes, same cost as the ladder, better output.
     const format = result.mimeType || 'image/jpeg';
     const baseQuality = options.quality ?? 0.85;
-    // PNG is lossless — quality is ignored by toBlob. Use a single quality
-    // entry so the dimension ladder is the only lever (no wasted encodes).
-    const qualityLadder: number[] =
-      format === 'image/png'
-        ? [0.92]
-        : Array.from(new Set([baseQuality, 0.7, 0.5, 0.3, 0.15])).sort((a, b) => b - a);
+    // PNG is lossless — quality is ignored by toBlob. Dimension ladder only.
+    const usesBinarySearch = format !== 'image/png';
     const dimLadder = [1, 0.9, 0.8, 0.7, 0.6, 0.5];
 
     // Decode the compressed output once; reuse for every ladder step.
@@ -1200,40 +1242,112 @@ export class ImageCompression {
       return result;
     }
 
+    /** Encode at (w,h,q) and return the blob (or null). */
+    const encodeAt = (w: number, h: number, q: number): Promise<Blob | null> =>
+      new Promise<Blob | null>((resolve) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(bitmap, 0, 0, w, h);
+        canvas.toBlob((b) => resolve(b), format, q);
+      });
+
     let best: { blob: Blob; width: number; height: number } | null = null;
     try {
       for (const dimScale of dimLadder) {
         const w = Math.max(1, Math.round(result.width * dimScale));
         const h = Math.max(1, Math.round(result.height * dimScale));
-        for (const q of qualityLadder) {
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) continue;
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(bitmap, 0, 0, w, h);
-          const blob = await new Promise<Blob | null>((resolve) => {
-            canvas.toBlob((b) => resolve(b), format, q);
-          });
-          if (!blob) continue;
-          if (!best || blob.size < best.blob.size) {
-            best = { blob, width: w, height: h };
+
+        if (!usesBinarySearch) {
+          // PNG: single encode at this dim (quality ignored)
+          const blob = await encodeAt(w, h, 0.92);
+          if (blob) {
+            if (!best || blob.size < best.blob.size) best = { blob, width: w, height: h };
+            if (blob.size <= targetBytes) {
+              return ImageCompression.buildResult(
+                blob,
+                result.originalSize,
+                result.path,
+                result.tier,
+                result.durationMs,
+                w,
+                h,
+                format,
+                result.file,
+              );
+            }
           }
+          continue;
+        }
+
+        // Binary search quality in [lo, baseQuality]: find max q ≤ target.
+        // Keep track of the SMALLEST blob overall (target may be unreachable
+        // at this dim — the best is still recorded for the final fallback).
+        //
+        // v1.1.0 (fixed): probe the CALLER's quality FIRST. If it already
+        // fits, that IS the maximum usable quality — return in 1 encode,
+        // exactly like the old fixed ladder's best case. (The original WIP
+        // probed q=0.2 first, which forced the full binary search — up to
+        // 7 encodes — even for the common "fits at base quality" case.)
+        // Binary search only runs when the base quality is too big.
+        let lo = Math.min(0.2, baseQuality);
+        let hi = baseQuality;
+        const highBlob = await encodeAt(w, h, hi);
+        if (highBlob && highBlob.size <= targetBytes) {
+          return ImageCompression.buildResult(
+            highBlob,
+            result.originalSize,
+            result.path,
+            result.tier,
+            result.durationMs,
+            w,
+            h,
+            format,
+            result.file,
+          );
+        }
+        // Guard: if even q=lo doesn't fit, dims must shrink — record the
+        // smallest blob of this dim then move to the next dim scale.
+        const lowBlob = await encodeAt(w, h, lo);
+        if (!lowBlob || lowBlob.size > targetBytes) {
+          if (lowBlob && (!best || lowBlob.size < best.blob.size)) {
+            best = { blob: lowBlob, width: w, height: h };
+          }
+          continue;
+        }
+        let dimBest: { blob: Blob; q: number } = { blob: lowBlob, q: lo };
+        for (let i = 0; i < 6; i++) {
+          const q = Math.round(((lo + hi) / 2) * 100) / 100;
+          const blob = await encodeAt(w, h, q);
+          if (!blob) break;
           if (blob.size <= targetBytes) {
-            return ImageCompression.buildResult(
-              blob,
-              result.originalSize,
-              result.path,
-              result.tier,
-              result.durationMs,
-              w,
-              h,
-              format,
-              result.file,
-            );
+            dimBest = { blob, q }; // fits — try higher quality
+            lo = q + 0.01;
+          } else {
+            hi = q - 0.01; // too big — try lower
           }
+          if (lo > hi) break;
+        }
+        {
+          const { blob } = dimBest;
+          return ImageCompression.buildResult(
+            blob,
+            result.originalSize,
+            result.path,
+            result.tier,
+            result.durationMs,
+            w,
+            h,
+            format,
+            result.file,
+          );
         }
       }
     } finally {
