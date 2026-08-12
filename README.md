@@ -241,6 +241,32 @@ when available. If you only need a simple JPEG shrink, either works; if you
 need format conversion, HEIC support, or hard size guarantees, this library
 fits better.
 
+## 🎯 Which output format should I use?
+
+Measured on the same 1920×1080 landscape photo (libwebp 1.3 / libaom 3.8):
+
+| Format | Size vs JPEG | Encode speed (4K) | Browser support |
+|---|---|---|---|
+| `image/jpeg` | baseline | 0.12s (fastest) | 100% |
+| **`image/webp`** ⭐ | **−28 to −33%** | 0.48s (fast) | 99.1% |
+| `image/avif` | −63 to −70% | 2.84s+ (**24× slower**) | 96.4% (decode) |
+
+**Recommendation for client-side compression (this library's use case):**
+
+- ⭐ **Use `image/webp`** for uploads. It's ~30% smaller than JPEG with
+  essentially the same encode cost (0.48s vs 0.12s on 4K), and every modern
+  browser supports it. This is the best size/speed trade-off for real-time
+  browser compression.
+- `image/jpeg` — only when the downstream server/API requires JPEG exactly.
+- `image/avif` — technically the smallest (−50% vs WebP), but **AVIF encode is
+  24× slower than WebP** (2.84s minimum even at max speed on an M2, longer on
+  phones) and still requires a 3MB+ WASM encoder outside Chromium 130+. It
+  shines for **server-side / build-time pre-generation**, not real-time
+  client-side compression. The library will encode AVIF natively where the
+  browser supports it (Chromium 130+) and transparently fall back to WebP/JPEG
+  elsewhere — but for uploads, WebP is the pragmatic default.
+- `image/png` — only for lossless / transparency needs (largest output).
+
 ## 🌐 Browser Support
 
 | Browser | Minimum | Notes |

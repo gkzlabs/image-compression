@@ -31,6 +31,24 @@ runtime and falls back `avif → webp → jpeg` automatically:
 
 > ℹ️ A progress event (`⚠️ image/avif encode not supported in this browser — using image/webp instead`) is emitted when a requested format falls back. `canEncodeFormat()` / `resolveEncodeFormat()` are exported for pre-flight checks.
 
+### Encode cost — why WebP is the recommended upload format
+
+Measured encoding a 4K (3840×2160) photo on an Apple M2 laptop (libwebp 1.3 / libaom 3.8):
+
+| Format | Encode time | vs JPEG | Note |
+|---|---|---|---|
+| `image/jpeg` | 0.12s | baseline | libjpeg-turbo |
+| `image/webp` ⭐ | 0.48s | 4× | default settings — recommended for client-side uploads |
+| `image/webp` (method 6) | 1.92s | 16× | max quality preset |
+| `image/avif` (speed 8) | 2.84s | **24×** | fastest AVIF preset — still 6× slower than WebP |
+| `image/avif` (speed 4) | 18.2s | 152× | balanced preset |
+
+**Guidance for this library (client-side, before upload):**
+- **WebP** is the sweet spot: ~30% smaller than JPEG with negligible encode cost on every modern browser.
+- **AVIF** saves another ~50% vs WebP but costs **24×+ encode time** — acceptable for server-side/build-time pre-generation, not for real-time browser uploads. The library encodes AVIF natively where available (Chromium 130+) and falls back automatically; it deliberately does **not** bundle a WASM AVIF encoder (3.3 MB) for client-side use.
+
+See the [README "Which output format" section](https://github.com/gkzlabs/image-compression#-which-output-format-should-i-use) for the full trade-off table.
+
 ## Feature Detection (DeviceCapabilities)
 
 The library probes these features at runtime. See `src/capabilities.ts` for the
