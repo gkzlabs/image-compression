@@ -21,6 +21,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Bench results commit back to the DEFAULT branch. Tag-triggered
+          # runs (release publish) otherwise land on a detached HEAD and the
+          # commit-back push dies with "You are not currently on a branch"
+          # (exit 128) — the v1.0.3 / v1.1.0 bench failures.
+          ref: ${{ github.event.repository.default_branch }}
 
       - uses: actions/setup-node@v7
         with:
@@ -52,6 +58,9 @@ jobs:
             echo "no changes to commit"
           else
             git commit -m "bench: update results ($(date -u +%Y-%m-%d))"
+            # main may have moved while we ran (dependabot merges, other
+            # bench runs) — rebase onto it so the push is fast-forward.
+            git pull --rebase
             git push
           fi
         env:
