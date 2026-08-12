@@ -774,7 +774,13 @@ export class ImageCompression {
     // v0.11.0: rpcWrap() serializes function args to CallbackRefs automatically,
     // so onProgress is passed as a plain top-level function arg (it travels
     // as { __callbackId } over postMessage; the worker resolves it back).
-    const { onProgress, ...optionsOnly } = options;
+    // v1.1.1 FIX: also strip `signal` — an AbortSignal is NOT structured-cloneable,
+    // so posting it to the worker threw DataCloneError and the worker paths
+    // silently fell back to canvas-main whenever the caller passed a signal
+    // (caught live on compress.gkz.info demo, 2026-08-12). Cancellation is a
+    // main-thread concern: checkAborted(options.signal) fires at stage
+    // boundaries on the main thread; the worker itself can't be aborted mid-RPC.
+    const { onProgress, signal, ...optionsOnly } = options;
     const workerOptions = optionsOnly as CompressionOptions;
     // Stage 2: Load worker (if not already cached)
     if (!this.worker) {

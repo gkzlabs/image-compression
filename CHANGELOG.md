@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-08-12
+
+### Fixed
+
+- **Worker paths crashed with `DataCloneError` whenever the caller passed an `AbortSignal`** — `executeWorkerPath()` stripped `onProgress` before posting to the worker but not `signal`. An `AbortSignal` is not structured-cloneable, so `postMessage` threw `DataCloneError: The object can not be cloned`, `webcodecs-worker` AND `offscreen-worker` both failed, and the cascade silently fell back to `canvas-main` — a performance + worker-speed regression invisible to the caller. Caught live on the compress.gkz.info demo (the Cancel button's signal exposed it, 2026-08-12). Fix: strip `signal` alongside `onProgress` before the RPC postMessage — cancellation is a main-thread concern (`checkAborted()` fires at stage boundaries); the worker can't be aborted mid-RPC anyway. Regression tests in `src/signal-worker.spec.ts` (a fake worker whose `postMessage` structured-clones the message — non-cloneable values throw exactly like a real browser).
+
 ## [1.1.0] - 2026-08-12
 
 ### Added
