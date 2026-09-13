@@ -2,8 +2,8 @@
 
 > **TL;DR**
 >
-> - Compress a **4.14 MB** JPEG in **174.2 ms** on Chrome 149 (`canvas-main` path).
-> - **`canvas-main`** is the fastest on this hardware (174.2 ms).
+> - Compress a **4.14 MB** JPEG in **67.3 ms** on Chrome 149 (`canvas-main` path).
+> - **`canvas-main`** is the fastest on this hardware (67.3 ms).
 > - On modern browsers all 3 paths finish in well under 100ms — the real win is **universal compatibility** (works on every browser, no polyfill needed).
 >
 > [📊 Live interactive dashboard](https://gkzlabs.github.io/image-compression/bench/)
@@ -21,9 +21,9 @@ When to use which path (the cascade picks automatically, but you can force by di
 
 > **Practical tip:** on small files (<100 KB), the cascade may skip Worker paths because the postMessage overhead exceeds the decode cost. See the [live dashboard](https://gkzlabs.github.io/image-compression/bench/) for real numbers per fixture size.
 
-**Library version:** `@gkzlabs/image-compression@1.1.1`
-**Browser:** Chrome/150.0.7871.24
-**Run at:** 2026-09-06T12:26:08.213Z
+**Library version:** `@gkzlabs/image-compression@1.2.0`
+**Browser:** Chrome/152.0.7977.75
+**Run at:** 2026-09-13T10:09:30.721Z
 **Iterations per fixture:** 10 (median reported, with 1 warmup)
 
 The library uses a 4-path cascade: `webcodecs-worker` → `offscreen-worker` → `canvas-main` → `server-fallback`. To compare paths, we launch headless Chrome three times with progressive feature disabling, forcing the cascade to fall back to a different path each time:
@@ -38,72 +38,72 @@ The library uses a 4-path cascade: `webcodecs-worker` → `offscreen-worker` →
 
 | Config | Actual path | Time (median) | Time (best) | Output | Saved |
 | --- | --- | --- | --- | --- | --- |
-| `full` | `webcodecs-worker` | 50.5 ms | 46.9 ms | 448.8 KB | 18.8% |
-| `no-webcodecs` | `offscreen-worker` | 47.7 ms | 44.6 ms | 448.8 KB | 18.8% |
-| `no-workers` | `canvas-main` | 37.3 ms | 36.6 ms | 448.8 KB | 18.8% |
+| `full` | `webcodecs-worker` | 21.3 ms | 21.0 ms | 448.8 KB | 18.8% |
+| `no-webcodecs` | `offscreen-worker` | 21.4 ms | 20.7 ms | 448.8 KB | 18.8% |
+| `no-workers` | `canvas-main` | 18.5 ms | 17.3 ms | 448.8 KB | 18.8% |
 
 <svg viewBox="0 0 730 104" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" role="img" aria-label="Benchmark: medium-1500x1000.jpg">
   <line x1="160.0" y1="4" x2="160.0" y2="100" stroke="#30363d" stroke-width="0.5" stroke-dasharray="2,2"/>
   <text x="160.0" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">0 ms</text>
   <line x1="277.5" y1="4" x2="277.5" y2="100" stroke="#30363d" stroke-width="0.5" stroke-dasharray="2,2"/>
-  <text x="277.5" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">13 ms</text>
+  <text x="277.5" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">5 ms</text>
   <line x1="395.0" y1="4" x2="395.0" y2="100" stroke="#30363d" stroke-width="0.5" stroke-dasharray="2,2"/>
-  <text x="395.0" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">25 ms</text>
+  <text x="395.0" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">11 ms</text>
   <line x1="512.5" y1="4" x2="512.5" y2="100" stroke="#30363d" stroke-width="0.5" stroke-dasharray="2,2"/>
-  <text x="512.5" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">38 ms</text>
+  <text x="512.5" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">16 ms</text>
   <line x1="630.0" y1="4" x2="630.0" y2="100" stroke="#30363d" stroke-width="0.5" stroke-dasharray="2,2"/>
-  <text x="630.0" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">51 ms</text>
+  <text x="630.0" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">21 ms</text>
   <text x="152" y="20" text-anchor="end" fill="#f1f5ff" font-weight="700">canvas-main</text>
-  <rect x="160" y="10" width="347.1" height="18" fill="#7aa2ff" rx="3" opacity="1"/>
-  <text x="513.1485148515122" y="23" fill="#5dd39e" font-weight="700">37.3 ms ⚡</text>
-  <text x="152" y="52" text-anchor="end" fill="#cbd5ff" font-weight="500">offscreen-worker</text>
-  <rect x="160" y="42" width="443.9" height="18" fill="#9c7cff" rx="3" opacity="0.85"/>
-  <text x="609.9405940593788" y="55" fill="#cbd5ff" font-weight="500">47.7 ms</text>
-  <text x="152" y="84" text-anchor="end" fill="#cbd5ff" font-weight="500">webcodecs-worker</text>
-  <rect x="160" y="74" width="470.0" height="18" fill="#61DAFB" rx="3" opacity="0.85"/>
-  <text x="636" y="87" fill="#cbd5ff" font-weight="500">50.5 ms</text>
+  <rect x="160" y="10" width="406.3" height="18" fill="#7aa2ff" rx="3" opacity="1"/>
+  <text x="572.3084139309759" y="23" fill="#5dd39e" font-weight="700">18.5 ms ⚡</text>
+  <text x="152" y="52" text-anchor="end" fill="#cbd5ff" font-weight="500">webcodecs-worker</text>
+  <rect x="160" y="42" width="467.8" height="18" fill="#61DAFB" rx="3" opacity="0.85"/>
+  <text x="633.8037456338901" y="55" fill="#cbd5ff" font-weight="500">21.3 ms</text>
+  <text x="152" y="84" text-anchor="end" fill="#cbd5ff" font-weight="500">offscreen-worker</text>
+  <rect x="160" y="74" width="470.0" height="18" fill="#9c7cff" rx="3" opacity="0.85"/>
+  <text x="636" y="87" fill="#cbd5ff" font-weight="500">21.4 ms</text>
 </svg>
 
 ### Fixture: `large-4000x3000.jpg`
 
 | Config | Actual path | Time (median) | Time (best) | Output | Saved |
 | --- | --- | --- | --- | --- | --- |
-| `full` | `webcodecs-worker` | 180.6 ms | 177.7 ms | 414.2 KB | 90.2% |
-| `no-webcodecs` | `offscreen-worker` | 182.0 ms | 177.7 ms | 414.2 KB | 90.2% |
-| `no-workers` | `canvas-main` | 174.2 ms | 171.9 ms | 414.2 KB | 90.2% |
+| `full` | `webcodecs-worker` | 74.5 ms | 73.3 ms | 406.9 KB | 90.4% |
+| `no-webcodecs` | `offscreen-worker` | 74.8 ms | 73.4 ms | 406.9 KB | 90.4% |
+| `no-workers` | `canvas-main` | 67.3 ms | 65.5 ms | 406.9 KB | 90.4% |
 
 <svg viewBox="0 0 730 104" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif, system-ui, sans-serif" font-size="12" role="img" aria-label="Benchmark: large-4000x3000.jpg">
   <line x1="160.0" y1="4" x2="160.0" y2="100" stroke="#30363d" stroke-width="0.5" stroke-dasharray="2,2"/>
   <text x="160.0" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">0 ms</text>
   <line x1="277.5" y1="4" x2="277.5" y2="100" stroke="#30363d" stroke-width="0.5" stroke-dasharray="2,2"/>
-  <text x="277.5" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">46 ms</text>
+  <text x="277.5" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">19 ms</text>
   <line x1="395.0" y1="4" x2="395.0" y2="100" stroke="#30363d" stroke-width="0.5" stroke-dasharray="2,2"/>
-  <text x="395.0" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">91 ms</text>
+  <text x="395.0" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">37 ms</text>
   <line x1="512.5" y1="4" x2="512.5" y2="100" stroke="#30363d" stroke-width="0.5" stroke-dasharray="2,2"/>
-  <text x="512.5" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">137 ms</text>
+  <text x="512.5" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">56 ms</text>
   <line x1="630.0" y1="4" x2="630.0" y2="100" stroke="#30363d" stroke-width="0.5" stroke-dasharray="2,2"/>
-  <text x="630.0" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">182 ms</text>
+  <text x="630.0" y="103" text-anchor="middle" fill="#6e83b8" font-size="10">75 ms</text>
   <text x="152" y="20" text-anchor="end" fill="#f1f5ff" font-weight="700">canvas-main</text>
-  <rect x="160" y="10" width="449.9" height="18" fill="#7aa2ff" rx="3" opacity="1"/>
-  <text x="615.8571428571354" y="23" fill="#5dd39e" font-weight="700">174.2 ms ⚡</text>
+  <rect x="160" y="10" width="422.9" height="18" fill="#7aa2ff" rx="3" opacity="1"/>
+  <text x="588.8743315207603" y="23" fill="#5dd39e" font-weight="700">67.3 ms ⚡</text>
   <text x="152" y="52" text-anchor="end" fill="#cbd5ff" font-weight="500">webcodecs-worker</text>
-  <rect x="160" y="42" width="466.4" height="18" fill="#61DAFB" rx="3" opacity="0.85"/>
-  <text x="632.3846153846116" y="55" fill="#cbd5ff" font-weight="500">180.6 ms</text>
+  <rect x="160" y="42" width="468.1" height="18" fill="#61DAFB" rx="3" opacity="0.85"/>
+  <text x="634.1149735604474" y="55" fill="#cbd5ff" font-weight="500">74.5 ms</text>
   <text x="152" y="84" text-anchor="end" fill="#cbd5ff" font-weight="500">offscreen-worker</text>
   <rect x="160" y="74" width="470.0" height="18" fill="#9c7cff" rx="3" opacity="0.85"/>
-  <text x="636" y="87" fill="#cbd5ff" font-weight="500">182.0 ms</text>
+  <text x="636" y="87" fill="#cbd5ff" font-weight="500">74.8 ms</text>
 </svg>
 
 ## Speedup vs canvas-main
 
 | Fixture | Path | Median | Speedup |
 | --- | --- | --- | --- |
-| medium-1500x1000.jpg | `webcodecs-worker` | 50.5 ms | **0.74×** |
-| large-4000x3000.jpg | `webcodecs-worker` | 180.6 ms | **0.96×** |
-| medium-1500x1000.jpg | `offscreen-worker` | 47.7 ms | **0.78×** |
-| large-4000x3000.jpg | `offscreen-worker` | 182.0 ms | **0.96×** |
-| medium-1500x1000.jpg | `canvas-main` | 37.3 ms | **1.00×** |
-| large-4000x3000.jpg | `canvas-main` | 174.2 ms | **1.00×** |
+| medium-1500x1000.jpg | `webcodecs-worker` | 21.3 ms | **0.87×** |
+| large-4000x3000.jpg | `webcodecs-worker` | 74.5 ms | **0.90×** |
+| medium-1500x1000.jpg | `offscreen-worker` | 21.4 ms | **0.86×** |
+| large-4000x3000.jpg | `offscreen-worker` | 74.8 ms | **0.90×** |
+| medium-1500x1000.jpg | `canvas-main` | 18.5 ms | **1.00×** |
+| large-4000x3000.jpg | `canvas-main` | 67.3 ms | **1.00×** |
 
 ## Output size by format
 
@@ -125,9 +125,9 @@ Same fixture, same quality (0.85), same max dimension (2048) — only the output
 
 | Requested format | Actual output | Size | vs JPEG |
 | --- | --- | --- | --- |
-| image/jpeg | image/jpeg | 414.2 KB | 0.0% |
-| image/webp | image/webp | 396.7 KB | 4.2% |
-| image/avif | `image/avif` → image/webp | 396.7 KB | 4.2% |
+| image/jpeg | image/jpeg | 406.9 KB | 0.0% |
+| image/webp | image/webp | 381.0 KB | 6.4% |
+| image/avif | `image/avif` → image/webp | 381.0 KB | 6.4% |
 
 ## Feature comparison (v1.1.0)
 
@@ -137,12 +137,12 @@ Same fixtures, different option combinations — isolates the cost of each new f
 
 | Scenario | Path | Median | Output | vs baseline (time) | vs baseline (size) |
 | --- | --- | --- | --- | --- | --- |
-| Baseline (q0.85, ≤2048px, cascade) | `webcodecs-worker` | 44.7 ms | 448.8 KB | — | — |
-| canvas-main baseline (no sharpen) | `canvas-main` | 37.0 ms | 448.8 KB | 0.83× (-7.7 ms) | 0.0% |
-| canvas-main + sharpen 0.3 | `canvas-main` | 58.7 ms | 438.8 KB | 1.31× (+14.0 ms) | 2.2% |
-| WebP (q0.85) | `webcodecs-worker` | 250.7 ms | 394.4 KB | 5.61× (+206.0 ms) | 12.1% |
-| WebP + qualityBoost | `webcodecs-worker` | 286.0 ms | 656.8 KB | 6.40× (+241.3 ms) | -46.4% |
-| maxSizeMB: 0.4 (target-size mode) | `webcodecs-worker` | 216.2 ms | 404.3 KB | 4.84× (+171.5 ms) | 9.9% |
+| Baseline (q0.85, ≤2048px, cascade) | `webcodecs-worker` | 20.8 ms | 448.8 KB | — | — |
+| canvas-main baseline (no sharpen) | `canvas-main` | 18.2 ms | 448.8 KB | 0.87× (-2.6 ms) | 0.0% |
+| canvas-main + sharpen 0.3 | `canvas-main` | 18.9 ms | 424.2 KB | 0.91× (-1.9 ms) | 5.5% |
+| WebP (q0.85) | `webcodecs-worker` | 113.0 ms | 394.4 KB | 5.43× (+92.2 ms) | 12.1% |
+| WebP + qualityBoost | `webcodecs-worker` | 132.8 ms | 656.8 KB | 6.38× (+112.0 ms) | -46.4% |
+| maxSizeMB: 0.4 (target-size mode) | `webcodecs-worker` | 104.2 ms | 404.3 KB | 5.01× (+83.4 ms) | 9.9% |
 
 _Note: `sharpen` only applies on the `canvas-main` path (workers don't sharpen). On builds before v1.1.0 the `sharpen`/`qualityBoost` scenarios are no-ops (options ignored), so they report the un-featured baseline — exactly the "feature on vs off" comparison._
 
@@ -150,12 +150,12 @@ _Note: `sharpen` only applies on the `canvas-main` path (workers don't sharpen).
 
 | Scenario | Path | Median | Output | vs baseline (time) | vs baseline (size) |
 | --- | --- | --- | --- | --- | --- |
-| Baseline (q0.85, ≤2048px, cascade) | `webcodecs-worker` | 178.9 ms | 414.2 KB | — | — |
-| canvas-main baseline (no sharpen) | `canvas-main` | 174.6 ms | 414.2 KB | 0.98× (-4.3 ms) | 0.0% |
-| canvas-main + sharpen 0.3 | `canvas-main` | 256.0 ms | 414.2 KB | 1.43× (+77.1 ms) | 0.0% |
-| WebP (q0.85) | `webcodecs-worker` | 533.1 ms | 396.7 KB | 2.98× (+354.2 ms) | 4.2% |
-| WebP + qualityBoost | `webcodecs-worker` | 627.4 ms | 885.4 KB | 3.51× (+448.5 ms) | -113.8% |
-| maxSizeMB: 0.4 (target-size mode) | `webcodecs-worker` | 401.4 ms | 408.4 KB | 2.24× (+222.5 ms) | 1.4% |
+| Baseline (q0.85, ≤2048px, cascade) | `webcodecs-worker` | 74.4 ms | 406.9 KB | — | — |
+| canvas-main baseline (no sharpen) | `canvas-main` | 66.5 ms | 406.9 KB | 0.89× (-7.9 ms) | 0.0% |
+| canvas-main + sharpen 0.3 | `canvas-main` | 71.8 ms | 406.9 KB | 0.97× (-2.6 ms) | 0.0% |
+| WebP (q0.85) | `webcodecs-worker` | 240.3 ms | 381.0 KB | 3.23× (+165.9 ms) | 6.4% |
+| WebP + qualityBoost | `webcodecs-worker` | 281.8 ms | 871.3 KB | 3.79× (+207.4 ms) | -114.2% |
+| maxSizeMB: 0.4 (target-size mode) | `webcodecs-worker` | 74.7 ms | 406.9 KB | 1.00× (+0.3 ms) | 0.0% |
 
 _Note: `sharpen` only applies on the `canvas-main` path (workers don't sharpen). On builds before v1.1.0 the `sharpen`/`qualityBoost` scenarios are no-ops (options ignored), so they report the un-featured baseline — exactly the "feature on vs off" comparison._
 
@@ -167,31 +167,31 @@ _Note: `sharpen` only applies on the `canvas-main` path (workers don't sharpen).
 
 | Run | Path | Time | Ratio |
 | --- | --- | --- | --- |
-| 1 | `webcodecs-worker` | 50.5 ms | 18.8% |
-| 2 | `webcodecs-worker` | 51.9 ms | 18.8% |
-| 3 | `webcodecs-worker` | 47.6 ms | 18.8% |
-| 4 | `webcodecs-worker` | 50.1 ms | 18.8% |
-| 5 | `webcodecs-worker` | 49.0 ms | 18.8% |
-| 6 | `webcodecs-worker` | 52.0 ms | 18.8% |
-| 7 | `webcodecs-worker` | 46.9 ms | 18.8% |
-| 8 | `webcodecs-worker` | 54.2 ms | 18.8% |
-| 9 | `webcodecs-worker` | 48.8 ms | 18.8% |
-| 10 | `webcodecs-worker` | 53.2 ms | 18.8% |
+| 1 | `webcodecs-worker` | 22.2 ms | 18.8% |
+| 2 | `webcodecs-worker` | 21.4 ms | 18.8% |
+| 3 | `webcodecs-worker` | 21.3 ms | 18.8% |
+| 4 | `webcodecs-worker` | 21.2 ms | 18.8% |
+| 5 | `webcodecs-worker` | 21.0 ms | 18.8% |
+| 6 | `webcodecs-worker` | 28.6 ms | 18.8% |
+| 7 | `webcodecs-worker` | 21.3 ms | 18.8% |
+| 8 | `webcodecs-worker` | 21.4 ms | 18.8% |
+| 9 | `webcodecs-worker` | 21.3 ms | 18.8% |
+| 10 | `webcodecs-worker` | 21.2 ms | 18.8% |
 
 #### large-4000x3000.jpg
 
 | Run | Path | Time | Ratio |
 | --- | --- | --- | --- |
-| 1 | `webcodecs-worker` | 202.1 ms | 90.2% |
-| 2 | `webcodecs-worker` | 180.4 ms | 90.2% |
-| 3 | `webcodecs-worker` | 179.2 ms | 90.2% |
-| 4 | `webcodecs-worker` | 195.2 ms | 90.2% |
-| 5 | `webcodecs-worker` | 189.6 ms | 90.2% |
-| 6 | `webcodecs-worker` | 186.9 ms | 90.2% |
-| 7 | `webcodecs-worker` | 178.7 ms | 90.2% |
-| 8 | `webcodecs-worker` | 180.6 ms | 90.2% |
-| 9 | `webcodecs-worker` | 177.7 ms | 90.2% |
-| 10 | `webcodecs-worker` | 180.0 ms | 90.2% |
+| 1 | `webcodecs-worker` | 73.9 ms | 90.4% |
+| 2 | `webcodecs-worker` | 73.3 ms | 90.4% |
+| 3 | `webcodecs-worker` | 73.6 ms | 90.4% |
+| 4 | `webcodecs-worker` | 74.5 ms | 90.4% |
+| 5 | `webcodecs-worker` | 74.7 ms | 90.4% |
+| 6 | `webcodecs-worker` | 74.4 ms | 90.4% |
+| 7 | `webcodecs-worker` | 74.8 ms | 90.4% |
+| 8 | `webcodecs-worker` | 74.5 ms | 90.4% |
+| 9 | `webcodecs-worker` | 75.5 ms | 90.4% |
+| 10 | `webcodecs-worker` | 75.3 ms | 90.4% |
 
 ### Config: `no-webcodecs`
 
@@ -199,31 +199,31 @@ _Note: `sharpen` only applies on the `canvas-main` path (workers don't sharpen).
 
 | Run | Path | Time | Ratio |
 | --- | --- | --- | --- |
-| 1 | `offscreen-worker` | 44.6 ms | 18.8% |
-| 2 | `offscreen-worker` | 44.7 ms | 18.8% |
-| 3 | `offscreen-worker` | 45.3 ms | 18.8% |
-| 4 | `offscreen-worker` | 45.7 ms | 18.8% |
-| 5 | `offscreen-worker` | 47.7 ms | 18.8% |
-| 6 | `offscreen-worker` | 48.8 ms | 18.8% |
-| 7 | `offscreen-worker` | 48.8 ms | 18.8% |
-| 8 | `offscreen-worker` | 49.5 ms | 18.8% |
-| 9 | `offscreen-worker` | 49.8 ms | 18.8% |
-| 10 | `offscreen-worker` | 47.3 ms | 18.8% |
+| 1 | `offscreen-worker` | 23.7 ms | 18.8% |
+| 2 | `offscreen-worker` | 21.9 ms | 18.8% |
+| 3 | `offscreen-worker` | 20.9 ms | 18.8% |
+| 4 | `offscreen-worker` | 21.4 ms | 18.8% |
+| 5 | `offscreen-worker` | 20.7 ms | 18.8% |
+| 6 | `offscreen-worker` | 28.2 ms | 18.8% |
+| 7 | `offscreen-worker` | 20.7 ms | 18.8% |
+| 8 | `offscreen-worker` | 21.0 ms | 18.8% |
+| 9 | `offscreen-worker` | 21.4 ms | 18.8% |
+| 10 | `offscreen-worker` | 20.8 ms | 18.8% |
 
 #### large-4000x3000.jpg
 
 | Run | Path | Time | Ratio |
 | --- | --- | --- | --- |
-| 1 | `offscreen-worker` | 197.4 ms | 90.2% |
-| 2 | `offscreen-worker` | 189.0 ms | 90.2% |
-| 3 | `offscreen-worker` | 177.7 ms | 90.2% |
-| 4 | `offscreen-worker` | 180.1 ms | 90.2% |
-| 5 | `offscreen-worker` | 182.2 ms | 90.2% |
-| 6 | `offscreen-worker` | 182.0 ms | 90.2% |
-| 7 | `offscreen-worker` | 179.6 ms | 90.2% |
-| 8 | `offscreen-worker` | 181.4 ms | 90.2% |
-| 9 | `offscreen-worker` | 182.0 ms | 90.2% |
-| 10 | `offscreen-worker` | 179.7 ms | 90.2% |
+| 1 | `offscreen-worker` | 75.8 ms | 90.4% |
+| 2 | `offscreen-worker` | 74.3 ms | 90.4% |
+| 3 | `offscreen-worker` | 74.6 ms | 90.4% |
+| 4 | `offscreen-worker` | 74.8 ms | 90.4% |
+| 5 | `offscreen-worker` | 74.2 ms | 90.4% |
+| 6 | `offscreen-worker` | 74.8 ms | 90.4% |
+| 7 | `offscreen-worker` | 73.4 ms | 90.4% |
+| 8 | `offscreen-worker` | 76.9 ms | 90.4% |
+| 9 | `offscreen-worker` | 76.6 ms | 90.4% |
+| 10 | `offscreen-worker` | 75.3 ms | 90.4% |
 
 ### Config: `no-workers`
 
@@ -231,31 +231,31 @@ _Note: `sharpen` only applies on the `canvas-main` path (workers don't sharpen).
 
 | Run | Path | Time | Ratio |
 | --- | --- | --- | --- |
-| 1 | `canvas-main` | 36.9 ms | 18.8% |
-| 2 | `canvas-main` | 38.4 ms | 18.8% |
-| 3 | `canvas-main` | 36.8 ms | 18.8% |
-| 4 | `canvas-main` | 37.7 ms | 18.8% |
-| 5 | `canvas-main` | 37.3 ms | 18.8% |
-| 6 | `canvas-main` | 37.0 ms | 18.8% |
-| 7 | `canvas-main` | 37.8 ms | 18.8% |
-| 8 | `canvas-main` | 37.5 ms | 18.8% |
-| 9 | `canvas-main` | 36.6 ms | 18.8% |
-| 10 | `canvas-main` | 37.2 ms | 18.8% |
+| 1 | `canvas-main` | 21.6 ms | 18.8% |
+| 2 | `canvas-main` | 21.3 ms | 18.8% |
+| 3 | `canvas-main` | 19.6 ms | 18.8% |
+| 4 | `canvas-main` | 17.6 ms | 18.8% |
+| 5 | `canvas-main` | 18.0 ms | 18.8% |
+| 6 | `canvas-main` | 18.6 ms | 18.8% |
+| 7 | `canvas-main` | 17.3 ms | 18.8% |
+| 8 | `canvas-main` | 17.3 ms | 18.8% |
+| 9 | `canvas-main` | 17.8 ms | 18.8% |
+| 10 | `canvas-main` | 18.5 ms | 18.8% |
 
 #### large-4000x3000.jpg
 
 | Run | Path | Time | Ratio |
 | --- | --- | --- | --- |
-| 1 | `canvas-main` | 172.5 ms | 90.2% |
-| 2 | `canvas-main` | 174.5 ms | 90.2% |
-| 3 | `canvas-main` | 173.9 ms | 90.2% |
-| 4 | `canvas-main` | 171.9 ms | 90.2% |
-| 5 | `canvas-main` | 172.5 ms | 90.2% |
-| 6 | `canvas-main` | 178.0 ms | 90.2% |
-| 7 | `canvas-main` | 173.1 ms | 90.2% |
-| 8 | `canvas-main` | 175.2 ms | 90.2% |
-| 9 | `canvas-main` | 174.2 ms | 90.2% |
-| 10 | `canvas-main` | 178.4 ms | 90.2% |
+| 1 | `canvas-main` | 71.1 ms | 90.4% |
+| 2 | `canvas-main` | 85.4 ms | 90.4% |
+| 3 | `canvas-main` | 67.3 ms | 90.4% |
+| 4 | `canvas-main` | 67.0 ms | 90.4% |
+| 5 | `canvas-main` | 66.4 ms | 90.4% |
+| 6 | `canvas-main` | 65.5 ms | 90.4% |
+| 7 | `canvas-main` | 65.6 ms | 90.4% |
+| 8 | `canvas-main` | 65.8 ms | 90.4% |
+| 9 | `canvas-main` | 68.1 ms | 90.4% |
+| 10 | `canvas-main` | 68.8 ms | 90.4% |
 
 ## Methodology
 
