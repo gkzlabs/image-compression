@@ -10,15 +10,17 @@
 <ul class="tsd-breadcrumb" aria-label="Breadcrumb">
 <li><a href="" aria-current="page">CompressAllStreamEvent</a></li></ul>
 <h1>Type Alias CompressAllStreamEvent</h1></div>
-<div class="tsd-signature"><span class="tsd-kind-type-alias">CompressAllStreamEvent</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/BatchProgress.html" class="tsd-signature-type tsd-kind-interface">BatchProgress</a> <span class="tsd-signature-symbol">|</span> <a href="../interfaces/CompressionResult.html" class="tsd-signature-type tsd-kind-interface">CompressionResult</a><span class="tsd-signature-symbol">[]</span></div>
+<div class="tsd-signature"><span class="tsd-kind-type-alias">CompressAllStreamEvent</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/BatchProgress.html" class="tsd-signature-type tsd-kind-interface">BatchProgress</a> <span class="tsd-signature-symbol">|</span> (<a href="../interfaces/CompressionResult.html" class="tsd-signature-type tsd-kind-interface">CompressionResult</a> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span>)<span class="tsd-signature-symbol">[]</span></div>
 <div class="tsd-comment tsd-typography"><p>Union of events emitted by <code>compressAll$()</code>:</p>
 <ul>
 <li><code>BatchProgress</code> during processing</li>
-<li><code>CompressionResult[]</code> once all files complete (final emission)</li>
+<li><code>(CompressionResult | null)[]</code> once all files complete (final emission).
+With <code>continueOnError: true</code>, failed files appear as <code>null</code> in the array
+(same position as the input) — null-check each element.</li>
 </ul>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/stream.ts#L44">src/stream.ts:44</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/stream.ts#L46">src/stream.ts:46</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
