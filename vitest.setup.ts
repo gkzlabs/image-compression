@@ -71,13 +71,15 @@ class OffscreenCanvasPolyfill {
   }
 }
 
-if (typeof globalThis.OffscreenCanvas === 'undefined') {
-  globalThis.OffscreenCanvas = OffscreenCanvasPolyfill as unknown as typeof OffscreenCanvas;
-}
+// Override OffscreenCanvas with the @napi-rs/canvas backing ALWAYS (not just
+// when undefined). happy-dom 20+ ships its OWN OffscreenCanvas whose
+// getContext('2d') returns null — the pixel tests need a real Canvas2D, so our
+// polyfill must win regardless of happy-dom's version.
+globalThis.OffscreenCanvas = OffscreenCanvasPolyfill as unknown as typeof OffscreenCanvas;
 
-// createImageBitmap polyfill — return a Canvas-wrapped ImageBitmap
-if (typeof globalThis.createImageBitmap === 'undefined') {
-  globalThis.createImageBitmap = async (source: ImageBitmapSource | OffscreenCanvas | ImageBitmap): Promise<ImageBitmap> => {
+// createImageBitmap polyfill — return a Canvas-wrapped ImageBitmap.
+// Also forced (happy-dom 20 defines one that can't decode to @napi-rs/canvas).
+globalThis.createImageBitmap = async (source: ImageBitmapSource | OffscreenCanvas | ImageBitmap): Promise<ImageBitmap> => {
     // If source is our polyfill, use its underlying canvas directly
     if (source instanceof OffscreenCanvasPolyfill) {
       return new ImageBitmapPolyfill(source.width, source.height) as unknown as ImageBitmap;
@@ -96,7 +98,6 @@ if (typeof globalThis.createImageBitmap === 'undefined') {
     const h = (source as { height?: number }).height ?? 1;
     return new ImageBitmapPolyfill(w, h) as unknown as ImageBitmap;
   };
-}
 
 // v0.10.9: HTMLCanvasElement.getContext polyfill.
 //

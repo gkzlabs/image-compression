@@ -79,7 +79,7 @@
     "@napi-rs/canvas": "^1.0.0",
     "@size-limit/preset-app": "^13.1.1",
     "@types/node": "^22.20.2",
-    "happy-dom": "^15.11.7",
+    "happy-dom": "^20.14.5",
     "puppeteer": "^25.1.0",
     "size-limit": "^13.1.1",
     "typedoc": "^0.28.19",
