@@ -71,25 +71,30 @@ jobs:
           fi
           echo "Version match: $PKG_VERSION"
 
-      - name: Publish to npm (with provenance)
+      - name: Publish to npm (with provenance, OIDC)
+        # OIDC trusted publishing (per bump-version-and-release skill's
+        # npm-oidc-publishing-pitfalls reference):
+        #   - Do NOT set NODE_AUTH_TOKEN (empty '' blocks OIDC pickup; a real
+        #     token overrides OIDC). setup-node + permissions.id-token inject
+        #     the short-lived OIDC token automatically.
+        #   - npm <= 10 (bundled with node 20) doesn't speak OIDC. Upgrade npm
+        #     explicitly — node 22 tolerates npm@latest.
+        #   - Requires a configured "trusted publisher" on npmjs pointing at
+        #     gkzlabs/image-compression + release.yml (done at first OIDC
+        #     publish, v0.10.23).
+        #
+        # Idempotent: if this exact version is already on the registry
+        # (e.g. tag re-pushed after a workflow fix), skip the publish —
+        # npm rejects re-publishing the same version with 403. The GitHub
+        # Release step below still runs with the curated changelog.
         run: |
-          # v1.0.0: publish with NPM_TOKEN (GitHub secret) — OIDC trusted
-          # publishing needs npm 11.4+ which requires node >= 22; the CI
-          # runs node 20, so a classic automation token is the reliable path.
-          # npm 10 supports --provenance natively.
-          #
-          # Idempotent: if this exact version is already on the registry
-          # (e.g. tag re-pushed after a workflow fix), skip the publish —
-          # npm rejects re-publishing the same version with 403. The GitHub
-          # Release step below still runs with the curated changelog.
+          npm install -g npm@latest
           PKG_VERSION=$(node -p "require('./package.json').version")
           if npm view "$(node -p "require('./package.json').name")@$PKG_VERSION" version >/dev/null 2>&1; then
             echo "Version $PKG_VERSION already published — skipping npm publish"
           else
             npm publish --provenance --access public
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Extract changelog section for release notes
         id: changelog
