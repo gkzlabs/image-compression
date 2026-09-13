@@ -14,5 +14,5 @@
     "vite": "^5.0.0"
   },
   "name": "@gkzlabs/image-compression-example-vanilla",
-  "version": "0.10.13"
+  "version": "1.2.0"
 }

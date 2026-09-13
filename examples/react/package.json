@@ -19,5 +19,5 @@
     "react-dom": "^18.2.0"
   },
   "name": "@gkzlabs/image-compression-example-react",
-  "version": "0.10.13"
+  "version": "1.2.0"
 }

@@ -43,7 +43,7 @@ const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2
 - ✨ **`qualityBoost`** — WebP/AVIF quality is raised (+0.1) so photos land near JPEG-at-`quality` size while looking sharper; low-detail content may grow (see caveat in options)
 - 🪄 **`sharpen`** — optional post-resize unsharp-mask (0..1, default 0 = off) to restore edge definition lost during downscaling
 - 🔍 **Multi-step downscale** — downscaling in ~50% halving steps (same technique as Sharp/Photoshop) preserves noticeably more detail than a single one-shot draw
-- 🔄 **Manual rotation** — `rotate: 0 | 90 | 180 | 270` (overrides EXIF auto-rotation)
+- 🔄 **Manual rotation** — `rotate: 0 | 90 | 180 | 270` (overrides EXIF auto-rotation) — **runs in the Worker since v1.2.0**, so transforms on large files don't jank the UI thread
 - 🪞 **Mirror/flip** — `mirror: 'horizontal' | 'vertical'`
 - 📐 **Exact resize** — `width` / `height` / `keepAspectRatio` for precise dimensions
 - 🖼️ **Auto EXIF rotation** — vertical phone photos auto-orient correctly
@@ -52,7 +52,7 @@ const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2
 - 🖼️ **HEIC decode** — Lazy-loaded via `heic2any` (optional, ~256 KB)
 - ⚡ **Smart pass-through** — Skip compression for already-small JPEGs (`passThroughUnderBytes`)
 - 🛑 **Cancellable** — `AbortSignal` support for clean cancellation
-- 🧪 **Well-tested** — 207 unit tests covering all paths and edge cases
+- 🧪 **Well-tested** — 222 unit tests covering all paths and edge cases
 - 📱 **Mobile-friendly** — Bounded concurrency (default 2) prevents OOM on phones
 
 ## 📦 Installation

@@ -93,7 +93,7 @@ export async function handleUpload(req, res) {
 
 ### Option B — `@gkzlabs/image-compression` itself on a Node/WASM runtime
 
-Since v1.1.1 the package ships **both** ESM and CJS bundles. In a Node context
+Since v1.2.0 the package ships **both** ESM and CJS bundles. In a Node context
 there's no DOM/Canvas by default, so `compress()` resolves to `server-fallback`
 again — not useful. This path only works in a runtime that provides a
 Canvas2D implementation (e.g. `@napi-rs/canvas`, or jsdom with a canvas mock):

@@ -1,6 +1,6 @@
 {
   "name": "@gkzlabs/image-compression-example-angular",
-  "version": "0.10.20",
+  "version": "1.2.0",
   "private": true,
   "description": "Angular 18 + Vite (Analog plugin) example for @gkzlabs/image-compression. The worker is auto-bundled by Vite — zero config required.",
   "type": "module",
