@@ -109,4 +109,31 @@ describe('v1.1.1: AbortSignal is stripped before worker postMessage', () => {
     const postedArgs = (received[0] as { args: unknown[] }).args;
     expect(postedArgs[1]).not.toHaveProperty('signal');
   });
+
+  it('offscreen-worker path tags __path so worker progress is labeled correctly', async () => {
+    // Regression: worker progress events were hardcoded to 'webcodecs-worker'
+    // (see src/worker.ts emit()). The service must tag the actual path in
+    // options.__path so the worker reports the right path for offscreen-worker.
+    const received: unknown[] = [];
+    const workerApi = wrap<{ compress(...a: unknown[]): Promise<unknown> }>(
+      makeCloneCheckingWorker(received) as unknown as Worker,
+    );
+    const svc = new ImageCompression();
+    (svc as unknown as { getWorker: () => Promise<unknown> }).getWorker = async () => workerApi;
+
+    const file = new File([new Uint8Array([9])], 't.jpg', { type: 'image/jpeg' });
+    await (
+      svc as unknown as {
+        executeWorkerPath(
+          f: File,
+          o: CompressionOptions,
+          p: string,
+        ): Promise<unknown>;
+      }
+    ).executeWorkerPath(file, { quality: 0.7 }, 'offscreen-worker');
+
+    const postedArgs = (received[0] as { args: unknown[] }).args;
+    // The workerOptions (args[1]) must carry __path = the executing path.
+    expect((postedArgs[1] as CompressionOptions).__path).toBe('offscreen-worker');
+  });
 });

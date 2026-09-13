@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-09-13
+
+### Added
+
+- **Transforms run inside the Worker** — `rotate`/`mirror`/exact `width`/`height`
+  are now handled by `webcodecs-worker` / `offscreen-worker` paths via a new
+  single-draw helper `encodeOffscreenWithTransforms()`, instead of falling
+  through to `canvas-main`. This fixes the main-thread UI jank on large
+  (>100KB) files that requested transforms. Chrome-149-safe by construction:
+  the transform draws the source ONCE onto the final encode OffscreenCanvas
+  under a ctx transform (translate→rotate→mirror→scale) then `convertToBlob` —
+  no `transferToImageBitmap` chain, so it can't hit the historical
+  "image source is detached" race. The service tags `__transformsApplied` so
+  the main-thread `applyTransformsIfRequested()` stage no-ops (no double-apply).
+  The 100KB Worker-size threshold is preserved (tiny files still go to
+  `canvas-main` — Worker overhead exceeds the savings).
+- **CJS build (`dist/index.cjs`)** — the package now ships both ESM and CJS,
+  with a `require` condition in `exports` and `main` → `index.cjs`. Unblocks
+  Node / SSR-framework consumers (Next.js, Nuxt) that compile to CJS, and
+  server-side use. `npm pack` + `require()` verified end-to-end.
+- **`docs/SERVER_FALLBACK.md`** — reference for building the server endpoint
+  that `server-fallback` results upload to (sharp Node reference, client-server
+  contract table, security notes).
+- **CI: `cjs-smoke` job** — builds then `require()`s the CJS bundle on every
+  PR/push, guarding against `exports`/`main` regressions. Plus the existing
+  `lockfile-sync` job (added with the v1.1.1 lockfile fix).
+
+### Changed
+
+- **Worker progress path label fix** — in-worker progress events were
+  hardcoded to `webcodecs-worker`; they now report the real path (e.g.
+  `offscreen-worker`). The service sets `options.__path` (and `executeWorkerPath`
+  force-tags it) so the worker labels events correctly.
+- **`compressAll()` return type** — now `Promise<(CompressionResult | null)[]>`
+  to reflect that failed files are `null` in-place when `continueOnError: true`.
+  Same for the `compressAll$()` final emission and `isBatchResult()` guard.
+- **DevDependencies** — vitest 1.6 → 3.2, size-limit 12 → 13, `@types/node` 20
+  → 22. `happy-dom` intentionally kept at 15 (v20 broke the canvas-backed test
+  setup AND has a published OSV advisory).
+- **README** — `compressAll()` null semantics documented; test-count badge is
+  no longer a hardcoded number; test count updated to 222.
+
+### Internal
+
+- `resizeExact` / `applyTransforms` exports annotated as maintained for public
+  API backward-compat only (runtime paths draw inline for Chrome-149 safety).
+- 13 new tests (222 passing / 5 skipped): `encodeOffscreenWithTransforms`
+  (transform dims, aspect, no bitmap close, extreme-ratio clamp), worker-path
+  progress label, and `selectPaths` keeps Worker paths under transforms.
+
 ## [1.1.1] - 2026-08-12
 
 ### Fixed

@@ -296,4 +296,53 @@ describe('ImageCompression.selectPaths()', () => {
       }
     });
   });
+
+  describe('selectPaths() with manual transforms (v1.2.0 — worker handles them)', () => {
+    it('keeps Worker paths when rotate is requested (no more canvas-main jank)', () => {
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](highTierCaps, {
+          originalSize: 500_000,
+          rotate: 90,
+        } as never);
+        expect(paths).toContain('webcodecs-worker');
+        expect(paths).toContain('offscreen-worker');
+        // canvas-main is still present as the cascade fallback.
+        expect(paths).toContain('canvas-main');
+      } finally {
+        svc.dispose();
+      }
+    });
+
+    it('keeps Worker paths for exact width/height + mirror', () => {
+      const svc = new ImageCompression();
+      try {
+        const paths = svc['selectPaths'](highTierCaps, {
+          originalSize: 500_000,
+          mirror: 'horizontal',
+          width: 800,
+          height: 600,
+        } as never);
+        expect(paths[0]).toBe('webcodecs-worker');
+      } finally {
+        svc.dispose();
+      }
+    });
+
+    it('still skips Worker for small files (overhead > savings) even with transforms', () => {
+      const svc = new ImageCompression();
+      try {
+        // 50KB < 100KB threshold → canvas-main only even though rotate set.
+        const paths = svc['selectPaths'](highTierCaps, {
+          originalSize: 50_000,
+          rotate: 90,
+        } as never);
+        expect(paths).not.toContain('webcodecs-worker');
+        expect(paths).not.toContain('offscreen-worker');
+        expect(paths[0]).toBe('canvas-main');
+      } finally {
+        svc.dispose();
+      }
+    });
+  });
 });

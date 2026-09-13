@@ -8,6 +8,7 @@ import type {
 } from './types';
 import {
   applyExifOrientation,
+  encodeOffscreenWithTransforms,
   encodeViaOffscreenCanvas,
   readExifOrientation,
   resizeOffscreen,
@@ -53,14 +54,16 @@ const api: ImageWorkerApi = {
       format = 'image/jpeg',
     } = options;
 
+    // The service tags `options.__path` with the actual path being executed
+    // (see executeWorkerPath in service.ts). Use it so worker progress events
+    // are labeled correctly even on the offscreen-worker path — previously
+    // every in-worker event was hardcoded to 'webcodecs-worker'.
+    const path = options.__path ?? ('webcodecs-worker' satisfies CompressionPath);
+
     // Resolve the CallbackRef ({ __callbackId }) to a real event emitter.
     const emitProgress = callbackOrNoop<CompressionProgress>(onProgressRef);
     const emit = (stage: CompressionStage, percent: number) => {
-      emitProgress({
-        stage,
-        percent,
-        path: 'webcodecs-worker' satisfies CompressionPath,
-      });
+      emitProgress({ stage, percent, path });
     };
 
     let bitmap: ImageBitmap;
@@ -88,6 +91,52 @@ const api: ImageWorkerApi = {
       }
     } else {
       emit('decoding', 20);
+
+      // v1.2.0: manual transforms (rotate/mirror/exact width or height) now run
+      // INSIDE the Worker instead of falling through to canvas-main. The
+      // single-draw encodeOffscreenWithTransforms keeps Chrome-149-safety
+      // (no transferToImageBitmap chain), and moving transforms off the main
+      // thread removes UI jank on large files.
+      const hasManualTransform =
+        options.rotate !== undefined ||
+        options.mirror !== undefined ||
+        options.width !== undefined ||
+        options.height !== undefined;
+
+      if (hasManualTransform) {
+        // Full-size decode; the transform helper resolves resize+rotate+mirror
+        // in a single draw, so we DON'T pre-resize here.
+        const pbm = await createImageBitmap(file);
+        bitmap = pbm;
+        width = pbm.width;
+        height = pbm.height;
+        // EXIF auto-rotation — skipped when caller provided a manual rotate
+        // (including `rotate: 0`, which means "disable EXIF"). readExifOrientation
+        // is a JPEG-only no-op otherwise.
+        if (options.rotate === undefined) {
+          const orientation = await readExifOrientation(file);
+          if (orientation !== 1) {
+            const rotated = applyExifOrientation(bitmap, orientation);
+            bitmap.close();
+            bitmap = rotated.bitmap;
+            width = rotated.width;
+            height = rotated.height;
+          }
+        }
+        emit('resizing', 70);
+        const out = await encodeOffscreenWithTransforms(bitmap, format, quality, {
+          maxWidthOrHeight,
+          rotate: options.rotate ?? 0, // 0 = no manual rotate (EXIF already applied if it existed)
+          mirror: options.mirror,
+          width: options.width,
+          height: options.height,
+          keepAspectRatio: options.keepAspectRatio,
+        });
+        bitmap.close();
+        emit('encoding', 95);
+        return { blob: out.blob, width: out.width, height: out.height, mimeType: format };
+      }
+
       const decoded = await resizeOffscreen(file, maxWidthOrHeight);
       bitmap = decoded.bitmap;
       width = decoded.width;

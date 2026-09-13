@@ -1,6 +1,6 @@
 {
   "name": "@gkzlabs/image-compression",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Framework-agnostic image compression for the browser. Zero dependencies — pure web APIs (WebCodecs, OffscreenCanvas, Worker). AVIF/WebP/JPEG output, target-size mode, HEIC decode. Works with any frontend framework (Angular, React, Vue, Svelte) or vanilla JS.",
   "repository": {
     "type": "git",
@@ -11,7 +11,7 @@
   },
   "homepage": "https://gkzlabs.github.io/image-compression/",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "unpkg": "dist/index.js",
@@ -21,7 +21,8 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     },
     "./worker": {
       "types": "./dist/worker.d.ts",
@@ -66,7 +67,6 @@
   "engines": {
     "node": ">=18"
   },
-  "dependencies": {},
   "peerDependencies": {
     "heic2any": "^0.0.4"
   },
@@ -77,13 +77,13 @@
   },
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.0",
-    "@size-limit/preset-app": "^12.1.0",
-    "@types/node": "^20.10.0",
-    "happy-dom": "^15.0.0",
+    "@size-limit/preset-app": "^13.1.1",
+    "@types/node": "^22.20.2",
+    "happy-dom": "^15.11.7",
     "puppeteer": "^25.1.0",
-    "size-limit": "^12.1.0",
+    "size-limit": "^13.1.1",
     "typedoc": "^0.28.19",
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "vitest": "^3.2.7"
   }
 }

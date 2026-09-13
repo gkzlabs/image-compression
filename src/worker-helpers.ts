@@ -634,3 +634,112 @@ export function applySharpen(
 
 export type { ExifOrientation } from './exif';
 export { readExifOrientation } from './exif';
+
+/**
+ * v1.2.0: Encode with manual transforms (rotate/mirror/exact-resize) in a
+ * SINGLE draw, then convertToBlob — the same Chrome-149-safe pattern that
+ * `applyTransformsIfRequested` uses on the main thread.
+ *
+ * Why single-draw: the long detach history (v0.10.x) showed that chaining
+ * `transferToImageBitmap` between resize → rotate → encode triggers Chrome
+ * 149's "image source is detached". Here we draw the source ONCE onto the
+ * final encode OffscreenCanvas under a ctx transform (translate→rotate→scale),
+ * then convertToBlob directly. No intermediate transfer, no chained bitmaps —
+ * the source stays open through the encode and the caller closes it.
+ *
+ * @param source Source bitmap (not closed here — caller owns lifetime)
+ * @param format Output MIME type
+ * @param quality 0..1
+ * @param opts Transform options (rotate/mirror/width/height/keepAspectRatio/maxWidthOrHeight)
+ * @returns { blob, width, height } at the FINAL (post-transform) dimensions
+ */
+export async function encodeOffscreenWithTransforms(
+  source: ImageBitmap,
+  format: string,
+  quality: number,
+  opts: {
+    maxWidthOrHeight?: number;
+    rotate?: 0 | 90 | 180 | 270;
+    mirror?: 'horizontal' | 'vertical';
+    width?: number;
+    height?: number;
+    keepAspectRatio?: boolean;
+  },
+): Promise<{ blob: Blob; width: number; height: number }> {
+  const srcW = source.width;
+  const srcH = source.height;
+  const rotate = opts.rotate ?? 0;
+  const mirror = opts.mirror;
+  const swap = rotate === 90 || rotate === 270;
+
+  // Dimensions AFTER rotation (before resize), so rotate+resize compose correctly.
+  const baseW = swap ? srcH : srcW;
+  const baseH = swap ? srcW : srcH;
+
+  // Resolve final target dims: exact (width/height/keepAspectRatio) wins over
+  // maxWidthOrHeight. Mirrors the logic in applyTransformsIfRequested + canvas-main.
+  let finalW = baseW;
+  let finalH = baseH;
+  const hasW = opts.width !== undefined;
+  const hasH = opts.height !== undefined;
+  if (hasW && hasH) {
+    if (opts.keepAspectRatio) {
+      const ratio = baseW / baseH;
+      if (opts.width! / opts.height! > ratio) {
+        finalH = opts.height!;
+        finalW = Math.max(1, Math.round(opts.height! * ratio));
+      } else {
+        finalW = opts.width!;
+        finalH = Math.max(1, Math.round(opts.width! / ratio));
+      }
+    } else {
+      finalW = opts.width!;
+      finalH = opts.height!;
+    }
+  } else if (hasW) {
+    finalW = opts.width!;
+    finalH = Math.max(1, Math.round((opts.width! * baseH) / baseW));
+  } else if (hasH) {
+    finalH = opts.height!;
+    finalW = Math.max(1, Math.round((opts.height! * baseW) / baseH));
+  } else {
+    const maxEdge = opts.maxWidthOrHeight;
+    if (maxEdge !== undefined && maxEdge > 0 && (baseW > maxEdge || baseH > maxEdge)) {
+      if (baseW >= baseH) {
+        finalW = maxEdge;
+        finalH = Math.max(1, Math.round((maxEdge * baseH) / baseW));
+      } else {
+        finalH = maxEdge;
+        finalW = Math.max(1, Math.round((maxEdge * baseW) / baseH));
+      }
+    }
+  }
+  finalW = Math.max(1, Math.round(finalW));
+  finalH = Math.max(1, Math.round(finalH));
+
+  // Single draw with transform math — no transferToImageBitmap chain.
+  // Order (all relative to the canvas center):
+  //   rotate → mirror → scale → draw source centered.
+  // The scale factor maps the rotated footprint (baseW×baseH) onto the final
+  // box (finalW×finalH), so it runs AFTER rotate/mirror in the same axis.
+  const canvas = new OffscreenCanvas(finalW, finalH);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('OffscreenCanvas 2d context unavailable for transformed encode');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  ctx.save();
+  ctx.translate(finalW / 2, finalH / 2);
+  if (rotate !== 0) ctx.rotate((rotate * Math.PI) / 180);
+  if (mirror === 'horizontal') ctx.scale(-1, 1);
+  else if (mirror === 'vertical') ctx.scale(1, -1);
+  ctx.scale(finalW / baseW, finalH / baseH);
+  // Draw the source at its own dimensions, centered. Scale above maps it
+  // onto the final footprint. Handles exact resize + maxWidthOrHeight + rotate
+  // + mirror all in the same single draw.
+  ctx.drawImage(source, -srcW / 2, -srcH / 2);
+  ctx.restore();
+
+  const blob = await canvas.convertToBlob({ type: format, quality });
+  return { blob, width: finalW, height: finalH };
+}

@@ -128,6 +128,25 @@ export class ImageCompression {
    */
   protected static readonly WORKER_SIZE_THRESHOLD_BYTES = 100_000;
 
+  /**
+   * v1.2.0: true when a Worker path handled the manual transforms itself
+   * (via encodeOffscreenWithTransforms). Used to set `__transformsApplied`
+   * so the main-thread `applyTransformsIfRequested()` stage becomes a no-op
+   * and doesn't double-apply rotate/mirror/exact-size.
+   */
+  private static transformsHandledByWorker(
+    path: CompressionPath,
+    options: CompressionOptions,
+  ): boolean {
+    const hasManualTransform =
+      options.rotate !== undefined ||
+      options.mirror !== undefined ||
+      options.width !== undefined ||
+      options.height !== undefined;
+    const isWorkerPath = path === 'webcodecs-worker' || path === 'offscreen-worker';
+    return isWorkerPath && hasManualTransform;
+  }
+
   private capabilities: DeviceCapabilities | null = null;
   private capabilitiesPromise: Promise<DeviceCapabilities> | null = null;
   private worker: ImageWorkerApi | null = null;
@@ -535,7 +554,14 @@ export class ImageCompression {
             result.mimeType,
             file,
           );
-          const finalResult = await ImageCompression.applyTransformsIfRequested(baseResult, options);
+          const finalResult = await ImageCompression.applyTransformsIfRequested(
+            baseResult,
+            // v1.2.0: if a Worker path already applied the manual transforms,
+            // tell the main-thread stage to no-op (prevents double-apply).
+            ImageCompression.transformsHandledByWorker(path, options)
+              ? { ...options, __transformsApplied: true }
+              : options,
+          );
           this.checkAborted(options.signal);
           // v0.10.27: target-size mode — re-encode until ≤ maxSizeMB
           const sizedResult = await ImageCompression.reachTargetSize(finalResult, options);
@@ -575,6 +601,13 @@ export class ImageCompression {
    * entire batch rejects with the first error (use `compress()` individually
    * for partial-success scenarios).
    *
+   * **Return value is `(CompressionResult | null)[]`:**
+   * - With `continueOnError: false` (default): the batch rejects on the first
+   *   failure, so a resolved array contains NO nulls (every element is a result).
+   * - With `continueOnError: true`: failed files appear as `null` in the array
+   *   (same position as the input), and successful files are results. Always
+   *   null-check each element when `continueOnError` is enabled.
+   *
    * @param files Array of files to compress
    * @param options Shared options (same as `compress()`)
    * @param maxConcurrent Max files processed in parallel (default 2 for mobile).
@@ -585,10 +618,10 @@ export class ImageCompression {
     files: (File | Blob)[],
     options: CompressionOptions = {},
     maxConcurrent = 2,
-  ): Promise<CompressionResult[]> {
+  ): Promise<(CompressionResult | null)[]> {
     if (files.length === 0) return [];
 
-    return new Promise<CompressionResult[]>((resolve, reject) => {
+    return new Promise<(CompressionResult | null)[]>((resolve, reject) => {
       const results: (CompressionResult | null)[] = new Array(files.length).fill(null);
       const errors: (CompressionError | null)[] = new Array(files.length).fill(null);
       let nextIndex = 0;
@@ -642,9 +675,12 @@ export class ImageCompression {
                   // Reject with the first error
                   reject(errored);
                 } else {
-                  // Resolve with results (errors are null in this branch since
-                  // continueOnError=false would have rejected)
-                  resolve(results as CompressionResult[]);
+                  // Resolve with results. With continueOnError=false the batch
+                  // already rejected on the first failure, so `errored` is null
+                  // here and the array is (by construction) all results. With
+                  // continueOnError=true, failed files are null in-place — the
+                  // (CompressionResult | null)[] return type reflects that.
+                  resolve(results);
                 }
               } else {
                 launchNext();
@@ -688,52 +724,42 @@ export class ImageCompression {
     * for future tuning).
     */
    protected selectPaths(
-     caps: DeviceCapabilities,
-     options: CompressionOptions,
-   ): CompressionPath[] {
-     const paths: CompressionPath[] = [];
+       caps: DeviceCapabilities,
+       options: CompressionOptions,
+     ): CompressionPath[] {
+       const paths: CompressionPath[] = [];
 
-     // v0.10.10: if user requested any manual transform (rotate/mirror/
-     // exact width or exact height), skip the Worker paths entirely.
-     // Worker paths only do resize+encode, then Stage 2 re-decodes and
-     // re-encodes on the main thread. The 2-stage pipeline is correct but
-     // triggers Chrome 149's "image source is detached" bug on the
-     // intermediate transferToImageBitmap in some sequences (rotate +
-     // exact resize in particular). For correctness, prefer canvas-main
-     // which handles all transforms in a single in-place pipeline.
-     //
-     // Trade-off: files > 100KB skip the Worker speedup. Acceptable
-     // because the user is requesting extra processing anyway, and the
-     // transform step is the bottleneck.
-     const hasTransformRequest =
-       options.rotate !== undefined ||
-       options.mirror !== undefined ||
-       options.width !== undefined ||
-       options.height !== undefined;
-     const skipWorker = hasTransformRequest;
+       // v1.2.0: manual transforms (rotate/mirror/exact width or height) now run
+       // INSIDE the Worker via encodeOffscreenWithTransforms — a single-draw
+       // pipeline (draw once on the final canvas under a ctx transform, then
+       // convertToBlob). No transferToImageBitmap chain, so it's Chrome-149-safe
+       // AND keeps transforms off the main thread (fixes the old UI-jank where
+       // >100KB transform requests fell through to canvas-main).
+       // executeWorkerPath tags __transformsApplied so the main-thread
+       // applyTransformsIfRequested stage becomes a no-op (no double-apply).
 
-     // Size threshold: skip Worker for small files (overhead > savings).
-     // Use the originalSize from options if available (set by compress() before
-     // calling selectPaths), otherwise assume non-small (don't gate on unknown).
-     const fileSize = (options as { originalSize?: number }).originalSize ?? Infinity;
-     const smallFile = fileSize < ImageCompression.WORKER_SIZE_THRESHOLD_BYTES;
+       // Size threshold: skip Worker for small files (overhead > savings).
+       // Use the originalSize from options if available (set by compress() before
+       // calling selectPaths), otherwise assume non-small (don't gate on unknown).
+       const fileSize = (options as { originalSize?: number }).originalSize ?? Infinity;
+       const smallFile = fileSize < ImageCompression.WORKER_SIZE_THRESHOLD_BYTES;
 
-     // 'webcodecs-worker' = use ImageDecoder (for HEIC) inside Worker context.
-     // v0.10.4: Use MAIN-THREAD caps (v0.5.7 behavior). The cascade's try/catch
-     // handles actual Worker runtime failures — no need to gate on probe results.
-     if (!skipWorker && !smallFile && caps.hasWebCodecs && caps.hasOffscreenCanvas && caps.hasWorker) {
-       paths.push('webcodecs-worker');
+       // 'webcodecs-worker' = use ImageDecoder (for HEIC) inside Worker context.
+       // v0.10.4: Use MAIN-THREAD caps (v0.5.7 behavior). The cascade's try/catch
+       // handles actual Worker runtime failures — no need to gate on probe results.
+       if (!smallFile && caps.hasWebCodecs && caps.hasOffscreenCanvas && caps.hasWorker) {
+         paths.push('webcodecs-worker');
+       }
+       // 'offscreen-worker' = Canvas2D + createImageBitmap in Worker context.
+       if (!smallFile && caps.hasOffscreenCanvas && caps.hasWorker) {
+         paths.push('offscreen-worker');
+       }
+       if (caps.hasCanvas2D) {
+         paths.push('canvas-main');
+       }
+
+       return paths;
      }
-     // 'offscreen-worker' = Canvas2D + createImageBitmap in Worker context.
-     if (!skipWorker && !smallFile && caps.hasOffscreenCanvas && caps.hasWorker) {
-       paths.push('offscreen-worker');
-     }
-     if (caps.hasCanvas2D) {
-       paths.push('canvas-main');
-     }
-
-     return paths;
-   }
 
   /**
    * Execute a specific compression path. Returns null on failure.
@@ -781,7 +807,14 @@ export class ImageCompression {
     // main-thread concern: checkAborted(options.signal) fires at stage
     // boundaries on the main thread; the worker itself can't be aborted mid-RPC.
     const { onProgress, signal, ...optionsOnly } = options;
-    const workerOptions = optionsOnly as CompressionOptions;
+    // Always tag the actual path onto the worker options. executePath()
+    // normally injects __path, but tagging here makes it robust to direct
+    // calls and guarantees the worker reports the right path (offscreen-worker
+    // was previously mislabeled 'webcodecs-worker' in progress events).
+    const workerOptions: CompressionOptions = {
+      ...optionsOnly,
+      __path: path,
+    };
     // Stage 2: Load worker (if not already cached)
     if (!this.worker) {
       onProgress?.({ stage: 'loading-worker', percent: 10, path, message: `Loading worker (${path})...` });
@@ -1059,6 +1092,12 @@ export class ImageCompression {
     options: CompressionOptions,
   ): Promise<CompressionResult> {
     const { rotate, mirror, width, height, keepAspectRatio } = options;
+
+    // v1.2.0: the Worker already applied transforms (executeWorkerPath set
+    // __transformsApplied when the in-worker path handled rotate/mirror/
+    // exact-size). Applying again here would DOUBLE-apply (e.g. rotate 90°
+    // twice = 180°). This mirrors the existing canvas-main no-op below.
+    if (options.__transformsApplied === true) return result;
 
     // No-op: caller didn't request any manual transforms
     const hasManualTransform =
@@ -1444,7 +1483,14 @@ export class ImageCompression {
           result.mimeType,
           file,
         );
-        const finalResult = await ImageCompression.applyTransformsIfRequested(baseResult, options);
+        const finalResult = await ImageCompression.applyTransformsIfRequested(
+          baseResult,
+          // v1.2.0: if a Worker path already applied the manual transforms,
+          // tell the main-thread stage to no-op (prevents double-apply).
+          ImageCompression.transformsHandledByWorker(forcedPath, options)
+            ? { ...options, __transformsApplied: true }
+            : options,
+        );
         this.checkAborted(options.signal);
         // v0.10.27: target-size mode — re-encode until ≤ maxSizeMB
         const sizedResult = await ImageCompression.reachTargetSize(finalResult, options);

@@ -65,6 +65,11 @@ export interface CompressionProgress {
 }
 
 export interface CompressionOptions {
+  /** Internal: true once transforms were applied inside the Worker.
+   *  Set by `executeWorkerPath()` so the main-thread
+   *  `applyTransformsIfRequested()` becomes a no-op (worker already did it).
+   *  Prevents double-applying rotate/mirror/exact-size. @internal */
+  __transformsApplied?: boolean;
   /** Internal: tagged by the service to indicate which path is executing.
    *  Used by the worker to include the correct path in its progress events.
    *  @internal Not intended for public use. */
@@ -476,8 +481,8 @@ export function isCompressionResult(
  * ```
  */
 export function isBatchResult(
-  evt: { fileIndex: number; progress: CompressionProgress } | CompressionResult[],
-): evt is CompressionResult[] {
+  evt: { fileIndex: number; progress: CompressionProgress } | (CompressionResult | null)[],
+): evt is (CompressionResult | null)[] {
   return Array.isArray(evt);
 }
 

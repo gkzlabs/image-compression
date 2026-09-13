@@ -94,7 +94,7 @@ await build({
   minify: false,
 });
 
-// Step 4: rewrite relative imports to .js extensions (Node ESM requirement)
+// Step 4: ESM — rewrite relative imports to .js extensions (Node ESM requirement)
 console.log('[build] Rewriting relative imports to .js extensions...');
 for (const file of readdirSync(outdir)) {
   if (!file.endsWith('.js') || file.endsWith('.js.map')) continue;
@@ -105,6 +105,31 @@ for (const file of readdirSync(outdir)) {
   });
   writeFileSync(path, src);
 }
+
+// Step 4b: CJS build — dist/index.cjs for `require()` consumers (Node, SSR
+// frameworks like Next.js/Nuxt that compile to CJS, server-fallback usage).
+// Same entry + defines as the ESM build, but format: 'cjs'. The worker is
+// inlined identically (it is created via Blob URL, never require()'d).
+console.log('[build] Bundling CJS...');
+const cjs = await build({
+  entryPoints: ['./src/index.ts'],
+  bundle: true,
+  format: 'cjs',
+  outfile: `${outdir}/index.cjs`,
+  target: ['es2022'],
+  platform: 'browser',
+  define: {
+    __BUILD_VERSION__: JSON.stringify(version),
+    __WORKER_SOURCE__: JSON.stringify(workerSource),
+  },
+  sourcemap: true,
+  minify: false,
+});
+const cjsFile = `${outdir}/index.cjs`;
+let cjsSrc = readFileSync(cjsFile, 'utf8');
+// CJS keeps relative requires as-is (no extension rewrite needed by Node).
+writeFileSync(cjsFile, cjsSrc);
+console.log(`[build] ✓ CJS bundle: ${cjsFile}`);
 
 // Step 5: remove test-only artifacts from dist (src/__stubs__ is used by
 // vitest via alias, never shipped to consumers)

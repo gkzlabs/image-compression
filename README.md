@@ -10,7 +10,7 @@
 [![Deploy Examples](https://img.shields.io/github/actions/workflow/status/gkzlabs/image-compression/deploy-examples.yml?branch=main&label=examples)](https://gkzlabs.github.io/image-compression/)
 [![GitHub Pages](https://img.shields.io/badge/demo-live-success)](https://gkzlabs.github.io/image-compression/)
 [![Bundle Size](https://img.shields.io/bundlephobia/minzip/@gkzlabs/image-compression)](https://bundlephobia.com/package/@gkzlabs/image-compression)
-[![Tests](https://img.shields.io/badge/tests-207%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](#tests)
 [![Provenance](https://img.shields.io/badge/npm-provenance-blue)](https://docs.npmjs.com/generating-provenance-statements)
 
 **🎮 [Try the live demo](https://gkzlabs.github.io/image-compression/)** — 5 framework examples (React, Vue, Svelte, Angular, Vanilla) running in your browser. No install.
@@ -120,11 +120,16 @@ export class MyComponent {
 ```ts
 new ImageCompression();
 .compress(file: File | Blob, options?: CompressionOptions): Promise<CompressionResult>
-.compressAll(files: (File|Blob)[], options?, maxConcurrent?: number): Promise<CompressionResult[]>
+.compressAll(files: (File|Blob)[], options?, maxConcurrent?): Promise<(CompressionResult|null)[]>
 .getCapabilities(): Promise<DeviceCapabilities>
 .terminate(): void   // Stop the Web Worker
 .dispose(): void     // Same as terminate (for symmetry with framework lifecycles)
 ```
+
+> **`compressAll()` return type:** with `continueOnError: true`, failed files
+> appear as `null` in the returned array (same position as the input) — always
+> null-check each element. With the default `continueOnError: false`, the batch
+> rejects on the first failure, so a resolved array never contains `null`.
 
 ### `compress$()` / `compressAll$()` streams
 
@@ -307,9 +312,9 @@ Measured on the same 1920×1080 landscape photo (libwebp 1.3 / libaom 3.8):
 ## 🧪 Tests
 
 ```bash
-npm test              # 207 passed, 5 skipped, 0 failing
+npm test              # 222 passed, 5 skipped, 0 failing
 npm run lint          # tsc clean
-npm run build         # ESM bundle + worker
+npm run build         # ESM + CJS bundle + worker
 ```
 
 **Coverage:**
@@ -426,6 +431,7 @@ Try it in your browser — no install needed:
 - **[Examples Overview](https://github.com/gkzlabs/image-compression/tree/main/examples)** — 5 framework examples (vanilla, react, vue, svelte, angular)
 - **[Examples Guide](https://github.com/gkzlabs/image-compression/blob/main/docs/EXAMPLES.md)** — Detailed framework patterns, lifecycle management, batch processing, HEIC support
 - **[Browser Compatibility](https://github.com/gkzlabs/image-compression/blob/main/docs/BROWSER_COMPAT.md)** — Per-bundler setup notes (Vite, Webpack, Rollup, esbuild)
+- **[Server Fallback](https://github.com/gkzlabs/image-compression/blob/main/docs/SERVER_FALLBACK.md)** — How to build the server endpoint for `server-fallback` results (sharp + Node reference)
 - **[API Reference](https://github.com/gkzlabs/image-compression/tree/main/docs/api)** — Generated TypeDoc reference
 - **[Benchmarks](https://github.com/gkzlabs/image-compression/blob/main/bench/results/BENCHMARKS.md)** — Real-world performance numbers for all 3 cascade paths
 

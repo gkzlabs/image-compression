@@ -39,9 +39,11 @@ export type CompressStreamEvent = CompressionProgress | CompressionResult;
 /**
  * Union of events emitted by `compressAll$()`:
  * - `BatchProgress` during processing
- * - `CompressionResult[]` once all files complete (final emission)
+ * - `(CompressionResult | null)[]` once all files complete (final emission).
+ *   With `continueOnError: true`, failed files appear as `null` in the array
+ *   (same position as the input) — null-check each element.
  */
-export type CompressAllStreamEvent = BatchProgress | CompressionResult[];
+export type CompressAllStreamEvent = BatchProgress | (CompressionResult | null)[];
 
 /**
  * Stream variant of `compress()`. Emits progress events during processing,

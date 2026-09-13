@@ -49,6 +49,25 @@ jobs:
       - run: npm ci --prefer-offline --no-audit
       - run: npm run lint
 
+  cjs-smoke:
+    name: CJS bundle loads
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit
+      # Build produces dist/index.cjs via esbuild (format: cjs).
+      - run: npm run build
+      # Guard: a CJS consumer (Node/SSR `require()`) must load the bundle.
+      # A package.json exports/main regression (e.g. dropping the cjs file)
+      # would fail here with MODULE_NOT_FOUND or a build error.
+      - name: Smoke-test require('@gkzlabs/image-compression')
+        run: node -e "const m=require('./dist/index.cjs'); if(typeof m.ImageCompression!=='function'){throw new Error('ImageCompression missing');} console.log('CJS OK, exports:', Object.keys(m).length)"
+
   test:
     name: Test (vitest)
     runs-on: ubuntu-latest

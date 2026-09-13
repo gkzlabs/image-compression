@@ -63,3 +63,9 @@ export {
   canEncodeFormat,
   resolveEncodeFormat,
 } from './worker-helpers';
+// NOTE (maintenance): `resizeExact` and `applyTransforms` are exported and
+// kept for public API/backward compatibility, but the runtime code paths
+// no longer call them directly — `service.ts` applies transforms inline
+// (executeCanvasMainPath / applyTransformsIfRequested, which draw onto the
+// encode canvas directly for Chrome-149-safety). Before removing either,
+// confirm no external consumer relies on them (check examples + wrapper).
