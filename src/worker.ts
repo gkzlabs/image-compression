@@ -10,6 +10,7 @@ import {
   applyExifOrientation,
   encodeOffscreenWithTransforms,
   encodeViaOffscreenCanvas,
+  encodeWithTargetSize,
   readExifOrientation,
   resizeOffscreen,
   tryDecodeHEIC,
@@ -52,6 +53,7 @@ const api: ImageWorkerApi = {
       maxWidthOrHeight = 2048,
       quality = 0.85,
       format = 'image/jpeg',
+      maxSizeMB,
     } = options;
 
     // The service tags `options.__path` with the actual path being executed
@@ -132,6 +134,25 @@ const api: ImageWorkerApi = {
           height: options.height,
           keepAspectRatio: options.keepAspectRatio,
         });
+        // v1.3.0: run the target-size ladder in-worker when requested so the
+        // maxSizeMB re-encode doesn't block the main thread.
+        if (maxSizeMB !== undefined && maxSizeMB > 0) {
+          const sized = await encodeWithTargetSize(
+            bitmap,
+            format,
+            quality,
+            maxSizeMB,
+            out.width,
+            out.height,
+          );
+          bitmap.close();
+          emit('encoding', 95);
+          if (sized) {
+            return { blob: sized.blob, width: sized.width, height: sized.height, mimeType: format };
+          }
+          // Ladder failed (no blob produced) — fall back to the transform result.
+          return { blob: out.blob, width: out.width, height: out.height, mimeType: format };
+        }
         bitmap.close();
         emit('encoding', 95);
         return { blob: out.blob, width: out.width, height: out.height, mimeType: format };
@@ -160,6 +181,25 @@ const api: ImageWorkerApi = {
 
     // Encode
     const blob = await encodeViaOffscreenCanvas(bitmap, format, quality);
+    // v1.3.0: run the target-size ladder in-worker when requested so the
+    // maxSizeMB re-encode doesn't block the main thread.
+    if (maxSizeMB !== undefined && maxSizeMB > 0) {
+      const sized = await encodeWithTargetSize(
+        bitmap,
+        format,
+        quality,
+        maxSizeMB,
+        width,
+        height,
+      );
+      bitmap.close();
+      emit('encoding', 95);
+      if (sized) {
+        return { blob: sized.blob, width: sized.width, height: sized.height, mimeType: format };
+      }
+      // Ladder failed (no blob produced) — fall back to the plain encode.
+      return { blob, width, height, mimeType: format };
+    }
     bitmap.close();
     emit('encoding', 95);
 

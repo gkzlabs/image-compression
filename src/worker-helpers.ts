@@ -9,6 +9,7 @@
  */
 
 import type { ExifOrientation } from './exif';
+import { shrinkToTargetSize } from './target-size';
 
 /**
  * Resize a File/Blob to fit within maxWidthOrHeight, preserving aspect ratio.
@@ -742,4 +743,44 @@ export async function encodeOffscreenWithTransforms(
 
   const blob = await canvas.convertToBlob({ type: format, quality });
   return { blob, width: finalW, height: finalH };
+}
+
+/**
+ * v1.3.0: Encode a bitmap to a target size IN THE WORKER via OffscreenCanvas,
+ * using the shared canvas-agnostic `shrinkToTargetSize` ladder. This keeps
+ * `maxSizeMB` re-encode OFF the main thread (no UI jank) on devices that have
+ * a Worker, while devices without a Worker still use the main-thread
+ * `reachTargetSize` fallback (which uses the same ladder helper + toBlob).
+ *
+ * @param source Source bitmap (not closed here — caller owns lifecycle)
+ * @param format Output MIME type
+ * @param quality Base quality (the ladder never raises above this)
+ * @param maxMB  Target max size in megabytes
+ * @param width  Source width to ladder from
+ * @param height Source height to ladder from
+ * @return Shrunk blob + dimensions, or null if no encode produced a blob.
+ */
+export async function encodeWithTargetSize(
+  source: ImageBitmap,
+  format: string,
+  quality: number,
+  maxMB: number,
+  width: number,
+  height: number,
+): Promise<{ blob: Blob; width: number; height: number } | null> {
+  const targetBytes = maxMB * 1024 * 1024;
+  return shrinkToTargetSize(source, width, height, format, quality, targetBytes, (w, h, q) =>
+    new Promise<Blob | null>((resolve) => {
+      const canvas = new OffscreenCanvas(w, h);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(null);
+        return;
+      }
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(source, 0, 0, w, h);
+      canvas.convertToBlob({ type: format, quality: q }).then(resolve).catch(() => resolve(null));
+    }),
+  );
 }

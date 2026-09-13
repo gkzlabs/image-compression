@@ -70,6 +70,12 @@ export interface CompressionOptions {
    *  `applyTransformsIfRequested()` becomes a no-op (worker already did it).
    *  Prevents double-applying rotate/mirror/exact-size. @internal */
   __transformsApplied?: boolean;
+  /** Internal: true once the Worker reached the `maxSizeMB` target in-worker
+   *  (via OffscreenCanvas). Set by `executeWorkerPath()` so the main-thread
+   *  `reachTargetSize()` becomes a no-op (prevents double re-encode).
+   *  On devices WITHOUT a Worker this is never set → the main-thread ladder
+   *  still runs as the fallback. @internal */
+  __targetSizeApplied?: boolean;
   /** Internal: tagged by the service to indicate which path is executing.
    *  Used by the worker to include the correct path in its progress events.
    *  @internal Not intended for public use. */

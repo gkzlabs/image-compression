@@ -45,7 +45,7 @@ Pure web APIs. <strong>Zero runtime dependencies.</strong></p>
 <li>✨ <strong><code>qualityBoost</code></strong> — WebP/AVIF quality is raised (+0.1) so photos land near JPEG-at-<code>quality</code> size while looking sharper; low-detail content may grow (see caveat in options)</li>
 <li>🪄 <strong><code>sharpen</code></strong> — optional post-resize unsharp-mask (0..1, default 0 = off) to restore edge definition lost during downscaling</li>
 <li>🔍 <strong>Multi-step downscale</strong> — downscaling in ~50% halving steps (same technique as Sharp/Photoshop) preserves noticeably more detail than a single one-shot draw</li>
-<li>🔄 <strong>Manual rotation</strong> — <code>rotate: 0 | 90 | 180 | 270</code> (overrides EXIF auto-rotation)</li>
+<li>🔄 <strong>Manual rotation</strong> — <code>rotate: 0 | 90 | 180 | 270</code> (overrides EXIF auto-rotation) — <strong>runs in the Worker since v1.2.0</strong>, so transforms on large files don't jank the UI thread</li>
 <li>🪞 <strong>Mirror/flip</strong> — <code>mirror: 'horizontal' | 'vertical'</code></li>
 <li>📐 <strong>Exact resize</strong> — <code>width</code> / <code>height</code> / <code>keepAspectRatio</code> for precise dimensions</li>
 <li>🖼️ <strong>Auto EXIF rotation</strong> — vertical phone photos auto-orient correctly</li>
@@ -54,7 +54,7 @@ Pure web APIs. <strong>Zero runtime dependencies.</strong></p>
 <li>🖼️ <strong>HEIC decode</strong> — Lazy-loaded via <code>heic2any</code> (optional, ~256 KB)</li>
 <li>⚡ <strong>Smart pass-through</strong> — Skip compression for already-small JPEGs (<code>passThroughUnderBytes</code>)</li>
 <li>🛑 <strong>Cancellable</strong> — <code>AbortSignal</code> support for clean cancellation</li>
-<li>🧪 <strong>Well-tested</strong> — 207 unit tests covering all paths and edge cases</li>
+<li>🧪 <strong>Well-tested</strong> — 235 unit tests covering all paths and edge cases</li>
 <li>📱 <strong>Mobile-friendly</strong> — Bounded concurrency (default 2) prevents OOM on phones</li>
 </ul>
 <h2 id="📦-installation" class="tsd-anchor-link">📦 Installation<a href="#📦-installation" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2>

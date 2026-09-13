@@ -52,7 +52,7 @@ const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2
 - 🖼️ **HEIC decode** — Lazy-loaded via `heic2any` (optional, ~256 KB)
 - ⚡ **Smart pass-through** — Skip compression for already-small JPEGs (`passThroughUnderBytes`)
 - 🛑 **Cancellable** — `AbortSignal` support for clean cancellation
-- 🧪 **Well-tested** — 222 unit tests covering all paths and edge cases
+- 🧪 **Well-tested** — 238 unit tests covering all paths and edge cases
 - 📱 **Mobile-friendly** — Bounded concurrency (default 2) prevents OOM on phones
 
 ## 📦 Installation
@@ -312,7 +312,7 @@ Measured on the same 1920×1080 landscape photo (libwebp 1.3 / libaom 3.8):
 ## 🧪 Tests
 
 ```bash
-npm test              # 222 passed, 5 skipped, 0 failing
+npm test              # 238 passed, 5 skipped, 0 failing
 npm run lint          # tsc clean
 npm run build         # ESM + CJS bundle + worker
 ```

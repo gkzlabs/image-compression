@@ -1,5 +1,6 @@
 import { detectCapabilities } from './capabilities';
 import { wrap as rpcWrap } from './rpc';
+import { shrinkToTargetSize } from './target-size';
 import { CompressionError, CompressionErrorCode, extensionForMimeType } from './types';
 import {
   applyExifOrientation,
@@ -145,6 +146,22 @@ export class ImageCompression {
       options.height !== undefined;
     const isWorkerPath = path === 'webcodecs-worker' || path === 'offscreen-worker';
     return isWorkerPath && hasManualTransform;
+  }
+
+  /**
+   * v1.3.0: true when a Worker path handled the `maxSizeMB` target-size ladder
+   * in-worker (via encodeWithTargetSize). Used to set `__targetSizeApplied`
+   * so the main-thread `reachTargetSize()` becomes a no-op (prevents the
+   * double re-encode). On devices WITHOUT a Worker this is never true, so the
+   * main-thread ladder still runs as the universal fallback.
+   */
+  private static targetSizeHandledByWorker(
+    path: CompressionPath,
+    options: CompressionOptions,
+  ): boolean {
+    const wantsTargetSize = (options.maxSizeMB ?? 0) > 0;
+    const isWorkerPath = path === 'webcodecs-worker' || path === 'offscreen-worker';
+    return isWorkerPath && wantsTargetSize;
   }
 
   private capabilities: DeviceCapabilities | null = null;
@@ -564,7 +581,14 @@ export class ImageCompression {
           );
           this.checkAborted(options.signal);
           // v0.10.27: target-size mode — re-encode until ≤ maxSizeMB
-          const sizedResult = await ImageCompression.reachTargetSize(finalResult, options);
+          // v1.3.0: if a Worker path already reached the target in-worker, tell
+          // the main-thread ladder to no-op (prevents double re-encode).
+          const sizedResult = await ImageCompression.reachTargetSize(
+            finalResult,
+            ImageCompression.targetSizeHandledByWorker(path, options)
+              ? { ...options, __targetSizeApplied: true }
+              : options,
+          );
           this.checkAborted(options.signal);
           emit({ stage: 'done', percent: 100, path: sizedResult.path, attempt, message: 'Compression complete' });
           return sizedResult;
@@ -1261,22 +1285,19 @@ export class ImageCompression {
   ): Promise<CompressionResult> {
     const maxMB = options.maxSizeMB;
     if (maxMB === undefined || maxMB <= 0) return result;
+
+    // v1.3.0: if the Worker already reached the target size in-worker
+    // (executeWorkerPath ran the ladder via OffscreenCanvas), skip the
+    // main-thread re-run entirely — prevents double work / double encode.
+    if (options.__targetSizeApplied === true) return result;
+
     if (result.path === 'passthrough' || result.path === 'server-fallback') return result;
     const targetBytes = maxMB * 1024 * 1024;
     if (result.compressedSize <= targetBytes) return result;
     if (result.width === 0 || result.height === 0) return result;
 
-    // v1.1.0: BINARY-SEARCH quality instead of a fixed ladder. For each
-    // dimension step, find the HIGHEST quality whose output still fits the
-    // target. A fixed ladder (0.85→0.15) overshoots — e.g. q0.7 fits but
-    // 0.85 doesn't, so the ladder wastes quality at 0.7. Binary search
-    // (try mid, keep the best "fits" known) converges to the max usable
-    // quality in ~5 encodes, same cost as the ladder, better output.
     const format = result.mimeType || 'image/jpeg';
     const baseQuality = options.quality ?? 0.85;
-    // PNG is lossless — quality is ignored by toBlob. Dimension ladder only.
-    const usesBinarySearch = format !== 'image/png';
-    const dimLadder = [1, 0.9, 0.8, 0.7, 0.6, 0.5];
 
     // Decode the compressed output once; reuse for every ladder step.
     let bitmap: ImageBitmap;
@@ -1287,136 +1308,58 @@ export class ImageCompression {
       return result;
     }
 
-    /** Encode at (w,h,q) and return the blob (or null). */
-    const encodeAt = (w: number, h: number, q: number): Promise<Blob | null> =>
-      new Promise<Blob | null>((resolve) => {
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(null);
-          return;
-        }
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(bitmap, 0, 0, w, h);
-        canvas.toBlob((b) => resolve(b), format, q);
-      });
-
-    let best: { blob: Blob; width: number; height: number } | null = null;
     try {
-      for (const dimScale of dimLadder) {
-        const w = Math.max(1, Math.round(result.width * dimScale));
-        const h = Math.max(1, Math.round(result.height * dimScale));
-
-        if (!usesBinarySearch) {
-          // PNG: single encode at this dim (quality ignored)
-          const blob = await encodeAt(w, h, 0.92);
-          if (blob) {
-            if (!best || blob.size < best.blob.size) best = { blob, width: w, height: h };
-            if (blob.size <= targetBytes) {
-              return ImageCompression.buildResult(
-                blob,
-                result.originalSize,
-                result.path,
-                result.tier,
-                result.durationMs,
-                w,
-                h,
-                format,
-                result.file,
-              );
+      // Main-thread adapter: HTMLCanvasElement + toBlob. The ladder math lives
+      // in the shared `shrinkToTargetSize` helper (also used by the Worker with
+      // an OffscreenCanvas adapter) so behavior is identical across contexts.
+      const shrunk = await shrinkToTargetSize(
+        bitmap,
+        result.width,
+        result.height,
+        format,
+        baseQuality,
+        targetBytes,
+        (w, h, q) =>
+          new Promise<Blob | null>((resolve) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(null);
+              return;
             }
-          }
-          continue;
-        }
-
-        // Binary search quality in [lo, baseQuality]: find max q ≤ target.
-        // Keep track of the SMALLEST blob overall (target may be unreachable
-        // at this dim — the best is still recorded for the final fallback).
-        //
-        // v1.1.0 (fixed): probe the CALLER's quality FIRST. If it already
-        // fits, that IS the maximum usable quality — return in 1 encode,
-        // exactly like the old fixed ladder's best case. (The original WIP
-        // probed q=0.2 first, which forced the full binary search — up to
-        // 7 encodes — even for the common "fits at base quality" case.)
-        // Binary search only runs when the base quality is too big.
-        let lo = Math.min(0.2, baseQuality);
-        let hi = baseQuality;
-        const highBlob = await encodeAt(w, h, hi);
-        if (highBlob && highBlob.size <= targetBytes) {
-          return ImageCompression.buildResult(
-            highBlob,
-            result.originalSize,
-            result.path,
-            result.tier,
-            result.durationMs,
-            w,
-            h,
-            format,
-            result.file,
-          );
-        }
-        // Guard: if even q=lo doesn't fit, dims must shrink — record the
-        // smallest blob of this dim then move to the next dim scale.
-        const lowBlob = await encodeAt(w, h, lo);
-        if (!lowBlob || lowBlob.size > targetBytes) {
-          if (lowBlob && (!best || lowBlob.size < best.blob.size)) {
-            best = { blob: lowBlob, width: w, height: h };
-          }
-          continue;
-        }
-        let dimBest: { blob: Blob; q: number } = { blob: lowBlob, q: lo };
-        for (let i = 0; i < 6; i++) {
-          const q = Math.round(((lo + hi) / 2) * 100) / 100;
-          const blob = await encodeAt(w, h, q);
-          if (!blob) break;
-          if (blob.size <= targetBytes) {
-            dimBest = { blob, q }; // fits — try higher quality
-            lo = q + 0.01;
-          } else {
-            hi = q - 0.01; // too big — try lower
-          }
-          if (lo > hi) break;
-        }
-        {
-          const { blob } = dimBest;
-          return ImageCompression.buildResult(
-            blob,
-            result.originalSize,
-            result.path,
-            result.tier,
-            result.durationMs,
-            w,
-            h,
-            format,
-            result.file,
-          );
-        }
-      }
-    } finally {
-      bitmap.close();
-    }
-
-    // Target unreachable — return the smallest result we produced.
-    if (best) {
-      console.warn(
-        `[ImageCompression] reachTargetSize: could not reach ${maxMB}MB target, returning smallest achievable (${(best.blob.size / 1024).toFixed(0)}KB)`,
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(bitmap, 0, 0, w, h);
+            canvas.toBlob((b) => resolve(b), format, q);
+          }),
       );
+
+      if (!shrunk) {
+        // No encode ever produced a blob — keep the caller's result.
+        return result;
+      }
+      // Warn when the target was unreachable (helper returned its smallest).
+      if (shrunk.blob.size > targetBytes) {
+        console.warn(
+          `[ImageCompression] reachTargetSize: could not reach ${maxMB}MB target, returning smallest achievable (${(shrunk.blob.size / 1024).toFixed(0)}KB)`,
+        );
+      }
       return ImageCompression.buildResult(
-        best.blob,
+        shrunk.blob,
         result.originalSize,
         result.path,
         result.tier,
         result.durationMs,
-        best.width,
-        best.height,
+        shrunk.width,
+        shrunk.height,
         format,
         result.file,
       );
+    } finally {
+      bitmap.close();
     }
-    return result;
   }
 
   /**
@@ -1493,7 +1436,14 @@ export class ImageCompression {
         );
         this.checkAborted(options.signal);
         // v0.10.27: target-size mode — re-encode until ≤ maxSizeMB
-        const sizedResult = await ImageCompression.reachTargetSize(finalResult, options);
+        // v1.3.0: if a Worker path already reached the target in-worker, tell
+        // the main-thread ladder to no-op (prevents double re-encode).
+        const sizedResult = await ImageCompression.reachTargetSize(
+          finalResult,
+          ImageCompression.targetSizeHandledByWorker(forcedPath, options)
+            ? { ...options, __targetSizeApplied: true }
+            : options,
+        );
         this.checkAborted(options.signal);
         emit({
           stage: 'done',

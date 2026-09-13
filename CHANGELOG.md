@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-13
+
+### Added
+
+- **`maxSizeMB` target-size re-encode now runs IN THE WORKER** — previously the
+  binary-search quality + dimension ladder (`reachTargetSize`) always re-encoded
+  on the main thread, so large files + a size budget janked the UI. The ladder
+  math is extracted into a **canvas-agnostic** `shrinkToTargetSize()` helper
+  (`src/target-size.ts`) that both contexts share:
+  - **Worker path** (`webcodecs-worker`/`offscreen-worker`): runs the ladder via
+    `OffscreenCanvas.convertToBlob` (`encodeWithTargetSize`) — off the main
+    thread, no jank.
+  - **Main-thread fallback** (`canvas-main`, or any device WITHOUT a Worker):
+    the existing `reachTargetSize` still runs the ladder via `toBlob` — the
+    library continues to work on every device, exactly as before.
+- **`__targetSizeApplied` internal guard** — `targetSizeHandledByWorker()`
+  detects when a Worker path already reached the size target, so the main-thread
+  `reachTargetSize()` becomes a no-op (no double re-encode). On non-Worker
+  devices it's never set → the main-thread ladder runs as the universal
+  fallback.
+
+### Changed
+
+- `reachTargetSize` refactored to delegate to the shared `shrinkToTargetSize`
+  ladder (same behavior, same tests, minus the duplicated loop).
+- Docs refreshed for v1.2.0 (README test count 222, BROWSER_COMPAT, example
+  versions) — this release's doc updates + the in-worker target-size feature.
+- Tests: 222 → **238** (13 ladder tests + 3 device-fallback integration tests).
+
 ## [1.2.0] - 2026-09-13
 
 ### Added
