@@ -19,7 +19,50 @@ function base64ToFile(base64, name, type = 'image/jpeg') {
 }
 
 export function installSmokeApi() {
+  // Record every Worker the page constructs (URL + when). This is deterministic
+  // evidence that the library spawned a dedicated worker at the expected URL —
+  // unlike CDP target listing, which is attached asynchronously and (observed on
+  // Linux CI runners) may not report the worker at all.
+  const workerConstructions = [];
+  const NativeWorker = window.Worker;
+  if (typeof NativeWorker === 'function') {
+    window.Worker = class RecordingWorker extends NativeWorker {
+      constructor(url, options) {
+        super(url, options);
+        workerConstructions.push({ url: String(url), at: Math.round(performance.now()) });
+      }
+    };
+  }
+
   window.__icSmoke = {
+    /** URLs of every Worker the library constructed so far. */
+    workerConstructions: () => workerConstructions.slice(),
+
+    /**
+     * Compress the same file N times through ONE ImageCompression instance.
+     * Returns the per-run results plus the Workers constructed during the loop,
+     * which is the real "reuse, no leak" evidence: N runs must spawn exactly 1.
+     */
+    async repeatCompressions({ count, fixtureBase64, name, options = {} }) {
+      const before = workerConstructions.length;
+      const svc = new ImageCompression();
+      const file = base64ToFile(fixtureBase64, name);
+      const runs = [];
+      try {
+        for (let i = 0; i < count; i++) {
+          const started = performance.now();
+          const result = await svc.compress(file, options);
+          runs.push({
+            path: result.path,
+            compressedSize: result.compressedSize,
+            durationMs: Math.round(performance.now() - started),
+          });
+        }
+      } finally {
+        svc.dispose();
+      }
+      return { runs, created: workerConstructions.slice(before) };
+    },
     /**
      * Compress one fixture and report what actually happened.
      *

@@ -156,7 +156,9 @@ async function main() {
       options: { quality: 0.85, maxWidthOrHeight: 2048, format: 'image/jpeg' },
       probeMainThread: true,
     });
-    const workersAfter = await workerTargetCount(page);
+    const workersAfter = await workerTargetCount(page, 3000);
+    const browserWorkerTargets = browser.targets().filter((t) => t.type() === 'worker').length;
+    const constructed = await page.evaluate(() => window.__icSmoke.workerConstructions());
     const workerResponses = workerRequests.filter((r) => r.status === 200);
     const worker404s = workerRequests.filter((r) => r.status >= 400);
 
@@ -178,10 +180,13 @@ async function main() {
       `${workerResponses.length}× 200, ${worker404s.length}× 4xx/5xx — ${workerResponses[0]?.url ?? 'no request seen'}`,
     );
 
+    const workerUrlSpawned = constructed.some((c) => /worker\.js/.test(c.url));
     record(
-      'dedicated worker target alive',
-      workersAfter >= 1 ? 'PASS' : 'FAIL',
-      `${workersAfter} worker target(s) after compression`,
+      'dedicated worker spawned with the expected URL',
+      workerUrlSpawned && workerResponses.length > 0 && worker404s.length === 0 ? 'PASS' : 'FAIL',
+      workerUrlSpawned
+        ? `page constructed ${constructed.length}× Worker (${constructed[0].url}); CDP targets — page ${workersAfter}, browser ${browserWorkerTargets}`
+        : `no Worker constructed by the page — URL fetched: ${workerResponses[0]?.url ?? 'none'}`,
     );
 
     // ── 2. Work is off the main thread (measured) ───────────────────────────
@@ -263,25 +268,23 @@ async function main() {
       );
     }
 
-    // ── 4. Reuse: no worker leak across many compressions ───────────────────
+    // ── 4. Reuse: one instance, six compressions, ONE worker ────────────────
     {
-      const runs = [];
-      for (let i = 0; i < 6; i++) {
-        runs.push(
-          await runCase(page, {
-            fixtureBase64: bigBase64,
-            name: fixtureName,
+      const { runs, created } = await page.evaluate(
+        ({ fixtureBase64, name }) =>
+          window.__icSmoke.repeatCompressions({
+            count: 6,
+            fixtureBase64,
+            name,
             options: { quality: 0.8, maxWidthOrHeight: 1600, format: 'image/jpeg' },
           }),
-        );
-      }
-      const workers = await workerTargetCount(page);
-      const allOk = runs.every((r) => r.ok && !r.hung);
-      const workerPaths = runs.filter((r) => String(r.path).endsWith('worker')).length;
+        { fixtureBase64: bigBase64, name: fixtureName },
+      );
+      const allOk = runs.every((r) => String(r.path).endsWith('worker'));
       record(
-        '6 consecutive compressions reuse one worker',
-        allOk && workerPaths === runs.length && workers === 1 ? 'PASS' : 'FAIL',
-        `${runs.filter((r) => r.ok).length}/6 ok, ${workerPaths}/6 on worker path, ${workers} worker target(s) alive`,
+        '6 compressions through one instance spawn exactly 1 worker',
+        allOk && runs.length === 6 && created.length === 1 ? 'PASS' : 'FAIL',
+        `${runs.length} runs, all worker paths=${allOk}, ${created.length} Worker construction(s)${created.length ? ` (${created[0].url})` : ''}`,
       );
     }
 
