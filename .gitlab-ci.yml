@@ -1,6 +1,14 @@
-# GitLab CI/CD for @gkzlabs/image-compression
+# ARCHIVED — GitLab is no longer a mirror of this project.
 #
-# Pipeline stages:
+# The canonical repository and CI is GitHub:
+#   repo: https://github.com/gkzlabs/image-compression
+#   CI:   .github/workflows/ (lint → test → build → size + browser/angular jobs)
+#
+# This file is kept for historical reference only: the GitLab copy is frozen and
+# stops receiving commits, so do NOT rely on this pipeline or edit it. Any CI
+# change belongs in .github/workflows/.
+#
+# Original stages (for reference):
 #   1. lint    — TypeScript strict type check
 #   2. test    — Vitest unit + integration tests
 #   3. build   — esbuild bundle + tsc declarations

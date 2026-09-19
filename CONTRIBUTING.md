@@ -13,7 +13,7 @@ Thank you for your interest in contributing! This document explains how to set u
 ### Getting started
 
 ```bash
-# 1. Clone the repo
+# 1. Clone the repo (GitHub is canonical — the GitLab copy is a frozen archive)
 git clone git@github.com:gkzlabs/image-compression.git
 cd image-compression
 
@@ -26,6 +26,14 @@ npm test
 # 4. Build
 npm run build
 ```
+
+### Remotes
+
+`origin` is GitHub (`gkzlabs/image-compression`) and is the single source of
+truth: releases (tags), CI, issues and the npm artifact all originate there.
+
+A `gitlab` remote may exist locally for reading old history, but the GitLab copy
+receives no new commits — do not push there.
 
 ## 📋 Project Structure
 

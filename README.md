@@ -418,7 +418,7 @@ When multiple transforms are specified, they're applied in this order:
 ├── .editorconfig
 ├── .gitattributes
 ├── .gitignore
-├── .gitlab-ci.yml
+├── .gitlab-ci.yml           # ARCHIVED — GitHub Actions is the only CI
 ├── LICENSE                  # MIT
 ├── CHANGELOG.md
 ├── README.md
