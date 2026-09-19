@@ -87,11 +87,17 @@ supply-chain scanners as "dynamic code execution"):
    Android 12+) — no extra loading at all, no CSP impact. Tried first.
 2. **`window.__IC_HEIC2ANY_URL` hatch** — a runtime dynamic `import()` of the URL you provide
    (`src/heic.ts`). The specifier is a variable, so no bundler rewrites it: it works in
-   Angular CLI's esbuild and in Vite alike. No JS eval. The optional heic2any WASM decoder
-   itself still needs `script-src 'wasm-unsafe-eval'`, which is a WebAssembly requirement,
-   not a JavaScript one.
+   Angular CLI's esbuild and in Vite alike. **No JS eval in this library.**
+   ⚠️ The decoder you point it at is another matter: `heic2any@0.0.4` ships an Emscripten
+   WASM glue that calls `new Function()` three times, so a page using *that* decoder needs
+   `script-src 'wasm-unsafe-eval' 'unsafe-eval'`. Measured, not assumed: the demo at
+   compress.gkz.info failed to decode HEIC under a CSP without `'unsafe-eval'` and
+   produced exactly `new Function (<anonymous>)` as the violation, then decoded normally
+   once the directive was added. Any decoder that avoids `new Function` needs only
+   `'wasm-unsafe-eval'`.
 3. **Bare `import('heic2any')`** — plain dynamic import for Node / Vite / Webpack 5 consumers.
-   No eval; the module is fetched by the bundler.
+   No eval in this library; the module is fetched by the bundler. The same caveat as (2)
+   applies to the decoder itself.
 
 If your CSP forbids WebAssembly (`'wasm-unsafe-eval'`):
 

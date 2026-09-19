@@ -49,8 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in Vite and in Angular CLI's esbuild (both leave a variable-specifier import as a runtime
   import instead of bundling it). Strict-CSP sites no longer need an escape hatch; the only
   remaining CSP requirement for HEIC is `'wasm-unsafe-eval'`, which the optional WASM decoder
-  itself needs. Shipped bundles now contain **zero** `eval(`/`new Function` and zero hardcoded
-  `http(s)` URLs.
+  needs — **corrected in the demo work below:** `heic2any@0.0.4` also calls `new Function()` in
+  its Emscripten glue, so a page that uses the heic2any decoder needs `script-src
+  'wasm-unsafe-eval' 'unsafe-eval'`. The library itself still contains no eval. Verified against
+  compress.gkz.info: with the directive absent the decode failed with
+  `new Function (<anonymous>)` as the CSP violation and succeeded once it was allowed.
 - **`heic2any` stays declared as an *optional* peer dependency** (it was briefly dropped and
   restored in the same release — do not drop it again). The declaration is **load-bearing for
   bundler consumers**, not just metadata: the library's fallback is a literal
