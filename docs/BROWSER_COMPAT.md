@@ -72,13 +72,20 @@ authoritative detection logic.
 |---|---|---|---|
 | `.heic` / `.heif` | Chrome 94+ on macOS 11+ / Win 11 / Android 12+ | All browsers (when bundled) | Pass through as-is |
 
-`heic2any` is **not a declared dependency** (not even an optional peer) — the
-library never installs or bundles a decoder. Two ways to get HEIC support where
-the browser has no native `ImageDecoder`:
+`heic2any` is an **optional peer dependency**: `npm install` will not force it on
+you, and Vite/Webpack resolve (and lazily split) the library's `import('heic2any')`
+for you. Nothing is bundled by the library itself.
+
+> **Contributors: keep this declaration.** It is load-bearing, not metadata. Vite/Rollup
+> only tolerate the unresolved bare specifier because the library declares it as an
+> optional peer; delete the declaration and every Vite consumer's build fails with
+> `Rollup failed to resolve import "heic2any"` — even for apps that never decode HEIC.
+
+Two supported ways to get HEIC decoding where the browser has no native `ImageDecoder`:
 
 ```bash
-# 1. Bare-specifier path: install it yourself so `import('heic2any')` resolves in
-#    your bundler (Vite / Webpack 5 / Node).
+# 1. Bare-specifier path (default): the optional peer dependency — npm installs
+#    it, and your bundler resolves `import('heic2any')` to its own lazy chunk.
 npm install heic2any
 ```
 

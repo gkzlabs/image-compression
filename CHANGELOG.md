@@ -18,12 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   remaining CSP requirement for HEIC is `'wasm-unsafe-eval'`, which the optional WASM decoder
   itself needs. Shipped bundles now contain **zero** `eval(`/`new Function` and zero hardcoded
   `http(s)` URLs.
-- **`heic2any` is no longer declared as an optional peer dependency.** The library never
-  installed or bundled it; declaring it only advertised an unmaintained package in the
-  dependency graph. Consumers who want the bare-specifier path install it themselves
-  (`npm install heic2any`), and the URL hatch works with any decoder module — it does not
-  depend on that package being installed at all. Docs (README, `docs/BROWSER_COMPAT.md`,
-  SECURITY) updated with both recipes.
+- **`heic2any` stays declared as an *optional* peer dependency** (it was briefly dropped and
+  restored in the same release — do not drop it again). The declaration is **load-bearing for
+  bundler consumers**, not just metadata: the library's fallback is a literal
+  `import('heic2any')`, and Vite/Rollup treat a bare import that the importing package declares
+  in `peerDependencies` as an intentional optional peer (externalized with a warning). Remove
+  the declaration and every Vite consumer's build dies with
+  `Rollup failed to resolve import "heic2any"`, even if they never touch HEIC — verified by
+  A/B on all five examples (with peer: 5/5 build · without peer: 5/5 fail). `optional: true`
+  keeps `npm install` from forcing the package on consumers.
 
 ### Fixed
 

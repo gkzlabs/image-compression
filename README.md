@@ -49,7 +49,7 @@ const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2
 - 🖼️ **Auto EXIF rotation** — vertical phone photos auto-orient correctly
 - 🌊 **Streaming API** — `compress$()` and `compressAll$()` return native `AsyncIterable` (no RxJS needed)
 - 📦 **Framework-agnostic** — Zero dependencies on Angular, React, or RxJS
-- 🖼️ **HEIC decode** — Native `ImageDecoder` first; otherwise point `__IC_HEIC2ANY_URL` at any decoder module (heic2any works and is **not** a declared dependency — bring your own)
+- 🖼️ **HEIC decode** — native `ImageDecoder` first, else the optional `heic2any` decoder (declared optional peer) or any decoder module via `__IC_HEIC2ANY_URL`
 - ⚡ **Smart pass-through** — Skip compression for already-small JPEGs (`passThroughUnderBytes`)
 - 🛑 **Cancellable** — `AbortSignal` support for clean cancellation
 - 🧪 **Well-tested** — 262 unit tests + two real-browser suites (worker thread evidence, pixel checks)

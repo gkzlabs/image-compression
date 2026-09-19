@@ -73,7 +73,7 @@ This library:
 - ✅ **Runs entirely in the browser** — no data is sent to remote servers (unless you implement server-fallback)
 - ✅ **No network requests of its own** — every asset except the optional `heic2any` decoder is bundled
 - ⚠️ **Uses Web Workers** — subject to browser CSP policies (`worker-src` / `script-src`)
-- ⚠️ **Optional `heic2any` decoder** — not a declared dependency; if you install it yourself, verify integrity
+- ⚠️ **Optional `heic2any` decoder** (declared optional peer dependency) — verify integrity if you install it
 - ⚠️ **Reads EXIF data** — EXIF may contain user location; re-encoding strips it, but the
   original file (e.g. returned by `passThroughUnderBytes`) keeps it
 

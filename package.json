@@ -74,6 +74,14 @@
   "engines": {
     "node": ">=18"
   },
+  "peerDependencies": {
+    "heic2any": "^0.0.4"
+  },
+  "peerDependenciesMeta": {
+    "heic2any": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.0",
     "@size-limit/preset-app": "^13.1.1",
