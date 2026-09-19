@@ -10,6 +10,9 @@
   with a Cloudflare challenge, which is why it rendered broken here).
   `/latest` tracks the newest release; pin a version (`.../1.3.3`) to freeze it.
   Verified through GitHub's camo proxy: HTTP 200, image/svg+xml.
+  Fallback if this host ever breaks again: swap the image for the shields.io
+  endpoint badge reading `.github/socket-score.json`, which
+  .github/workflows/socket-score.yml keeps current from Socket's API.
 -->
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](https://www.npmjs.com/package/@gkzlabs/image-compression)
