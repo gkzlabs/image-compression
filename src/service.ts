@@ -21,70 +21,27 @@ import type {
 } from './types';
 
 /**
- * Build-time injected version (replaced by esbuild --define or rollup-plugin-replace).
- * Falls back to a date-based tag at runtime so each unbuilt source has a unique
- * cache buster and Cloudflare doesn't serve a stale worker.
+ * Local (never posted) control surface the RPC proxy exposes — see `wrap()` in
+ * src/rpc.ts. Declared here so the service can settle in-flight calls before
+ * tearing the worker down.
  */
-const VERSION_TAG =
-  (typeof __BUILD_VERSION__ !== 'undefined' ? __BUILD_VERSION__ : Date.now().toString())
-    .replace(/[^a-z0-9.]/gi, '')
-    .slice(0, 32) || 'dev';
+interface RpcDisposable {
+  __dispose?: (reason?: Error) => void;
+}
+
+/**
+ * Worker URL resolution lives in ./worker-resolution (single source of truth,
+ * unit-tested via worker-resolution.spec.ts). Re-exported here because
+ * `resolveWorker` has been part of the public API surface since v0.9.
+ */
+import { resolveWorker, workerFallbackUrl } from './worker-resolution';
+export { resolveWorker, workerFallbackUrl };
 
 // ============================================================================
 // HEIC pre-decode extracted to ./heic (re-exported here for backwards compat)
 // ============================================================================
 import { tryDecodeHEICLazy, isHEICFile } from './heic';
 export { tryDecodeHEICLazy } from './heic';
-
-
-/**
- * Resolve the Worker URL using the best available strategy.
- * Order of preference:
- * 1. User-provided `window.__IC_WORKER_URL` (escape hatch for bundlers that
- *    don't rewrite `new URL('./worker', import.meta.url)`)
- * 2. Standard `new URL('./worker', import.meta.url)` (works in vanilla JS,
- *    Vite, esbuild, and Angular CLI 17+ when the import resolves to a file
- *    the bundler can locate)
- * 3. Hard-coded fallback `/image-compression.worker.js?v=2` for consumers
- *    that bundle the worker to a stable URL via a postbuild script.
- *
- * The standard `new URL('./worker', import.meta.url)` pattern is the
- * recommended path. It enables the bundler (esbuild, Vite, Angular CLI 17+)
- * to emit a separate worker chunk with proper cache-busting hash.
- *
- * The legacy `__IC_WORKER_URL` escape hatch is kept for backwards
- * compatibility with consumers on older bundlers.
- *
- * Exported for unit testing (see `worker-resolution.spec.ts`).
- */
-export function resolveWorker(): Worker | null {
-  if (typeof window !== 'undefined') {
-    const overrideUrl = (window as { __IC_WORKER_URL?: string }).__IC_WORKER_URL;
-    if (overrideUrl) {
-      return new Worker(overrideUrl, { type: 'module' });
-    }
-  }
-
-  // Strategy 2: Standard `new URL('./worker', import.meta.url)` pattern.
-  // Works in:
-  // - Vanilla JS (import.meta.url = dist/index.js location)
-  // - Vite, esbuild, Webpack 5, Angular CLI 17+ (when they can resolve the file)
-  try {
-    return new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
-  } catch (err) {
-    // Strategy 3: Hard-coded fallback for bundlers that don't rewrite
-    // `new URL('./...', import.meta.url)`. Angular CLI 17's esbuild has
-    // known issues with this pattern when the import is from node_modules —
-    // the URL stays as the raw file name and the browser gets a 404.
-    // The `?v=2` cache buster works around Cloudflare Tunnel caching the
-    // SPA fallback (HTML) response for the worker URL.
-    console.warn(
-      '[ImageCompression] new URL("./worker", import.meta.url) failed, falling back to hard-coded URL:',
-      err,
-    );
-    return new Worker(`/image-compression.worker.js?v=${VERSION_TAG}`, { type: 'module' });
-  }
-}
 
 /**
  * Framework-agnostic image compression service with progressive enhancement.
@@ -168,8 +125,15 @@ export class ImageCompression {
   private capabilitiesPromise: Promise<DeviceCapabilities> | null = null;
   private worker: ImageWorkerApi | null = null;
   private workerPromise: Promise<ImageWorkerApi | null> | null = null;
-  /** Raw Worker reference (for .terminate() cleanup). Comlink wraps the worker but doesn't expose terminate. */
+  /** Raw Worker reference (for .terminate() cleanup). */
   private rawWorker: Worker | null = null;
+  /**
+   * RPC proxy for the current worker. Its `__dispose()` settles every in-flight
+   * call; `terminate()` must call it BEFORE killing the worker, otherwise a
+   * `compress()` that is mid-flight when dispose()/terminate() runs never
+   * settles (the pending RPC is dropped with the worker).
+   */
+  private workerProxy: (ImageWorkerApi & RpcDisposable) | null = null;
   /** Timer for idle-worker cleanup. */
   private workerIdleTimer: ReturnType<typeof setTimeout> | null = null;
   /** Cache of format-encode support probes (per instance, avoids re-probing) */
@@ -333,11 +297,27 @@ export class ImageCompression {
     // Verify worker context will have what we need
     if (typeof Worker === 'undefined') return null;
     try {
-      const worker = await resolveWorker();
+      const worker = resolveWorker();
       if (!worker) return null;
+      // A worker URL that 404s (or a worker that dies while loading) fails
+      // ASYNCHRONOUSLY: `new Worker()` succeeds, then an `error` event fires.
+      // rpc.ts rejects every pending call when that happens (no more hanging
+      // compress() promises); here we drop the dead worker so the next call
+      // re-resolves instead of reusing a broken one, and the cascade can
+      // continue on `canvas-main`.
+      worker.addEventListener('error', () => {
+        console.warn(
+          '[ImageCompression] worker failed to load or crashed — dropping it (cascade continues on the main thread)',
+        );
+        this.terminate();
+      });
       // Keep raw reference so terminate() can actually kill the worker
       this.rawWorker = worker;
-      return rpcWrap<ImageWorkerApi>(worker);
+      const proxy = rpcWrap<ImageWorkerApi>(worker);
+      // Remember the proxy so terminate() can settle in-flight calls before
+      // killing the worker (terminate() alone drops pending RPCs → hang).
+      this.workerProxy = proxy as ImageWorkerApi & RpcDisposable;
+      return proxy;
     } catch (err) {
       console.warn('[ImageCompression] failed to spawn worker:', err);
       return null;
@@ -845,12 +825,20 @@ export class ImageCompression {
     }
     const worker = await this.getWorker();
     if (!worker) return null;
-    const { blob, width, height, mimeType } = await worker.compress(
-      file,
-      workerOptions,
-      onProgress,
-    );
-    return { blob, compressedSize: blob.size, width, height, mimeType };
+    // Pause the idle-shutdown timer while the worker is busy: the timer is
+    // armed at getWorker() time, so a call longer than the idle timeout would
+    // otherwise have its own worker terminated mid-flight.
+    this.suspendWorkerIdleTimer();
+    try {
+      const { blob, width, height, mimeType } = await worker.compress(
+        file,
+        workerOptions,
+        onProgress,
+      );
+      return { blob, compressedSize: blob.size, width, height, mimeType };
+    } finally {
+      if (this.worker) this.resetWorkerIdleTimer();
+    }
   }
 
   /**
@@ -1614,12 +1602,34 @@ export class ImageCompression {
       clearTimeout(this.workerIdleTimer);
       this.workerIdleTimer = null;
     }
+    // Settle in-flight RPCs BEFORE killing the worker. `Worker.terminate()` by
+    // itself drops every pending call on the floor: the promise never settles,
+    // so `await compress()` hangs forever when dispose()/terminate() is called
+    // while a large image is still encoding. The rejection lets the cascade
+    // fall through (canvas-main) or the caller see an explicit error.
+    this.workerProxy?.__dispose?.(
+      new CompressionError('ABORTED', 'Worker terminated by ImageCompression.terminate()'),
+    );
+    this.workerProxy = null;
     if (this.rawWorker) {
       this.rawWorker.terminate(); // Kill the OS worker — frees memory
       this.rawWorker = null;
     }
     this.worker = null;
     this.workerPromise = null;
+  }
+
+  /**
+   * Stop the idle-shutdown timer for the duration of a worker call.
+   * Without this, a compression that takes longer than
+   * WORKER_IDLE_TIMEOUT_MS (30s — plausible for a 50MP photo on a slow phone)
+   * would have its own worker killed mid-flight by the idle timer.
+   */
+  private suspendWorkerIdleTimer(): void {
+    if (this.workerIdleTimer) {
+      clearTimeout(this.workerIdleTimer);
+      this.workerIdleTimer = null;
+    }
   }
 
   /**

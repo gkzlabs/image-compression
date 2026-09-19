@@ -1,0 +1,64 @@
+:host {
+  display: block;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #111;
+  background: #fff;
+}
+
+.wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 20px 48px;
+}
+
+h1 {
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+
+.hint {
+  color: #555;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.upload {
+  display: inline-block;
+  margin: 16px 0;
+  padding: 12px 18px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.upload input {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.result,
+.error {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.result {
+  background: #f6f8fa;
+  border: 1px solid #e2e6ea;
+}
+
+.error {
+  background: #fff5f5;
+  border: 1px solid #f3c2c2;
+  color: #a11;
+  white-space: pre-wrap;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}

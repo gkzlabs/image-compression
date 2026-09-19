@@ -1,7 +1,7 @@
 # Browser Compatibility Matrix
 
-> Last updated: 2026-09-13
-> Library version: v1.2.0
+> Last updated: 2026-09-19
+> Library version: v1.3.1
 
 This matrix shows which browser features each compression path depends on, and the
 minimum browser versions that support them. Use it to predict which cascade paths
@@ -101,17 +101,59 @@ npm install heic2any
 
 ## Testing Coverage
 
-The library has 165 tests across 17 spec files (all `.spec.ts`). Run with:
+The library has **262 unit tests** across 27 spec files (all `.spec.ts`), plus two
+real-browser suites. Run with:
 
 ```bash
-npm test
+npm test              # unit + integration (happy-dom + @napi-rs/canvas)
+npm run test:coverage # same, with v8 coverage + thresholds (CI gate)
+npm run test:browser  # real Chromium: all cascade paths, worker 404 fallback
+npm run test:worker   # real Chromium: thread evidence, pixel checks, dispose safety
 ```
 
+What only the browser suites can prove (happy-dom cannot):
+
+| Evidence | Produced by |
+| --- | --- |
+| `worker.js` requested with HTTP 200, dedicated worker target alive | `test:worker` |
+| main thread stays responsive while compressing (measured rAF gaps) | `test:worker` |
+| rotate/mirror actually applied in pixels — also combined with `maxSizeMB` | `test:worker` |
+| worker URL that 404s falls back instead of hanging | `test:browser` |
+| `dispose()` mid-flight settles (no lost RPC) | `test:worker` |
+| Angular CLI production build reaches a worker path | `test/angular-cli-e2e.mjs` |
+
 Each path has dedicated tests:
-- `worker-resolution.spec.ts` — worker URL resolution (3 strategies)
+- `worker-resolution.spec.ts` — worker URL resolution (3 strategies, incl. sub-path fallback)
 - `worker-caps.spec.ts` — feature detection in worker context
 - `capabilities.spec.ts` — main-thread capability detection
 - `progress.spec.ts` — progress event order + payload shape
 - `service.spec.ts` — end-to-end compress() with each path
+- `rpc.spec.ts` — worker RPC protocol incl. fail-fast when the worker never loads
 - `errors.spec.ts` — error class + codes
 - `edge-cases.spec.ts` — empty files, corrupted data, boundary sizes
+
+## Worker resolution per bundler (verified)
+
+`resolveWorker()` uses `new URL('./worker.js', import.meta.url)` first, then the
+`window.__IC_WORKER_URL` override, then a `document.baseURI`-relative fallback.
+Whether the **bundler emits the worker** is the part that differs — and getting
+it wrong silently degrades every large file to `canvas-main`:
+
+| Bundler | Emits a worker chunk for a `node_modules` import? | Action needed |
+| --- | --- | --- |
+| Vite 5/6 (react, vue, svelte, angular examples) | **yes** — rewrites the URL to a hashed asset | none |
+| Angular CLI 18 `application` builder (esbuild) | **no** — URL stays `./worker.js` | copy `dist/worker.js` next to the bundles (asset glob) — see `examples/angular-cli/` |
+| Webpack 5 | yes (`new URL` supported since v5) | none |
+| Rollup / esbuild (plain) | only with the corresponding plugin/loader | set `__IC_WORKER_URL` |
+
+Angular CLI recipe (verified in real Chromium — `webcodecs-worker`, 77% smaller
+output, no code change):
+
+```json
+// angular.json → projects.<name>.architect.build.options.assets
+{ "glob": "worker.js", "input": "node_modules/@gkzlabs/image-compression/dist", "output": "." }
+```
+
+CI guards this with the `angular-cli-build` job: it builds
+`examples/angular-cli` and drives the production build in Chromium, failing if
+the app lands on `canvas-main` or the worker 404s.

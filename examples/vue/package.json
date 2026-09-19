@@ -16,5 +16,5 @@
     "vue": "^3.4.0"
   },
   "name": "@gkzlabs/image-compression-example-vue",
-  "version": "1.2.0"
+  "version": "1.3.1"
 }

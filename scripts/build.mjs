@@ -6,18 +6,20 @@
  * into __BUILD_VERSION__ (replacing the Date.now() runtime fallback).
  *
  * Outputs:
- *   - dist/index.js     (ESM main bundle, worker INLINED as Blob source — no
- *                        separate worker file needed by consumers)
- *   - dist/worker.js    (standalone worker — kept for @gkzlabs/image-compression/worker
- *                        exports field, advanced users who want explicit URLs)
+ *   - dist/index.js     (ESM main bundle — pure web APIs + in-repo rpc layer)
+ *   - dist/worker.js    (standalone Web Worker for the webcodecs-worker /
+ *                        offscreen-worker paths, also exposed as
+ *                        '@gkzlabs/image-compression/worker'; consumers either
+ *                        let their bundler rewrite `new URL('./worker.js',
+ *                        import.meta.url)` or set `window.__IC_WORKER_URL`)
+ *   - dist/index.cjs    (CJS build for require()/SSR consumers)
  *   - dist/index.d.ts + per-file .d.ts (types via tsc)
  *   - dist/*.js.map     (source maps)
  *
- * v0.10.20+: Worker is bundled INTO dist/index.js as a string. At runtime,
- * `resolveWorker()` creates the Worker via Blob URL — consumers don't need
- * to copy worker.js anywhere or set up any escape hatch. This makes the lib
- * work identically across Vite, Angular CLI, Webpack, and any other bundler
- * without consumer-side configuration.
+ * There is exactly ONE worker artifact (dist/worker.js). It is NOT inlined
+ * into the main bundle — `resolveWorker()` (src/worker-resolution.ts) locates
+ * it at runtime via the bundler-friendly `new URL(..., import.meta.url)`
+ * pattern, with `__IC_WORKER_URL` as the documented escape hatch.
  */
 
 import { build } from 'esbuild';
@@ -38,8 +40,8 @@ rmSync(outdir, { recursive: true, force: true });
 console.log('[build] Generating TypeScript declarations...');
 execSync('npx tsc -p tsconfig.build.json', { stdio: 'inherit' });
 
-// Step 2: Bundle worker.ts into a standalone ESM file
-// This is used BOTH as the standalone dist/worker.js AND inlined into the main bundle.
+// Step 2: Bundle worker.ts into a standalone ESM file (dist/worker.js) —
+// the single worker artifact shipped to consumers.
 console.log('[build] Bundling worker...');
 const workerResult = await build({
   entryPoints: ['./src/worker.ts'],
@@ -56,25 +58,12 @@ const workerSource = workerResult.outputFiles[0].text;
 writeFileSync(`${outdir}/worker.js`, workerSource);
 console.log(`[build] ✓ Standalone worker: ${outdir}/worker.js (${workerSource.length} bytes)`);
 
-// Step 3: Bundle main lib with worker source INLINED by temporarily modifying
-// src/worker-source.ts to contain the actual worker source string.
+// Step 3: Bundle the main library.
 //
-// Why we modify the source file instead of using a virtual module plugin:
-// esbuild's tree-shaker is too aggressive with placeholder strings — when it
-// sees `const WORKER_SOURCE = '__WORKER_SOURCE__'`, it evaluates `length > 100`
-// at compile time and eliminates the entire Blob URL strategy as dead code.
-// We work around this by writing the real source into the source file
-// before bundling, then restoring the placeholder after.
-//
-// The window where src/worker-source.ts contains the real source is only
-// during the esbuild invocation (a few hundred ms). Git never sees changes
-// because we restore the file in the `finally` block.
-console.log('[build] Bundling main lib with inlined worker + __BUILD_VERSION__ = "${version}"...');
+// `target: es2022` + `platform: browser` + no externals (the lib is
+// zero-dependency; in-repo rpc.ts replaced Comlink in v0.11.0).
+console.log(`[build] Bundling main lib + __BUILD_VERSION__ = "${version}"...`);
 
-// Use esbuild --define to inject the worker source as a string constant.
-// The source file declares `const __WORKER_SOURCE__` (no value), and we
-// define its value here. esbuild substitutes the literal at compile time,
-// which lets the Blob URL strategy branch survive tree-shaking.
 await build({
   entryPoints: ['./src/index.ts'],
   bundle: true,
@@ -84,12 +73,14 @@ await build({
   platform: 'browser',
   define: {
     __BUILD_VERSION__: JSON.stringify(version),
-    // Inject the worker source as a string literal. Wrapping in JSON.stringify
-    // produces a properly-escaped JS string literal.
-    __WORKER_SOURCE__: JSON.stringify(workerSource),
   },
-  // v0.11.0: zero runtime dependencies — nothing is external. The in-repo
-  // rpc.ts replaces comlink, so the main bundle is fully self-contained.
+  // src/heic.ts deliberately uses `eval("import('<url>')")` so no bundler can
+  // statically analyze the optional heic2any import (Angular esbuild fails on
+  // a bare specifier from node_modules). The eval is intentional and covered
+  // in SECURITY.md — silence the per-build warning instead of re-litigating it.
+  logOverride: {
+    'direct-eval': 'silent',
+  },
   sourcemap: true,
   minify: false,
 });
@@ -108,8 +99,7 @@ for (const file of readdirSync(outdir)) {
 
 // Step 4b: CJS build — dist/index.cjs for `require()` consumers (Node, SSR
 // frameworks like Next.js/Nuxt that compile to CJS, server-fallback usage).
-// Same entry + defines as the ESM build, but format: 'cjs'. The worker is
-// inlined identically (it is created via Blob URL, never require()'d).
+// Same entry + defines as the ESM build, but format: 'cjs'.
 console.log('[build] Bundling CJS...');
 const cjs = await build({
   entryPoints: ['./src/index.ts'],
@@ -120,7 +110,9 @@ const cjs = await build({
   platform: 'browser',
   define: {
     __BUILD_VERSION__: JSON.stringify(version),
-    __WORKER_SOURCE__: JSON.stringify(workerSource),
+  },
+  logOverride: {
+    'direct-eval': 'silent',
   },
   sourcemap: true,
   minify: false,
@@ -137,7 +129,8 @@ console.log('[build] Removing test-only __stubs__ from dist...');
 rmSync(join(outdir, '__stubs__'), { recursive: true, force: true });
 
 console.log(`[build] ✓ Done: ${outdir}/`);
-console.log(`[build]   dist/index.js    — main library bundle`);
+console.log(`[build]   dist/index.js    — main library bundle (ESM)`);
+console.log(`[build]   dist/index.cjs   — main library bundle (CJS)`);
 console.log(`[build]   dist/worker.js   — standalone Web Worker (use: import '@gkzlabs/image-compression/worker')`);
 console.log(`[build]   Consumers can use the standard new URL pattern or set __IC_WORKER_URL escape hatch.`);
 console.log(`[build]   See docs/BROWSER_COMPAT.md for per-bundler setup notes.`);

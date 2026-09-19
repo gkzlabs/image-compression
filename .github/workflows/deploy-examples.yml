@@ -116,7 +116,7 @@ jobs:
             <div class="wrap">
               <h1>@gkzlabs/image-compression</h1>
               <p class="sub">Live examples — framework-agnostic browser image compression. Each example uses the same library API.</p>
-              <p class="version-line">lib <strong>v1.0.2</strong> · 0 runtime dependencies · AVIF/WebP/JPEG/PNG · HEIC decode · <a href="bench/">benchmarks</a></p>
+              <p class="version-line">lib <strong>__LIB_VERSION__</strong> · 0 runtime dependencies · AVIF/WebP/JPEG/PNG · HEIC decode · <a href="bench/">benchmarks</a></p>
 
               <div class="grid">
                 <a class="card" href="examples/react/">
@@ -161,6 +161,14 @@ jobs:
           </body>
           </html>
           LANDING_EOF
+
+          # Inject the real package version instead of a hand-maintained string
+          # (the previous hard-coded "v1.0.2" drifted 3 minor versions behind).
+          LIB_VERSION="$(node -p "require('./package.json').version")"
+          grep -q '__LIB_VERSION__' _site/index.html
+          sed -i "s/__LIB_VERSION__/v${LIB_VERSION}/" _site/index.html
+          echo "Landing page version: v${LIB_VERSION}"
+          grep -o 'lib <strong>[^<]*</strong>' _site/index.html
 
       - name: Add .nojekyll (prevents GitHub from ignoring files starting with _)
         run: touch _site/.nojekyll

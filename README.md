@@ -52,7 +52,7 @@ const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2
 - 🖼️ **HEIC decode** — Lazy-loaded via `heic2any` (optional, ~256 KB)
 - ⚡ **Smart pass-through** — Skip compression for already-small JPEGs (`passThroughUnderBytes`)
 - 🛑 **Cancellable** — `AbortSignal` support for clean cancellation
-- 🧪 **Well-tested** — 238 unit tests covering all paths and edge cases
+- 🧪 **Well-tested** — 262 unit tests + two real-browser suites (worker thread evidence, pixel checks)
 - 📱 **Mobile-friendly** — Bounded concurrency (default 2) prevents OOM on phones
 
 ## 📦 Installation
@@ -183,7 +183,11 @@ interface CompressionOptions {
   rotate?: 0 | 90 | 180 | 270;
   /** Mirror/flip after rotation: 'horizontal' | 'vertical' */
   mirror?: 'horizontal' | 'vertical';
-  /** Strip EXIF from output (default true). Re-encoding strips most EXIF anyway */
+  /**
+   * @deprecated No-op — re-encoding always discards EXIF/XMP/GPS, and this
+   * option is not read by the pipeline. Use `passThroughUnderBytes` to keep
+   * originals (and their metadata) untouched.
+   */
   stripExif?: boolean;
   /** JPEG/WebP/AVIF quality 0..1 (default 0.85) */
   quality?: number;
@@ -312,7 +316,10 @@ Measured on the same 1920×1080 landscape photo (libwebp 1.3 / libaom 3.8):
 ## 🧪 Tests
 
 ```bash
-npm test              # 238 passed, 5 skipped, 0 failing
+npm test              # 262 passed, 5 skipped, 0 failing
+npm run test:coverage # v8 coverage + threshold gate (lines/stmts ≥70, branches ≥70, funcs ≥85)
+npm run test:browser  # real Chromium: every cascade path, __IC_WORKER_URL, worker-404 fallback
+npm run test:worker   # real Chromium: worker-thread evidence, pixel checks, mid-flight dispose
 npm run lint          # tsc clean
 npm run build         # ESM + CJS bundle + worker
 ```
@@ -325,11 +332,18 @@ npm run build         # ESM + CJS bundle + worker
 - `exif.ts` — JPEG EXIF orientation (1-8)
 - `worker-helpers.ts` — EXIF auto-rotation, manual `applyRotation()`, exact `resizeExact()`, multi-step `downscaleInSteps()`, `applySharpen()` (real Canvas2D via @napi-rs/canvas)
 - `quality.spec.ts` — v1.1.0 features: multi-step downscale, sharpen, qualityBoost, no-hang guards for 0/NaN/negative targets
-- `transforms.test.ts` — 12 tests for rotation, mirror, exact resize, aspect ratio
+- `applyTransforms.spec.ts` — 11 tests for rotation, mirror, exact resize, aspect ratio
+- `rpc.spec.ts` — worker RPC protocol, including the fail-fast path when a worker never loads
+- `worker-resolution.spec.ts` — the 3 worker-URL strategies (`__IC_WORKER_URL`, `new URL(..., import.meta.url)`, page-relative fallback)
 
-**Skipped tests** (5) — require real browser environment:
-- 3 tests assume Chrome 149+ environment (run via Playwright e2e)
-- 2 tier-downgrade tests require real hardware mocks
+**Skipped tests** (5) — need a real browser/hardware:
+- 3 tests assume a Chrome 149+ environment. There is **no Playwright/JSDOM e2e
+  suite in CI** yet: unit tests run under `happy-dom` with `@napi-rs/canvas` as a
+  Canvas2D polyfill, so real `Worker` / `OffscreenCanvas` / WebCodecs paths are
+  exercised by `npm run bench` (headless Chromium via Puppeteer) rather than by
+  `npm test`. Adding a browser matrix is tracked as the next CI improvement.
+- 2 tier-downgrade tests require real hardware mocks (happy-dom reports no
+  `deviceMemory`/`hardwareConcurrency`, so `detectCapabilities()` returns `low`)
 
 ## 🔄 Transform Order
 
@@ -390,6 +404,10 @@ When multiple transforms are specified, they're applied in this order:
 │   ├── worker-helpers.ts    # EXIF rotation + resize
 │   ├── webcodecs.d.ts       # Type defs for WebCodecs
 │   └── __stubs__/           # Test stubs
+├── test/                    # Real-browser verification (Puppeteer)
+│   ├── browser-smoke.mjs    # all cascade paths + worker-404 fallback
+│   └── angular-cli-e2e.mjs  # Angular CLI production build (hostile bundler)
+├── examples/                # react, vue, svelte, angular (Vite) + angular-cli
 ├── dist/                    # Built output (ESM)
 ├── package.json
 ├── tsconfig.json

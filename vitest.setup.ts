@@ -10,11 +10,17 @@
  * (used by browsers) has access to real Canvas2D natively.
  */
 
-import { createCanvas, type Canvas, type SKRSContext2D, loadImage as napiLoadImage, Image as NapiImage } from '@napi-rs/canvas';
+import { createCanvas, type Canvas, type SKRSContext2D, loadImage as napiLoadImage } from '@napi-rs/canvas';
 
 /**
  * ImageBitmap polyfill — wraps a real @napi-rs/canvas Canvas so that
- * `ctx.drawImage(bitmap, ...)` works (it accepts CanvasElement types).
+ * `ctx.drawImage(bitmap, ...)` works and reproduces REAL PIXELS.
+ *
+ * IMPORTANT: `_canvas` must be a real CanvasElement — @napi-rs/canvas's
+ * drawImage patch only unwraps `image.canvas` / `image._canvas` when it is a
+ * CanvasElement, so never store a decoded `Image` here (draw it into a canvas
+ * first). Constructing with dimensions only yields a blank bitmap, which makes
+ * pixel assertions vacuous.
  */
 class ImageBitmapPolyfill {
   readonly width: number;
@@ -34,19 +40,20 @@ class ImageBitmapPolyfill {
 
 // OffscreenCanvas polyfill — uses real @napi-rs/canvas under the hood.
 class OffscreenCanvasPolyfill {
-  private _canvas: Canvas;
+  /** Backing canvas (public so createImageBitmap can reuse its pixels). */
+  readonly canvas: Canvas;
   width: number;
   height: number;
 
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
-    this._canvas = createCanvas(width, height);
+    this.canvas = createCanvas(width, height);
   }
 
   getContext(type: '2d'): SKRSContext2D | null {
     if (type !== '2d') return null;
-    return this._canvas.getContext('2d');
+    return this.canvas.getContext('2d');
   }
 
   convertToBlob(opts?: { type?: string; quality?: number }): Promise<Blob> {
@@ -55,7 +62,11 @@ class OffscreenCanvasPolyfill {
         const mime = opts?.type ?? 'image/png';
         // @napi-rs/canvas supports 'image/jpeg' | 'image/webp' | 'image/png' | 'image/avif' | 'image/gif'
         // Use the requested mime directly — Canvas will fail for unsupported types.
-        const buffer = this._canvas.toBuffer(mime as 'image/jpeg', { quality: opts?.quality });
+        // `quality` is only meaningful for the lossy formats; @napi-rs/canvas
+        // overloads toBuffer per mime type, so cast to the loosest signature.
+        const buffer = (this.canvas as Canvas).toBuffer(mime as 'image/jpeg', {
+          quality: opts?.quality,
+        });
         resolve(new Blob([new Uint8Array(buffer)], { type: mime }));
       } catch (e) {
         reject(e);
@@ -67,7 +78,7 @@ class OffscreenCanvasPolyfill {
     // Return a real ImageBitmap-like wrapper that holds a Canvas reference.
     // The `drawImage` call in applyExifOrientation uses bitmap.width/height
     // and passes `bitmap` to ctx.drawImage, which accepts CanvasElement.
-    return new ImageBitmapPolyfill(this.width, this.height, this._canvas) as unknown as ImageBitmap;
+    return new ImageBitmapPolyfill(this.width, this.height, this.canvas) as unknown as ImageBitmap;
   }
 }
 
@@ -82,16 +93,24 @@ globalThis.OffscreenCanvas = OffscreenCanvasPolyfill as unknown as typeof Offscr
 globalThis.createImageBitmap = async (source: ImageBitmapSource | OffscreenCanvas | ImageBitmap): Promise<ImageBitmap> => {
     // If source is our polyfill, use its underlying canvas directly
     if (source instanceof OffscreenCanvasPolyfill) {
-      return new ImageBitmapPolyfill(source.width, source.height) as unknown as ImageBitmap;
+      // Carry the backing canvas so the resulting bitmap has real pixels —
+      // dropping it here silently yields a blank bitmap (and vacuous pixel tests).
+      const polyfill = source as unknown as OffscreenCanvasPolyfill;
+      return new ImageBitmapPolyfill(polyfill.width, polyfill.height, polyfill.canvas) as unknown as ImageBitmap;
     }
     if (source instanceof ImageBitmapPolyfill) {
-      return new ImageBitmapPolyfill(source.width, source.height) as unknown as ImageBitmap;
+      return new ImageBitmapPolyfill(source.width, source.height, source._canvas) as unknown as ImageBitmap;
     }
     if (source instanceof Blob) {
-      // Decode blob using @napi-rs/canvas loadImage
+      // Decode the blob with @napi-rs/canvas, then draw it into a REAL canvas:
+      // the decoded `Image` cannot be stored as `_canvas` (see ImageBitmapPolyfill)
+      // but drawing it first keeps the actual pixels for later drawImage calls.
       const buffer = Buffer.from(await source.arrayBuffer());
       const img = await napiLoadImage(buffer);
-      return new ImageBitmapPolyfill(img.width, img.height) as unknown as ImageBitmap;
+      const canvas = createCanvas(img.width, img.height);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img as unknown as never, 0, 0);
+      return new ImageBitmapPolyfill(img.width, img.height, canvas) as unknown as ImageBitmap;
     }
     // Generic fallback
     const w = (source as { width?: number }).width ?? 1;

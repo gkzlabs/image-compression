@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>@gkzlabs/image-compression — browser smoke</title>
+  </head>
+  <body>
+    <p>
+      Browser smoke harness for <code>@gkzlabs/image-compression</code>.
+      Driven by <code>test/browser-smoke.mjs</code> (Puppeteer, real Chromium);
+      this page is never shipped — it lives outside the npm <code>files</code>
+      whitelist.
+    </p>
+    <script type="module">
+      // Import the BUILT bundle (served from /dist/) — this is what consumers
+      // get from npm, so the smoke test exercises the real artifacts including
+      // runtime worker resolution.
+      import { installSmokeApi } from '/test/smoke-harness.mjs';
+
+      try {
+        installSmokeApi();
+        window.__smokeReady = true;
+      } catch (err) {
+        window.__smokeError = err instanceof Error ? err.message : String(err);
+      }
+    </script>
+  </body>
+</html>

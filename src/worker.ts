@@ -144,6 +144,12 @@ const api: ImageWorkerApi = {
             maxSizeMB,
             out.width,
             out.height,
+            // Fix (unreleased): the ladder must re-apply the transform on every
+            // step — without this the maxSizeMB re-encode drew the raw bitmap
+            // and rotate/mirror was silently lost (dimensions stayed "portrait"
+            // because they came from the transform, so only pixel checks caught
+            // it). Same draw math as encodeOffscreenWithTransforms above.
+            { rotate: options.rotate ?? 0, mirror: options.mirror },
           );
           bitmap.close();
           emit('encoding', 95);

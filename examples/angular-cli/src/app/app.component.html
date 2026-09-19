@@ -1,0 +1,33 @@
+<main class="wrap">
+  <h1>{{ title }}</h1>
+  <p class="hint">
+    Built with the Angular CLI <code>application</code> builder (esbuild). No worker escape
+    hatch is configured — the worker has to resolve through the bundler.
+  </p>
+
+  <label class="upload">
+    <input
+      type="file"
+      accept="image/*"
+      [disabled]="busy()"
+      (change)="onFile($event)"
+      data-testid="file-input"
+    />
+    <span>{{ busy() ? 'Compressing…' : 'Choose an image' }}</span>
+  </label>
+
+  @if (error(); as message) {
+    <pre class="error" data-testid="error">{{ message }}</pre>
+  }
+
+  @if (result(); as r) {
+    <section class="result" data-testid="result">
+      <p><strong>path:</strong> <span data-testid="path">{{ r.path }}</span></p>
+      <p><strong>tier:</strong> {{ r.tier }}</p>
+      <p><strong>original:</strong> {{ r.originalSize }} bytes</p>
+      <p><strong>compressed:</strong> {{ r.compressedSize }} bytes (saved {{ savedPercent() }}%)</p>
+      <p><strong>dimensions:</strong> {{ r.width }}×{{ r.height }}</p>
+      <p><strong>file:</strong> {{ r.file.name }}</p>
+    </section>
+  }
+</main>

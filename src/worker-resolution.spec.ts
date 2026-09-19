@@ -1,14 +1,22 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { resolveWorker } from './worker-resolution';
+// Import from './service' — the module consumers actually get. (A copy of this
+// function used to live in worker-resolution.ts while service.ts had its own
+// duplicate; the duplicate is gone so this spec now covers the shipped code.)
+import { workerFallbackUrl, resolveWorker } from './service';
 
 /**
  * Tests for `resolveWorker()` — the 3-strategy worker URL resolver.
  *
  * The function has 3 strategies (in order of preference):
  * 1. `window.__IC_WORKER_URL` (user override) — escape hatch for bundlers
- *    that don't rewrite `new URL('./worker', import.meta.url)`
+ *    that don't rewrite `new URL('./worker.js', import.meta.url)`
  * 2. `new URL('./worker.js', import.meta.url)` — standard bundler pattern
- * 3. Hard-coded `/image-compression.worker.js?v=4` — final fallback
+ * 3. `image-compression.worker.js?v=<version>` resolved against
+ *    `document.baseURI` — final fallback (sub-path safe)
+ *
+ * A 404 on strategy 2's URL is NOT handled here (it does not throw
+ * synchronously) — `rpc.ts` rejects pending calls on the worker's `error`
+ * event, so the cascade falls through to `canvas-main`.
  *
  * We mock the `Worker` constructor in each test to verify which URL was
  * used (and which strategy was selected). The mock factory is replaced
@@ -78,10 +86,10 @@ describe('resolveWorker()', () => {
     });
   });
 
-  describe('Strategy 3: hard-coded fallback', () => {
-    it('falls back to /image-compression.worker.js?v=4 when import.meta.url throws', () => {
+  describe('Strategy 3: page-relative fallback', () => {
+    it('falls back to <baseURI>image-compression.worker.js?v=<version> when import.meta.url throws', () => {
       // Force strategy 2 to fail by mocking the URL constructor to throw.
-      // This simulates bundlers that don't support the `new URL('./worker',
+      // This simulates bundlers that don't support the `new URL('./worker.js',
       // import.meta.url)` pattern (e.g. Angular CLI 17 esbuild on
       // node_modules imports).
       const originalURL = globalThis.URL;
@@ -94,15 +102,28 @@ describe('resolveWorker()', () => {
         resolveWorker();
         // After strategy 2 throws, the catch block runs strategy 3.
         const lastCall = workerSpy.mock.calls[workerSpy.mock.calls.length - 1];
-        // The first arg of `new Worker(...)` may be a string (hard-coded) or
-        // a URL (standard pattern). We expect a string for the fallback.
-        // The cache buster uses the build version (or runtime timestamp).
+        // The fallback is built with string concatenation (it must not depend
+        // on `URL`, which is exactly what failed here).
         expect(typeof lastCall?.[0]).toBe('string');
-        expect(lastCall?.[0]).toMatch(
-          /^\/image-compression\.worker\.js\?v=[a-z0-9.]+$/,
-        );
+        expect(lastCall?.[0]).toMatch(/image-compression\.worker\.js\?v=[a-z0-9.]+$/);
       } finally {
         (globalThis as { URL?: unknown }).URL = originalURL;
+      }
+    });
+
+    it('resolves the fallback against document.baseURI (works under a sub-path deployment)', () => {
+      const baseSpy = vi
+        .spyOn(document, 'baseURI', 'get')
+        .mockReturnValue('https://example.com/my-app/deep/index.html');
+      try {
+        const url = workerFallbackUrl();
+        // Root-absolute '/image-compression.worker.js' used to break apps
+        // deployed under a sub-path; the URL now follows the document base.
+        expect(
+          url.startsWith('https://example.com/my-app/deep/image-compression.worker.js?v='),
+        ).toBe(true);
+      } finally {
+        baseSpy.mockRestore();
       }
     });
 

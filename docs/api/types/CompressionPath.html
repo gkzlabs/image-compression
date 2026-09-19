@@ -13,7 +13,8 @@
 <div class="tsd-signature"><span class="tsd-kind-type-alias">CompressionPath</span><span class="tsd-signature-symbol">:</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;webcodecs-worker&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;offscreen-worker&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;canvas-main&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;server-fallback&quot;</span><br/>    <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">&quot;passthrough&quot;</span></div>
 <div class="tsd-comment tsd-typography"><p>Framework-agnostic image compression — core types and utilities.
 No framework dependencies (Angular, React, Vue, etc.).
-Uses only web APIs: WebCodecs, OffscreenCanvas, Web Workers, Comlink.</p>
+Uses only web APIs: WebCodecs, OffscreenCanvas, Web Workers, and the
+in-repo zero-dependency RPC layer (src/rpc.ts, replaced Comlink in v0.11.0).</p>
 <p>4 compression paths (cascade from best to fallback):</p>
 <ol>
 <li>webcodecs-worker  — WebCodecs + OffscreenCanvas</li>
@@ -33,7 +34,7 @@ Uses only web APIs: WebCodecs, OffscreenCanvas, Web Workers, Comlink.</p>
 <div class="tsd-comment tsd-typography"><p>File was already small and in target format — no processing done</p>
 </div></li></ul></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L12">src/types.ts:12</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L13">src/types.ts:13</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

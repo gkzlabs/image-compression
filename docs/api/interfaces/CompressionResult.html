@@ -48,12 +48,13 @@ Use directly with <code>FormData.append('file', result.file, result.file.name)</
 <div class="tsd-signature"><span class="tsd-kind-property">blob</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Blob</span></div>
 <div class="tsd-comment tsd-typography">
 <div class="tsd-tag-deprecated">
-<h4 class="tsd-anchor-link" id="deprecated">Deprecated<a href="#deprecated" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><p>Use <code>result.file</code> instead. <code>File</code> extends <code>Blob</code>, so all
-Blob methods work on <code>result.file</code>. This property is kept for backward
-compatibility with v0.5.x and will be removed in v1.0.</p>
+<h4 class="tsd-anchor-link" id="deprecated">Deprecated<a href="#deprecated" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h4><p>Kept for backward compatibility with v0.5.x consumers. <code>File</code>
+extends <code>Blob</code>, so <code>result.file</code> works anywhere <code>result.blob</code> does.
+Scheduled for removal in v2.0 — note that <code>isCompressionResult()</code> keys off
+this field, so the guard will be updated in the same release.</p>
 </div></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L247">src/types.ts:247</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L248">src/types.ts:248</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="name"><span>name</span><a href="#name" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">name</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
@@ -61,61 +62,61 @@ compatibility with v0.5.x and will be removed in v1.0.</p>
 Useful for displaying in UI: &quot;Compressed: <a href="http://result.name">result.name</a> (256 KB)&quot;.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L252">src/types.ts:252</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L253">src/types.ts:253</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="originalsize"><span>original<wbr/>Size</span><a href="#originalsize" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">originalSize</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
 <div class="tsd-comment tsd-typography"><p>Original file size in bytes</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L254">src/types.ts:254</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L255">src/types.ts:255</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="compressedsize"><span>compressed<wbr/>Size</span><a href="#compressedsize" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">compressedSize</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
 <div class="tsd-comment tsd-typography"><p>Compressed file size in bytes</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L256">src/types.ts:256</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L257">src/types.ts:257</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="width"><span>width</span><a href="#width" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">width</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
 <div class="tsd-comment tsd-typography"><p>Output dimensions</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L258">src/types.ts:258</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L259">src/types.ts:259</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="height"><span>height</span><a href="#height" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">height</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L259">src/types.ts:259</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L260">src/types.ts:260</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="path"><span>path</span><a href="#path" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">path</span><span class="tsd-signature-symbol">:</span> <a href="../types/CompressionPath.html" class="tsd-signature-type tsd-kind-type-alias">CompressionPath</a></div>
 <div class="tsd-comment tsd-typography"><p>Which path was used</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L261">src/types.ts:261</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L262">src/types.ts:262</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="durationms"><span>duration<wbr/>Ms</span><a href="#durationms" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">durationMs</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
 <div class="tsd-comment tsd-typography"><p>Time taken in milliseconds</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L263">src/types.ts:263</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L264">src/types.ts:264</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="tier"><span>tier</span><a href="#tier" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">tier</span><span class="tsd-signature-symbol">:</span> <a href="../types/DeviceTier.html" class="tsd-signature-type tsd-kind-type-alias">DeviceTier</a></div>
 <div class="tsd-comment tsd-typography"><p>Detected device tier</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L265">src/types.ts:265</a></li></ul></aside></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L266">src/types.ts:266</a></li></ul></aside></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="mimetype"><span>mime<wbr/>Type</span><a href="#mimetype" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <div class="tsd-signature"><span class="tsd-kind-property">mimeType</span><span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span></div>
 <div class="tsd-comment tsd-typography"><p>Output MIME type</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L267">src/types.ts:267</a></li></ul></aside></section></section></details></div>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L268">src/types.ts:268</a></li></ul></aside></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

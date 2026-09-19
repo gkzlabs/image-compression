@@ -1,7 +1,8 @@
 /**
  * Framework-agnostic image compression — core types and utilities.
  * No framework dependencies (Angular, React, Vue, etc.).
- * Uses only web APIs: WebCodecs, OffscreenCanvas, Web Workers, Comlink.
+ * Uses only web APIs: WebCodecs, OffscreenCanvas, Web Workers, and the
+ * in-repo zero-dependency RPC layer (src/rpc.ts, replaced Comlink in v0.11.0).
  *
  * 4 compression paths (cascade from best to fallback):
  * 1. webcodecs-worker  — WebCodecs + OffscreenCanvas
@@ -127,13 +128,12 @@ export interface CompressionOptions {
   /** Mirror/flip the image after rotation. Default: undefined (no flip). */
   mirror?: 'horizontal' | 'vertical';
   /**
-   * Strip EXIF metadata from the output. Default: true.
-   * When true (default), all EXIF data is removed during re-encoding.
-   * When false, EXIF orientation is auto-applied but other metadata
-   * (camera, GPS, timestamps) is also removed by re-encoding.
-   *
-   * Note: re-encoding always strips most EXIF data. To preserve full EXIF,
-   * use `passThroughUnderBytes` (which returns the original file unchanged).
+   * @deprecated No-op since v0.11.0 — kept only so existing call sites keep
+   * type-checking. The option is never read by the pipeline: re-encoding
+   * (canvas / OffscreenCanvas `convertToBlob` / `toBlob`) always discards
+   * EXIF, XMP and GPS metadata, and `stripExif` cannot switch that back on.
+   * To keep the original file (and its metadata) untouched for files that are
+   * already small enough, use `passThroughUnderBytes` instead.
    */
   stripExif?: boolean;
   /** JPEG/WebP/AVIF quality 0..1 (default 0.85) */
@@ -240,9 +240,10 @@ export interface CompressionResult {
    */
   file: File;
   /**
-   * @deprecated Use `result.file` instead. `File` extends `Blob`, so all
-   * Blob methods work on `result.file`. This property is kept for backward
-   * compatibility with v0.5.x and will be removed in v1.0.
+   * @deprecated Kept for backward compatibility with v0.5.x consumers. `File`
+   * extends `Blob`, so `result.file` works anywhere `result.blob` does.
+   * Scheduled for removal in v2.0 — note that `isCompressionResult()` keys off
+   * this field, so the guard will be updated in the same release.
    */
   blob: Blob;
   /**
@@ -318,7 +319,7 @@ export interface DeviceCapabilities {
 }
 
 /**
- * Worker API exposed via Comlink.
+ * Worker API exposed via the in-repo RPC proxy (src/rpc.ts).
  * Runs in Web Worker context — must be self-contained (no DOM).
  */
 export interface ImageWorkerApi {
@@ -326,7 +327,8 @@ export interface ImageWorkerApi {
    * Compress an image File/Blob.
    * @param file Source image
    * @param options Compression options (NO onProgress — passed as 3rd arg)
-   * @param onProgress Progress callback (Comlink proxy — top-level for serialization)
+   * @param onProgress Progress callback (serialized to a CallbackRef by rpc.ts
+   *   so it stays structured-clone safe, then routed back over the same channel)
    * @returns Compressed Blob + dimensions
    */
   compress(

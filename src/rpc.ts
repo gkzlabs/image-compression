@@ -78,6 +78,36 @@ export function wrap<T extends object>(worker: Worker): T {
   >();
   let nextId = 1;
 
+  /** Reject every in-flight call — used when the worker turns out to be dead. */
+  const failAll = (reason: Error): void => {
+    if (pending.size === 0) return;
+    for (const entry of pending.values()) entry.reject(reason);
+    pending.clear();
+  };
+
+  // A worker whose URL 404s, whose module fails to evaluate, or that crashes
+  // mid-flight never replies. Without these listeners every pending call would
+  // hang forever and `compress()` would never settle (no cascade fallback).
+  // `addEventListener` is feature-detected because tests pass minimal fakes.
+  if (typeof worker.addEventListener === 'function') {
+    worker.addEventListener('error', () =>
+      failAll(new Error('Worker failed to load or crashed')),
+    );
+    worker.addEventListener('messageerror', () =>
+      failAll(new Error('Worker message could not be deserialized')),
+    );
+  }
+
+  /**
+   * Local (non-posted) method exposed on the proxy: settle every pending call
+   * with a rejection. `ImageCompression.terminate()`/`dispose()` call this
+   * BEFORE killing the worker — terminate() on its own silently drops pending
+   * RPCs, which makes an in-flight `compress()` hang forever (e.g. calling
+   * dispose() while a 4000×3000 image is encoding).
+   */
+  const dispose = (reason?: Error): void =>
+    failAll(reason ?? new Error('Worker disposed'));
+
   worker.onmessage = (ev: MessageEvent) => {
     const msg = (ev.data ?? {}) as {
       id?: number;
@@ -108,21 +138,50 @@ export function wrap<T extends object>(worker: Worker): T {
   return new Proxy({} as T, {
     get(_target, prop) {
       if (typeof prop !== 'string' || prop === 'then') return undefined;
+      // Local control method — never posted to the worker.
+      if (prop === '__dispose') return dispose;
       return (...args: unknown[]) => {
         const id = nextId++;
-        // Serialize callbacks → CallbackRef so postMessage stays structured-clone safe
-        const serialized = args.map((arg) =>
-          typeof arg === 'function'
-            ? registerCallback(arg as (event: unknown) => void)
-            : arg,
-        );
+        // Serialize callbacks → CallbackRef so postMessage stays
+        // structured-clone safe. Track them so the registry entry is dropped
+        // when the call settles: otherwise every compress() that passes
+        // onProgress leaks a closure (which also keeps the user's callback
+        // reachable) for the lifetime of the page.
+        const registered: number[] = [];
+        const serialized = args.map((arg) => {
+          if (typeof arg !== 'function') return arg;
+          const ref = registerCallback(arg as (event: unknown) => void);
+          registered.push(ref.__callbackId);
+          return ref;
+        });
+        const settle = (): void => {
+          for (const cbId of registered) callbackRegistry.delete(cbId);
+          registered.length = 0;
+        };
         worker.postMessage({ id, method: prop, args: serialized });
         return new Promise((resolve, reject) => {
-          pending.set(id, { resolve, reject });
+          pending.set(id, {
+            resolve: (v) => {
+              settle();
+              resolve(v);
+            },
+            reject: (e) => {
+              settle();
+              reject(e);
+            },
+          });
         });
       };
     },
   });
+}
+
+/**
+ * @internal Test-only visibility into the callback registry: it must NOT grow
+ * per call (see `settle()` above). Not exported from the package entry point.
+ */
+export function __callbackRegistrySize(): number {
+  return callbackRegistry.size;
 }
 
 /** Register a callback, return its ref for postMessage. */

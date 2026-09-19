@@ -49,6 +49,61 @@ jobs:
       - run: npm ci --prefer-offline --no-audit
       - run: npm run lint
 
+  browser-smoke:
+    # Real Chromium against the BUILT bundle: forces each cascade path, checks
+    # the __IC_WORKER_URL escape hatch, and asserts a worker URL that 404s makes
+    # the cascade fall back instead of hanging. The unit suite runs on happy-dom
+    # (+ @napi-rs/canvas), so it cannot cover Worker/OffscreenCanvas/WebCodecs
+    # or `new URL('./worker.js', import.meta.url)` resolution at all — this job
+    # is the only place a regression in those can be caught.
+    name: Browser smoke (real Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: build
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit
+      - run: npm run build
+      - name: Ensure Chrome is installed for Puppeteer
+        run: npx puppeteer browsers install chrome
+      - run: npm run test:browser
+      - name: Deep worker verification (thread evidence + pixel checks)
+        # Adds: real dedicated-worker targets, worker.js fetched 200, measured
+        # main-thread gaps while compressing, pixel assertions for rotate/mirror
+        # (incl. combined with maxSizeMB), worker reuse, and mid-flight dispose.
+        run: npm run test:worker
+
+  angular-cli-build:
+    # Angular CLI = the HOSTILE bundler (esbuild builder, node_modules imports).
+    # This is the setup that previously 404'd on the worker URL. Build the real
+    # CLI app AND drive it in a browser, so "Angular works" is proven, not assumed.
+    name: Angular CLI example (hostile bundler)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Build the library first (the example consumes file:../..)
+        run: |
+          npm ci --prefer-offline --no-audit
+          npm run build
+      - name: Install + build the Angular CLI example
+        working-directory: examples/angular-cli
+        run: |
+          npm ci --prefer-offline --no-audit
+          npm run build
+      - name: Drive the built app in a real browser (asserts a Worker path)
+        # Fails if Angular CLI stops emitting/copying the worker (the app would
+        # silently degrade to canvas-main) or if compression throws.
+        run: node test/angular-cli-e2e.mjs
+
   cjs-smoke:
     name: CJS bundle loads
     runs-on: ubuntu-latest
@@ -79,7 +134,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --prefer-offline --no-audit
-      - run: npm test
+      - run: npm run test:coverage
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v7
@@ -87,6 +142,10 @@ jobs:
           name: coverage
           path: coverage/
           retention-days: 30
+          # Fail loudly if coverage stops being produced (this step used to
+          # upload an empty/missing directory because no coverage provider was
+          # installed and `npm test` never passed --coverage).
+          if-no-files-found: error
 
   build:
     name: Build (esbuild + tsc)

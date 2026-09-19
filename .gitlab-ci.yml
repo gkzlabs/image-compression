@@ -27,7 +27,10 @@ stages:
 
 variables:
   npm_config_cache: "$CI_PROJECT_DIR/.npm"
-  # Suppress esbuild's direct-eval warning (intentional in tryDecodeHEICLazy)
+  # NOTE: esbuild's direct-eval warning for src/heic.ts is silenced inside
+  # scripts/build.mjs via `logOverride: { 'direct-eval': 'silent' }` — the eval
+  # there is deliberate (bundler-proof optional heic2any import). CI only needs
+  # this flag so tools behave non-interactively.
   CI: "true"
 
 # ---------------------------------------------------------------------------

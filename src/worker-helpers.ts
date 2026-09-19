@@ -719,30 +719,56 @@ export async function encodeOffscreenWithTransforms(
   finalH = Math.max(1, Math.round(finalH));
 
   // Single draw with transform math — no transferToImageBitmap chain.
-  // Order (all relative to the canvas center):
-  //   rotate → mirror → scale → draw source centered.
-  // The scale factor maps the rotated footprint (baseW×baseH) onto the final
-  // box (finalW×finalH), so it runs AFTER rotate/mirror in the same axis.
+  // Order (all relative to the canvas center): rotate → mirror → scale → draw.
+  // Shared with the target-size ladder via drawTransformed() so a maxSizeMB
+  // re-encode can never silently drop the rotation (see drawTransformed).
   const canvas = new OffscreenCanvas(finalW, finalH);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('OffscreenCanvas 2d context unavailable for transformed encode');
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-
-  ctx.save();
-  ctx.translate(finalW / 2, finalH / 2);
-  if (rotate !== 0) ctx.rotate((rotate * Math.PI) / 180);
-  if (mirror === 'horizontal') ctx.scale(-1, 1);
-  else if (mirror === 'vertical') ctx.scale(1, -1);
-  ctx.scale(finalW / baseW, finalH / baseH);
-  // Draw the source at its own dimensions, centered. Scale above maps it
-  // onto the final footprint. Handles exact resize + maxWidthOrHeight + rotate
-  // + mirror all in the same single draw.
-  ctx.drawImage(source, -srcW / 2, -srcH / 2);
-  ctx.restore();
+  drawTransformed(ctx, source, finalW, finalH, { rotate, mirror });
 
   const blob = await canvas.convertToBlob({ type: format, quality });
   return { blob, width: finalW, height: finalH };
+}
+
+/**
+ * Single-draw transform primitive shared by every worker encode path.
+ *
+ * Draws `source` onto `ctx` (already sized targetW×targetH) applying
+ * rotate → mirror → scale, centered. Extracted so the plain transform encode
+ * and the target-size ladder cannot drift apart: they MUST use identical math,
+ * otherwise a `maxSizeMB` re-encode silently drops rotate/mirror (that was the
+ * v1.3.0 bug — the ladder drew the untransformed bitmap).
+ *
+ * The scale factor maps the post-rotation footprint (baseW×baseH) onto the
+ * requested box, so the same helper works for the initial encode and for each
+ * ladder step (which shrinks both dimensions proportionally).
+ */
+export function drawTransformed(
+  ctx: OffscreenCanvasRenderingContext2D,
+  source: ImageBitmap,
+  targetW: number,
+  targetH: number,
+  opts: { rotate?: 0 | 90 | 180 | 270; mirror?: 'horizontal' | 'vertical' },
+): void {
+  const srcW = source.width;
+  const srcH = source.height;
+  const rotate = opts.rotate ?? 0;
+  const mirror = opts.mirror;
+  const swap = rotate === 90 || rotate === 270;
+  const baseW = swap ? srcH : srcW;
+  const baseH = swap ? srcW : srcH;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.save();
+  ctx.translate(targetW / 2, targetH / 2);
+  if (rotate !== 0) ctx.rotate((rotate * Math.PI) / 180);
+  if (mirror === 'horizontal') ctx.scale(-1, 1);
+  else if (mirror === 'vertical') ctx.scale(1, -1);
+  ctx.scale(targetW / baseW, targetH / baseH);
+  ctx.drawImage(source, -srcW / 2, -srcH / 2);
+  ctx.restore();
 }
 
 /**
@@ -758,6 +784,11 @@ export async function encodeOffscreenWithTransforms(
  * @param maxMB  Target max size in megabytes
  * @param width  Source width to ladder from
  * @param height Source height to ladder from
+ * @param transform Optional rotate/mirror to re-apply on EVERY ladder step.
+ *   Required whenever the caller pre-transformed the image: without it the
+ *   ladder re-encodes the raw bitmap and the rotation is silently lost
+ *   (fixed — see CHANGELOG [Unreleased]; the ladder used to always draw the
+ *   source unrotated, which broke `rotate`/`mirror` + `maxSizeMB` together).
  * @return Shrunk blob + dimensions, or null if no encode produced a blob.
  */
 export async function encodeWithTargetSize(
@@ -767,8 +798,10 @@ export async function encodeWithTargetSize(
   maxMB: number,
   width: number,
   height: number,
+  transform?: { rotate?: 0 | 90 | 180 | 270; mirror?: 'horizontal' | 'vertical' },
 ): Promise<{ blob: Blob; width: number; height: number } | null> {
   const targetBytes = maxMB * 1024 * 1024;
+  const useTransform = transform !== undefined && (transform.rotate !== undefined || transform.mirror !== undefined);
   return shrinkToTargetSize(source, width, height, format, quality, targetBytes, (w, h, q) =>
     new Promise<Blob | null>((resolve) => {
       const canvas = new OffscreenCanvas(w, h);
@@ -777,10 +810,15 @@ export async function encodeWithTargetSize(
         resolve(null);
         return;
       }
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(source, 0, 0, w, h);
+      if (useTransform) {
+        drawTransformed(ctx, source, w, h, transform);
+      } else {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(source, 0, 0, w, h);
+      }
       canvas.convertToBlob({ type: format, quality: q }).then(resolve).catch(() => resolve(null));
     }),
   );
 }
+

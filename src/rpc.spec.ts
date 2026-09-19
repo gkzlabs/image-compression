@@ -16,7 +16,7 @@
  * - 'then' trap guard: proxy is not treated as a thenable
  */
 import { describe, it, expect, vi } from 'vitest';
-import { expose, wrap, callbackOf } from './rpc';
+import { expose, wrap, callbackOf, __callbackRegistrySize } from './rpc';
 
 interface TestApi {
   add(a: number, b: number): Promise<number>;
@@ -317,6 +317,113 @@ describe('v0.11.0 rpc layer (comlink replacement)', () => {
       expect(msg.method).toBe('emitProgress');
       expect(typeof msg.args[0]).toBe('object'); // CallbackRef, not a function
       expect((msg.args[0] as { __callbackId: number }).__callbackId).toBeTypeOf('number');
+    } finally {
+      restore();
+    }
+  });
+
+  it('rejects pending calls when the worker errors (e.g. worker URL 404s)', async () => {
+    // A worker that never loaded cannot reply — before this guard the RPC
+    // promise stayed pending forever, so compress() never settled and the
+    // cascade never fell back to canvas-main.
+    const listeners = new Map<string, ((ev: unknown) => void)[]>();
+    const silentWorker = {
+      postMessage() {
+        /* never replies */
+      },
+      terminate() {},
+      addEventListener(type: string, fn: (ev: unknown) => void) {
+        listeners.set(type, [...(listeners.get(type) ?? []), fn]);
+      },
+    } as unknown as Worker;
+
+    const proxy = wrap<TestApi>(silentWorker);
+    const pending = proxy.ping();
+    listeners.get('error')?.forEach((fn) => fn({ message: 'worker load failed' }));
+    await expect(pending).rejects.toThrow(/failed to load/i);
+  });
+
+  it('rejects pending calls on messageerror (undeserializable worker reply)', async () => {
+    const listeners = new Map<string, ((ev: unknown) => void)[]>();
+    const silentWorker = {
+      postMessage() {
+        /* never replies */
+      },
+      terminate() {},
+      addEventListener(type: string, fn: (ev: unknown) => void) {
+        listeners.set(type, [...(listeners.get(type) ?? []), fn]);
+      },
+    } as unknown as Worker;
+
+    const proxy = wrap<TestApi>(silentWorker);
+    const pending = proxy.ping();
+    listeners.get('messageerror')?.forEach((fn) => fn({}));
+    await expect(pending).rejects.toThrow(/deserialized/i);
+  });
+
+  it('exposes __dispose() to settle in-flight calls before the worker is killed', async () => {
+    // Worker.terminate() drops pending RPCs on the floor — without __dispose a
+    // dispose()/terminate() during an in-flight compress() hangs forever.
+    const silentWorker = {
+      postMessage() {
+        /* never replies */
+      },
+      terminate() {},
+      addEventListener() {},
+    } as unknown as Worker;
+
+    const proxy = wrap<TestApi>(silentWorker) as TestApi & { __dispose: (reason?: Error) => void };
+    const pending = proxy.ping();
+    expect(typeof proxy.__dispose).toBe('function');
+    proxy.__dispose(new Error('Worker terminated by test'));
+    await expect(pending).rejects.toThrow(/terminated by test/i);
+  });
+
+  it('does not post __dispose to the worker (local control method only)', () => {
+    const posted: unknown[] = [];
+    const fakeWorker = {
+      postMessage(msg: unknown) {
+        posted.push(msg);
+      },
+      terminate() {},
+      addEventListener() {},
+    } as unknown as Worker;
+
+    const proxy = wrap<TestApi>(fakeWorker) as TestApi & { __dispose: () => void };
+    proxy.__dispose();
+    expect(posted).toHaveLength(0);
+  });
+
+  it('releases the progress callback when the call settles (no registry leak)', async () => {
+    const api: TestApi = {
+      async add(a, b) {
+        return a + b;
+      },
+      async fail() {
+        throw new Error('nope');
+      },
+      async slow() {
+        return 'x';
+      },
+      // The worker receives the callback as a CallbackRef ({__callbackId}), not
+      // as a function — this test only cares about registry lifecycle.
+      async emitProgress() {},
+      async ping() {
+        return 'pong';
+      },
+    };
+    const { fakeWorker, restore } = makePair(api);
+    try {
+      const proxy = wrap<TestApi>(fakeWorker);
+      const before = __callbackRegistrySize();
+      for (let i = 0; i < 25; i++) {
+        await proxy.emitProgress(() => {});
+      }
+      // Each call registers one callback; all of them must be released on
+      // settle, otherwise a long upload session grows the map without bound.
+      expect(__callbackRegistrySize()).toBe(before);
+      await expect(proxy.fail()).rejects.toThrow('nope');
+      expect(__callbackRegistrySize()).toBe(before);
     } finally {
       restore();
     }

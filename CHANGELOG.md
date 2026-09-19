@@ -5,6 +5,120 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-09-19
+
+### Added
+
+- **Real-browser verification** (`npm run test:browser`, CI job `browser-smoke`) — a
+  Puppeteer-driven suite that loads the **built** bundle in real Chromium and asserts:
+  each cascade path via `forcePath`, `server-fallback` returning the original bytes,
+  the `maxSizeMB` budget, the `__IC_WORKER_URL` escape hatch, and that a worker URL
+  which 404s makes the cascade fall back instead of hanging. The unit suite cannot
+  reach any of that (happy-dom + `@napi-rs/canvas` polyfill). Verified on Chrome 149
+  and 152: 9/9 cases pass.
+- **`examples/angular-cli/`** — Angular CLI 18 app on the `application` (esbuild)
+  builder: the hostile-bundler case. CI builds it and drives the production build in
+  Chromium (`test/angular-cli-e2e.mjs`, job `angular-cli-build`).
+  **Finding it pins down:** Angular CLI does NOT emit a worker chunk for a
+  `node_modules` `new URL('./worker.js', import.meta.url)` — the app silently
+  degrades to `canvas-main` (and hung forever before the rpc fail-fast fix). Recipe
+  verified in-browser: copy `dist/worker.js` next to the bundles via an asset glob
+  (`{"glob":"worker.js","input":"node_modules/@gkzlabs/image-compression/dist","output":"."}`)
+  → `webcodecs-worker`, 77% smaller, no code change. Documented in
+  `docs/BROWSER_COMPAT.md` ("Worker resolution per bundler").
+- **Coverage is real now** (`npm run test:coverage`) — `@vitest/coverage-v8` with v8
+  provider, lcov + json-summary reporters, and thresholds as a CI gate
+  (lines/statements ≥ 60, branches ≥ 70, functions ≥ 80; measured 69.9 / 75.4 / 87.2).
+  The CI `coverage` artifact step previously uploaded nothing: no provider was
+  installed and `npm test` never passed `--coverage`. `if-no-files-found: error` now
+  makes that failure mode loud.
+
+### Fixed
+
+- **`rotate`/`mirror` + `maxSizeMB` lost the transform (v1.3.0 regression)** — when the
+  target-size ladder moved into the Worker, the ladder drew the raw decoded bitmap
+  instead of the transformed one. Because the reported dimensions come from the
+  transform output, the result *looked* right (portrait dims for `rotate: 90`) while the
+  pixels were the un-rotated image stretched into the box. Fixed by extracting the
+  single-draw transform math into `drawTransformed()` (src/worker-helpers.ts) and using
+  it for both the initial encode and every ladder step. Caught by a pixel-level check —
+  dimension assertions alone cannot see it.
+- **`dispose()` / `terminate()` during an in-flight compression hung forever** —
+  `Worker.terminate()` drops pending RPC calls without settling them, so
+  `await compress()` never resolved if the worker was torn down mid-encode (e.g. a
+  component destroyed while a 4000×3000 photo was still processing). The RPC layer now
+  exposes `__dispose()`, which `terminate()` calls first so in-flight calls reject
+  (`ABORTED`) and the cascade continues.
+- **The idle-shutdown timer could kill its own busy worker** — the 30s idle timer was
+  armed when the worker was acquired, so any compression slower than 30s (large scans,
+  slow phones) had its worker terminated mid-flight, i.e. the hang above. The timer is
+  now suspended for the duration of a worker call.
+- **Progress-callback leak** — every `compress()` call that passed `onProgress`
+  registered a callback in `rpc.ts`'s module-level registry and never released it, so
+  long upload sessions grew the map (and kept user closures reachable) without bound.
+  Callbacks are now dropped when the call settles.
+- **`stripExif` is documented as the no-op it always was** — the option is never read by the
+  pipeline (re-encoding always discards EXIF/XMP/GPS; `passThroughUnderBytes` is the way to keep
+  originals untouched). It is now `@deprecated` in the types and in the README instead of
+  implying it controls metadata output.
+- **A worker that fails to load no longer hangs `compress()`** — a worker URL that 404s (or a
+  worker that dies while loading) fails asynchronously, so `new Worker()` never throws and the
+  old code waited forever for a reply that could not arrive. `rpc.ts` now rejects every in-flight
+  call on the worker's `error`/`messageerror` events, and `ImageCompression` drops the dead
+  worker, so the cascade continues on `canvas-main` as designed.
+- **Worker fallback URL is sub-path safe** — strategy 3 used to be the root-absolute
+  `/image-compression.worker.js`, which 404s for apps deployed under a sub-path. It is now
+  resolved against `document.baseURI`.
+- **`SECURITY.md` claimed "No eval or dynamic code execution"** while `src/heic.ts` uses
+  `eval("import('<url>')")` for the optional `heic2any` hatch. The policy now documents that
+  path, its `script-src 'unsafe-eval'` requirement, and the alternatives (native `ImageDecoder`,
+  pre-decoding HEIC, or simply not setting `__IC_HEIC2ANY_URL`). Supported-versions table
+  refreshed (1.2.x/1.3.x).
+- **README** — removed two stale claims: a `src/transforms.test.ts` that does not exist and a
+  Playwright e2e suite that is not in the repo. The skipped-test notes now state the real
+  situation (unit tests run on happy-dom; real-browser coverage comes from the bench harness).
+- **Stale comments/docs** — `scripts/build.mjs` described a Blob-URL worker inlining that has no
+  implementation (no `src/worker-source.ts`; `__WORKER_SOURCE__` was defined by esbuild but never
+  consumed) → dead define and comments removed; `types.ts` no longer references Comlink (replaced
+  by the in-repo rpc layer in v0.11.0); the deprecated `result.blob` note now says v2.0 instead
+  of v1.0.
+
+### Changed
+
+- **`resolveWorker()` was duplicated** in `src/service.ts` and `src/worker-resolution.ts`, and the
+  spec only covered the copy consumers never load. It now lives once in `src/worker-resolution.ts`
+  and is re-exported from `service.ts` (public API unchanged), so the tests cover the shipped code.
+- **Build output is quiet** — esbuild's `direct-eval` warning is silenced at the source
+  (`logOverride` in `scripts/build.mjs`) instead of being explained away in a CI variable.
+- Deploy workflow injects the real package version into the examples landing page
+  (`__LIB_VERSION__` ← `package.json`), so it can no longer drift (it was showing v1.0.2).
+
+### Tests
+
+- 241 → **262** passing (27 spec files):
+  - 6 pixel-level regression tests for the transform-aware target-size ladder
+    (`src/encode-with-target-size.spec.ts`) and 3 RPC lifecycle tests
+    (`__dispose`, no-callback-leak).
+  - **`src/worker.spec.ts` — the worker ENTRY is now unit-tested.** `src/worker.ts`
+    used to report 0% coverage because only a real Worker could reach it. The spec
+    imports it for real (which runs `expose(api)`), captures the RPC replies, and
+    drives `compress()` / `getWorkerCapabilities()` / `supportsHEIC()` /
+    `probeWorkerPath()` against the REAL canvas polyfills — covering option
+    plumbing (`__path`, transforms, `maxSizeMB`), the HEIC rejection path and the
+    capability probes. worker.ts: 0% → **75.1%** (100% of functions); project
+    lines 70.4 → **76.7%**.
+  - Test-infra fix found while writing it: the `createImageBitmap` polyfill threw
+    away the backing pixels (`new ImageBitmapPolyfill(w, h)` with no canvas, and a
+    decoded `Image` stored where @napi-rs/canvas only unwraps a CanvasElement), so
+    any "decode a blob then assert pixels" test was asserting on a blank bitmap.
+    It now decodes into a real canvas — pixel assertions are genuine.
+  - Coverage gate ratcheted up: lines/statements ≥ 70, branches ≥ 70, functions ≥ 85.
+- Real-browser suites added: `npm run test:browser` (9 cases — every cascade
+  path, escape hatch, worker-404 fallback) and `npm run test:worker` (11 cases —
+  dedicated-worker evidence, worker.js HTTP 200, measured main-thread gaps,
+  rotate/mirror pixel checks incl. combined with `maxSizeMB`, worker reuse,
+  mid-flight dispose). Both run in CI on real Chromium.
+
 ## [1.3.0] - 2026-09-13
 
 ### Added

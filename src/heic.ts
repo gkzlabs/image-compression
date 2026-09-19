@@ -67,6 +67,13 @@ export async function tryDecodeHEICLazy(file: File | Blob): Promise<Blob | null>
   // `__IC_HEIC2ANY_URL` to a URL of heic2any.js (e.g. CDN) before calling.
 
   // Strategy 1: URL hatch (works in ALL environments including Angular esbuild)
+  //
+  // SECURITY / CSP: `eval()` is used on purpose so no bundler can statically
+  // analyze the import (Angular's esbuild chokes on a bare `import('heic2any')`
+  // from node_modules). The trade-off is that this path requires
+  // `script-src 'unsafe-eval'` in the page CSP. Sites with a strict CSP should
+  // rely on the native `ImageDecoder` path (Safari/Chrome on macOS 11+, Win11,
+  // Android 12+) or pre-decode HEIC themselves. See SECURITY.md § HEIC decoding.
   const heic2anyUrl = (globalThis as { __IC_HEIC2ANY_URL?: string }).__IC_HEIC2ANY_URL;
   if (heic2anyUrl) {
     try {
