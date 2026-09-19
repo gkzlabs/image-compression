@@ -137,7 +137,7 @@ jobs:
                 <a class="card" href="examples/angular/">
                   <img src="assets/logos/angular.svg" alt="" width="28" height="28" class="logo">
                   <div class="name">Angular</div>
-                  <div class="desc">Angular 17 standalone + Analog/Vite plugin.</div>
+                  <div class="desc">Angular 18 standalone + Analog/Vite plugin.</div>
                 </a>
                 <a class="card" href="examples/vanilla/">
                   <img src="assets/logos/javascript.svg" alt="" width="28" height="28" class="logo">

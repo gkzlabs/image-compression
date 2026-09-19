@@ -52,9 +52,10 @@ export async function tryDecodeHEICLazy(file: File | Blob): Promise<Blob | null>
   // Path 2: heic2any (WASM) — try URL hatch first, then bare specifier.
   //
   // Why this order:
-  // - URL hatch uses a runtime variable so no bundler can analyze it.
-  //   This is the ONLY strategy that works in production Angular esbuild
-  //   builds (Vite's @vite-ignore doesn't work for esbuild).
+  // - URL hatch: a runtime dynamic import of a user-supplied URL. Nothing to
+  //   resolve at build time, so it works in every bundler including Angular
+  //   CLI's esbuild (which cannot resolve a bare `import('heic2any')` from
+  //   node_modules).
   // - Bare specifier is the original behavior, works in Node + Vite +
   //   Webpack 5 (and any bundler that resolves dynamic imports).
   //
@@ -68,22 +69,22 @@ export async function tryDecodeHEICLazy(file: File | Blob): Promise<Blob | null>
 
   // Strategy 1: URL hatch (works in ALL environments including Angular esbuild)
   //
-  // SECURITY / CSP: `eval()` is used on purpose so no bundler can statically
-  // analyze the import (Angular's esbuild chokes on a bare `import('heic2any')`
-  // from node_modules). The trade-off is that this path requires
-  // `script-src 'unsafe-eval'` in the page CSP. Sites with a strict CSP should
-  // rely on the native `ImageDecoder` path (Safari/Chrome on macOS 11+, Win11,
-  // Android 12+) or pre-decode HEIC themselves. See SECURITY.md § HEIC decoding.
+  // SECURITY: until v1.3.2 this used a JavaScript eval-based loader, which
+  // required `script-src 'unsafe-eval'` in the page CSP and tripped
+  // supply-chain scanners as "dynamic code execution". A plain dynamic import
+  // with a runtime variable behaves identically (verified: esbuild and Vite both
+  // leave it as a runtime import instead of bundling it), so there is no
+  // dynamic code execution and no CSP escape hatch any more.
+  // See SECURITY.md § HEIC decoding.
   const heic2anyUrl = (globalThis as { __IC_HEIC2ANY_URL?: string }).__IC_HEIC2ANY_URL;
   if (heic2anyUrl) {
     try {
-      // Load the heic2any script via dynamic import. heic2any is a UMD/IIFE
-      // module. Depending on how it's bundled:
+      // Load the decoder module at RUNTIME. heic2any is UMD/IIFE or ESM
+      // depending on how it was built:
       // - As IIFE: sets `window.heic2any` (UMD browser global path)
-      // - As ESM: exports `default` (esbuild's ESM wrapping)
+      // - As ESM: exports `default`
       // We support both.
-      // eslint-disable-next-line no-eval
-      const mod = (await eval(`import('${heic2anyUrl}')`)) as {
+      const mod = (await import(/* @vite-ignore */ heic2anyUrl)) as {
         default?: unknown;
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

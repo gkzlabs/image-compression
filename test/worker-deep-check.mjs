@@ -131,9 +131,11 @@ async function main() {
 
   // Track every request for the worker file — a 404 here is the historical bug.
   const workerRequests = [];
+  const allResponses = [];
   const badResponses = [];
   let cosmetic404s = 0;
   page.on('response', (res) => {
+    allResponses.push({ url: res.url(), status: res.status() });
     if (/worker\.js/.test(res.url())) workerRequests.push({ url: res.url(), status: res.status() });
     if (res.status() >= 400) {
       // favicon is not part of the library's contract and the test server does
@@ -265,6 +267,34 @@ async function main() {
         'rotate + maxSizeMB in worker (transform survives ladder)',
         swapped && topRed && bottomBlue ? 'PASS' : 'FAIL',
         `path=${rotateTarget.path} dims ${rotateTarget.width}x${rotateTarget.height} (portrait=${swapped}), top=${dominant(rotateTarget.colors.top)}, bottom=${dominant(rotateTarget.colors.bottom)}, ${(rotateTarget.compressedSize / 1024).toFixed(1)}KB ≤ 20KB`,
+      );
+    }
+
+    // ── 3b. HEIC pre-decode through the URL hatch (runtime import, NO eval) ──
+    {
+      const r = await page.evaluate(
+        ({ decoderUrl }) =>
+          window.__icSmoke.compressHeic({
+            decoderUrl,
+            options: { maxWidthOrHeight: 64, quality: 0.9, format: 'image/jpeg' },
+          }),
+        { decoderUrl: '/test/fake-heic-decoder.mjs' },
+      );
+      const fetched = allResponses.filter((x) => /fake-heic-decoder\.mjs/.test(x.url));
+      const loaded200 = fetched.some((x) => x.status === 200);
+      const ok =
+        r.ok &&
+        r.decoderLoaded === true &&
+        loaded200 &&
+        r.width <= 64 &&
+        r.height <= 64 &&
+        String(r.mimeType).startsWith('image/');
+      record(
+        'HEIC decoder via __IC_HEIC2ANY_URL (runtime import, no eval)',
+        ok ? 'PASS' : 'FAIL',
+        ok
+          ? `decoder module fetched 200 + executed; ${r.width}x${r.height} ${(r.compressedSize / 1024).toFixed(1)}KB via ${r.path}`
+          : `ok=${r.ok} loaded=${r.decoderLoaded} fetched=${loaded200} ${r.message ?? ''} ${r.code ?? ''}`.trim(),
       );
     }
 

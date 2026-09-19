@@ -39,6 +39,51 @@ export function installSmokeApi() {
     workerConstructions: () => workerConstructions.slice(),
 
     /**
+     * Compress a fake HEIC file so the `__IC_HEIC2ANY_URL` hatch is exercised:
+     * the library must load the decoder module at RUNTIME (no eval) and use its
+     * default export. test/fake-heic-decoder.mjs sets window.__fakeHeicDecoderLoaded.
+     */
+    async compressHeic({ decoderUrl, options = {} }) {
+      window.__fakeHeicDecoderLoaded = false;
+      window.__IC_HEIC2ANY_URL = new URL(decoderUrl, document.baseURI).href;
+      const svc = new ImageCompression();
+      // Bytes that start like a HEIC container; the fake decoder ignores content.
+      const file = new File(
+        [new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112, 104, 101, 105, 99])],
+        'photo.heic',
+        { type: 'image/heic' },
+      );
+      const stages = [];
+      try {
+        const result = await svc.compress(file, {
+          ...options,
+          onProgress: (p) => stages.push(p.stage),
+        });
+        return {
+          ok: true,
+          path: result.path,
+          width: result.width,
+          height: result.height,
+          compressedSize: result.compressedSize,
+          mimeType: result.mimeType,
+          decoderLoaded: window.__fakeHeicDecoderLoaded === true,
+          stages,
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          code: err && err.code ? err.code : 'UNKNOWN',
+          message: err instanceof Error ? err.message : String(err),
+          decoderLoaded: window.__fakeHeicDecoderLoaded === true,
+          stages,
+        };
+      } finally {
+        svc.dispose();
+        delete window.__IC_HEIC2ANY_URL;
+      }
+    },
+
+    /**
      * Compress the same file N times through ONE ImageCompression instance.
      * Returns the per-run results plus the Workers constructed during the loop,
      * which is the real "reuse, no leak" evidence: N runs must spawn exactly 1.

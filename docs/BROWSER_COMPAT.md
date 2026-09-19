@@ -1,7 +1,7 @@
 # Browser Compatibility Matrix
 
 > Last updated: 2026-09-19
-> Library version: v1.3.1
+> Library version: v1.3.2
 
 This matrix shows which browser features each compression path depends on, and the
 minimum browser versions that support them. Use it to predict which cascade paths
@@ -72,11 +72,21 @@ authoritative detection logic.
 |---|---|---|---|
 | `.heic` / `.heif` | Chrome 94+ on macOS 11+ / Win 11 / Android 12+ | All browsers (when bundled) | Pass through as-is |
 
-`heic2any` is an **optional peer dependency**. Install only if you need HEIC
-support in browsers without native ImageDecoder:
+`heic2any` is **not a declared dependency** (not even an optional peer) — the
+library never installs or bundles a decoder. Two ways to get HEIC support where
+the browser has no native `ImageDecoder`:
 
 ```bash
+# 1. Bare-specifier path: install it yourself so `import('heic2any')` resolves in
+#    your bundler (Vite / Webpack 5 / Node).
 npm install heic2any
+```
+
+```js
+// 2. URL hatch: serve any module whose default export is a decoder and point the
+//    library at it before the first compress() call (no eval, no bundler setup —
+//    this is the path that works inside Angular CLI builds too).
+window.__IC_HEIC2ANY_URL = new URL('heic2any.js', document.baseURI).href;
 ```
 
 ## Known Browser Quirks

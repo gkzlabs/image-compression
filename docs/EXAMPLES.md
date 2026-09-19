@@ -687,8 +687,8 @@ for a complete working example.
 #### Alternatives to `NgZone.run()`
 
 The `NgZone.run()` pattern is the **canonical fix**, but there are
-alternatives. The `angular-image-compression` showcase uses
-`NgZone.run()` because the project is on Angular 17 (stable).
+alternatives. The Angular example keeps `NgZone.run()` because it works on every
+Angular version (the example itself targets Angular 18).
 
 **Option A — `ChangeDetectorRef.detectChanges()` (Angular 2+, stable):**
 

@@ -73,29 +73,31 @@ This library:
 - ✅ **Runs entirely in the browser** — no data is sent to remote servers (unless you implement server-fallback)
 - ✅ **No network requests of its own** — every asset except the optional `heic2any` decoder is bundled
 - ⚠️ **Uses Web Workers** — subject to browser CSP policies (`worker-src` / `script-src`)
-- ⚠️ **Optional `heic2any` dependency** — verify integrity if installing manually
+- ⚠️ **Optional `heic2any` decoder** — not a declared dependency; if you install it yourself, verify integrity
 - ⚠️ **Reads EXIF data** — EXIF may contain user location; re-encoding strips it, but the
   original file (e.g. returned by `passThroughUnderBytes`) keeps it
 
-### HEIC decoding and CSP (`unsafe-eval`)
+### HEIC decoding and CSP
 
-HEIC support is layered, and only the second layer has a CSP requirement:
+HEIC support is layered, and **no `unsafe-eval` is required for any layer** — v1.3.2 removed
+the `eval`-based loader that older versions used for layer 2 (it tripped strict CSPs and
+supply-chain scanners as "dynamic code execution"):
 
 1. **Native `ImageDecoder`** (Safari on macOS 11+ / iOS 16.4+, Chrome on macOS / Win 11 /
-   Android 12+) — no eval, no CSP impact. Tried first.
-2. **`window.__IC_HEIC2ANY_URL` hatch** — loads the optional `heic2any` WASM decoder through
-   `eval("import('<url>')")` (see `src/heic.ts`). The `eval` is deliberate: it is the only form
-   that survives Angular CLI's esbuild, which cannot resolve a bare `import('heic2any')` from
-   `node_modules`. **This path requires `script-src 'unsafe-eval'`** in the page CSP.
+   Android 12+) — no extra loading at all, no CSP impact. Tried first.
+2. **`window.__IC_HEIC2ANY_URL` hatch** — a runtime dynamic `import()` of the URL you provide
+   (`src/heic.ts`). The specifier is a variable, so no bundler rewrites it: it works in
+   Angular CLI's esbuild and in Vite alike. No JS eval. The optional heic2any WASM decoder
+   itself still needs `script-src 'wasm-unsafe-eval'`, which is a WebAssembly requirement,
+   not a JavaScript one.
 3. **Bare `import('heic2any')`** — plain dynamic import for Node / Vite / Webpack 5 consumers.
    No eval; the module is fetched by the bundler.
 
-If your CSP forbids `unsafe-eval`:
+If your CSP forbids WebAssembly (`'wasm-unsafe-eval'`):
 
 - rely on the native `ImageDecoder` path (covers iOS/macOS Safari and recent Chromium), and/or
 - pre-decode HEIC yourself (decode to JPEG/PNG before calling `compress()`), and/or
-- simply do not set `__IC_HEIC2ANY_URL` — the library then skips layer 2 and never evaluates
-  a runtime string.
+- simply do not set `__IC_HEIC2ANY_URL` — the library then skips layer 2 entirely.
 
 ### Worker loading
 

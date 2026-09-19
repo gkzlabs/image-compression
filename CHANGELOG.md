@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-09-19
+
+### Changed
+
+- **HEIC decoding no longer uses `eval`.** The `__IC_HEIC2ANY_URL` hatch loaded the decoder
+  through `eval("import('<url>')")`, which required `script-src 'unsafe-eval'` in the page CSP
+  and is reported by supply-chain scanners (Socket et al.) as *dynamic code execution*. It is
+  now a plain runtime dynamic `import()` of the same variable — verified to behave identically
+  in Vite and in Angular CLI's esbuild (both leave a variable-specifier import as a runtime
+  import instead of bundling it). Strict-CSP sites no longer need an escape hatch; the only
+  remaining CSP requirement for HEIC is `'wasm-unsafe-eval'`, which the optional WASM decoder
+  itself needs. Shipped bundles now contain **zero** `eval(`/`new Function` and zero hardcoded
+  `http(s)` URLs.
+- **`heic2any` is no longer declared as an optional peer dependency.** The library never
+  installed or bundled it; declaring it only advertised an unmaintained package in the
+  dependency graph. Consumers who want the bare-specifier path install it themselves
+  (`npm install heic2any`), and the URL hatch works with any decoder module — it does not
+  depend on that package being installed at all. Docs (README, `docs/BROWSER_COMPAT.md`,
+  SECURITY) updated with both recipes.
+
+### Fixed
+
+- **Spec files are type-checked now.** `npm run lint` uses `tsconfig.json`, which excludes
+  `**/*.spec.ts`, so type errors had silently accumulated in the test suite (13 of them).
+  Added `npm run typecheck:test` (`tsc -p tsconfig.test.json`), wired into CI, the release gate
+  and `prepublishOnly`, and fixed every error: `Buffer → BlobPart` mismatches, index-signature
+  access in `rpc.spec.ts`, a `compressAll$` batch type mismatch in `streaming.spec.ts` (the batch
+  is `(CompressionResult | null)[]` since v1.2.0) and dead mock properties. One test that only
+  asserted `expect(true).toBe(true)` now counts `close()` calls on the caller's bitmap, so "the
+  helper must not close its input" is verified rather than assumed.
+- **Stale framework claims.** Docs and the examples landing page described the Angular example
+  as "Angular 17 + Analog/Vite" while it runs Angular 18 — corrected in the deploy workflow,
+  `examples/angular/README.md`, the example component header and `docs/EXAMPLES.md`.
+
+### Added
+
+- **Tarball now ships the docs and changelog**: `CHANGELOG.md`, `docs/BROWSER_COMPAT.md` and
+  `docs/SERVER_FALLBACK.md` are included in `files`, so consumers can read release history and
+  the per-bundler matrix offline (previously only `dist/`, README and LICENSE were published).
+- **Browser test for the HEIC hatch** — `npm run test:worker` gained a 12th case that serves a
+  fake decoder module, points `__IC_HEIC2ANY_URL` at it, compresses a HEIC-typed file and
+  asserts the module was fetched (HTTP 200) *and executed* with no eval involved. `test/fake-heic-decoder.mjs`
+  is the stand-in decoder. All 12 cases pass on Chrome 152 (and the 9-case smoke suite is
+  unchanged).
+
 ## [1.3.1] - 2026-09-19
 
 ### Added

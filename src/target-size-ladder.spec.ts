@@ -40,7 +40,7 @@ function makeJpegBlob(width: number, height: number, quality = 0.9): Blob {
     ctx.fillStyle = '#5865f2';
     ctx.fillRect(0, 0, width, height);
   }
-  return new Blob([canvas.toBuffer('image/jpeg', quality)], { type: 'image/jpeg' });
+  return new Blob([new Uint8Array(canvas.toBuffer('image/jpeg', quality))], { type: 'image/jpeg' });
 }
 
 const baseResult = (blob: Blob, width = 100, height = 100): CompressionResult => ({
@@ -143,13 +143,24 @@ describe('encodeWithTargetSize (worker OffscreenCanvas adapter)', () => {
   });
 
   it('does NOT close the source bitmap (caller owns lifecycle)', async () => {
-    const bitmap = makeBitmap(100, 100);
-    const close = (bitmap as unknown as { close: () => void }).close;
-    const spy = close ? { called: false } : null;
-    // The polyfill's close() is a no-op, so we just verify the call doesn't throw
-    // and the source is still usable after. The helper must not close its input.
-    await encodeWithTargetSize(bitmap, 'image/jpeg', 0.85, 2, 100, 100);
-    expect(true).toBe(true); // no throw = source untouched
+    // makeBitmap() returns a napi canvas (no close()), so install a counting
+    // close() to prove the helper leaves the caller's source alone — this used
+    // to be a vacuous `expect(true).toBe(true)`.
+    const source = makeBitmap(100, 100) as unknown as {
+      close?: () => void;
+      width: number;
+      height: number;
+    };
+    let closeCalls = 0;
+    source.close = () => {
+      closeCalls++;
+    };
+
+    await encodeWithTargetSize(source as unknown as ImageBitmap, 'image/jpeg', 0.85, 2, 100, 100);
+
+    expect(closeCalls).toBe(0);
+    expect(source.width).toBe(100);
+    expect(source.height).toBe(100);
   });
 });
 

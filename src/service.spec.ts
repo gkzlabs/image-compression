@@ -125,8 +125,6 @@ describe('ImageCompression.selectPaths()', () => {
     deviceMemory: 16,
     saveData: false,
     effectiveType: '4g',
-    isSafari: false,
-    isIOS: false,
     tier: 'high',
   };
 

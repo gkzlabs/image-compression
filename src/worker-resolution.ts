@@ -51,8 +51,8 @@ export function workerFallbackUrl(): string {
     typeof document !== 'undefined' && typeof document.baseURI === 'string'
       ? document.baseURI
       : '/';
-  // baseURI is either a directory ('https://x/app/') or a document
-  // ('https://x/app/index.html') — normalise both to the directory.
+  // baseURI is either a directory ('<origin>/app/') or a document
+  // ('<origin>/app/index.html') — normalise both to the directory.
   const dir = base.endsWith('/') ? base : base.replace(/[^/]*$/, '');
   return `${dir}image-compression.worker.js?v=${VERSION_TAG}`;
 }

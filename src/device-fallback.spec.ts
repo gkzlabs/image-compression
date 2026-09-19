@@ -24,7 +24,7 @@ function makeJpegBlob(quality = 0.2): Blob {
     ctx.fillStyle = '#5865f2';
     ctx.fillRect(0, 0, 800, 600);
   }
-  return new Blob([canvas.toBuffer('image/jpeg', quality)], { type: 'image/jpeg' });
+  return new Blob([new Uint8Array(canvas.toBuffer('image/jpeg', quality))], { type: 'image/jpeg' });
 }
 
 describe('maxSizeMB works on devices WITHOUT a Worker (main-thread fallback)', () => {

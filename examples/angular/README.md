@@ -351,11 +351,10 @@ async onFileChange(event: Event) {
 | Need broad library compatibility (RxJS, NgRx, etc.) | `NgZone.run()` (safest) |
 | Want zero change-detection overhead | Zoneless (Angular 18+) |
 
-For the `angular-image-compression` showcase (Angular 17), this example
-uses `NgZone.run()` because the project is on a stable Angular version.
-If/when the project upgrades to Angular 18+, switching to zoneless is
-a one-line config change — all the `zone.run()` wrappers can be
-removed.
+For this example (Angular 18 + Vite/Analog), we keep `NgZone.run()` because it
+works across every Angular and library combination; switching to zoneless is a
+one-line config change on Angular 18+ and the `zone.run()` wrappers can then be
+dropped.
 
 See [`../../docs/EXAMPLES.md`](../../docs/EXAMPLES.md#zone--ngzone) for
 the cross-framework explanation and the [`AppComponent`](./src/app/app.component.ts)

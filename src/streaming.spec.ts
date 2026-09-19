@@ -1,6 +1,7 @@
 import { ImageCompression, compress$, compressAll$ } from './index';
 import { CompressionError, isCompressionResult, isBatchResult } from './types';
 import type { CompressionResult, CompressionProgress } from './types';
+import type { CompressAllStreamEvent } from './stream';
 
 describe('Streaming API (AsyncIterable)', () => {
   let svc: ImageCompression;
@@ -73,7 +74,7 @@ describe('Streaming API (AsyncIterable)', () => {
         new File([new Uint8Array([0xff, 0xd8, 0xff])], 'a.jpg', { type: 'image/jpeg' }),
         new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], 'b.jpg', { type: 'image/jpeg' }),
       ];
-      const events: (CompressionResult[] | { fileIndex: number; progress: CompressionProgress })[] = [];
+      const events: CompressAllStreamEvent[] = [];
       for await (const evt of compressAll$(files, { forceServer: true }, 2, svc)) {
         events.push(evt);
       }
@@ -88,13 +89,16 @@ describe('Streaming API (AsyncIterable)', () => {
         new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], 'second.jpg', { type: 'image/jpeg' }),
         new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00])], 'third.jpg', { type: 'image/jpeg' }),
       ];
-      let results: CompressionResult[] = [];
+      let results: (CompressionResult | null)[] = [];
       for await (const evt of compressAll$(files, { forceServer: true }, 2, svc)) {
         if (isBatchResult(evt)) {
           results = evt;
         }
       }
-      expect(results.map((r) => r.name)).toEqual(['first.jpg', 'second.jpg', 'third.jpg']);
+      // `compressAll$` reports failed files as null in-place (v1.2.0), so the
+      // batch type is (CompressionResult | null)[] — these all succeeded.
+      expect(results.every((r) => r !== null)).toBe(true);
+      expect(results.map((r) => r!.name)).toEqual(['first.jpg', 'second.jpg', 'third.jpg']);
     });
 
     it('respects maxConcurrent', async () => {
@@ -111,7 +115,7 @@ describe('Streaming API (AsyncIterable)', () => {
     });
 
     it('handles empty file list', async () => {
-      const events: (CompressionResult[] | { fileIndex: number; progress: CompressionProgress })[] = [];
+      const events: CompressAllStreamEvent[] = [];
       for await (const evt of compressAll$([], { forceServer: true }, 2, svc)) {
         events.push(evt);
       }

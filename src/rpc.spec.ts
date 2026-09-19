@@ -42,10 +42,10 @@ function makePair(api: TestApi) {
   };
   // Run expose() in a worker-like context: it assigns workerCtx.onmessage.
   // rpc.expose uses `self` — stub it.
-  const origSelf = (globalThis as Record<string, unknown>).self;
-  (globalThis as Record<string, unknown>).self = workerCtx;
+  const origSelf = (globalThis as Record<string, unknown>)['self'];
+  (globalThis as Record<string, unknown>)['self'] = workerCtx;
   expose(api);
-  (globalThis as Record<string, unknown>).self = origSelf;
+  (globalThis as Record<string, unknown>)['self'] = origSelf;
   workerOnMessage = workerCtx.onmessage;
 
   // Main half: a fake Worker with postMessage that feeds workerOnMessage,
@@ -74,10 +74,10 @@ function makePair(api: TestApi) {
     queueMicrotask(() => mainOnMessage?.(ev));
   };
   // rpc.expose posts via global postMessage — stub it during the test
-  const origPost = (globalThis as Record<string, unknown>).postMessage;
-  (globalThis as Record<string, unknown>).postMessage = workerPostMessage;
+  const origPost = (globalThis as Record<string, unknown>)['postMessage'];
+  (globalThis as Record<string, unknown>)['postMessage'] = workerPostMessage;
   const restore = () => {
-    (globalThis as Record<string, unknown>).postMessage = origPost;
+    (globalThis as Record<string, unknown>)['postMessage'] = origPost;
   };
 
   return { fakeWorker, workerPostMessage, restore };

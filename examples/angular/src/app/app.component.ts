@@ -1,8 +1,8 @@
 /**
- * Angular 17 standalone component demonstrating @gkzlabs/image-compression.
+ * Angular 18 standalone component demonstrating @gkzlabs/image-compression.
  *
  * Same UI logic as react/vue/svelte/vanilla examples — only the framework
- * binding differs. Uses Angular signals for state management (Angular 17+).
+ * binding differs. Uses Angular signals for state management (Angular 17+ API).
  */
 import { Component, OnDestroy, OnInit, computed, signal } from '@angular/core';
 import { ImageCompression, CompressionError } from '@gkzlabs/image-compression';

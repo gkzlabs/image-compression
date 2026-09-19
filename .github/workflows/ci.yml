@@ -136,6 +136,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --prefer-offline --no-audit
+      - name: Type-check the specs
+        # `npm run lint` uses tsconfig.json, which excludes **/*.spec.ts — so
+        # type errors used to accumulate in the test files unnoticed (13 of them
+        # when this step was added). Keep the specs type-clean too.
+        run: npm run typecheck:test
       - run: npm run test:coverage
       - name: Upload coverage
         if: always()

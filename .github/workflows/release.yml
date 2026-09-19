@@ -58,6 +58,7 @@ jobs:
         run: |
           npm ci --prefer-offline --no-audit
           npm run lint
+          npm run typecheck:test
           npm test
           npm run build
 
