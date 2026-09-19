@@ -94,6 +94,24 @@ async function runCase(page, args) {
 
 const dominant = (c) => (c.r >= c.g && c.r >= c.b ? 'red' : c.b >= c.g ? 'blue' : 'green');
 
+/**
+ * Count live dedicated worker targets, waiting briefly for registration.
+ *
+ * CDP reports a new worker target asynchronously, so reading `page.workers()`
+ * immediately after `compress()` resolves can legitimately return 0 on a slower
+ * CI runner (observed on GitHub Actions: the same assertion saw 1 locally and 0
+ * in CI, while six consecutive compressions a moment later saw 1).
+ */
+async function workerTargetCount(page, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  let count = page.workers().length;
+  while (count === 0 && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 100));
+    count = page.workers().length;
+  }
+  return count;
+}
+
 async function main() {
   ensureBuild();
   ensureFixtures();
@@ -138,7 +156,7 @@ async function main() {
       options: { quality: 0.85, maxWidthOrHeight: 2048, format: 'image/jpeg' },
       probeMainThread: true,
     });
-    const workersAfter = await page.workers().length;
+    const workersAfter = await workerTargetCount(page);
     const workerResponses = workerRequests.filter((r) => r.status === 200);
     const worker404s = workerRequests.filter((r) => r.status >= 400);
 
@@ -257,7 +275,7 @@ async function main() {
           }),
         );
       }
-      const workers = await page.workers().length;
+      const workers = await workerTargetCount(page);
       const allOk = runs.every((r) => r.ok && !r.hung);
       const workerPaths = runs.filter((r) => String(r.path).endsWith('worker')).length;
       record(
