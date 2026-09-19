@@ -5,7 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.2] - 2026-09-19
+## [1.3.3] - 2026-09-19
+
+> **Note:** `1.3.2` was prepared but never published — everything in that section ships in `1.3.3`.
+
+### Added
+
+- **`toPictureSet()` — responsive `<picture>` output in one call** (C4). Runs the compressor once per
+  format the browser can *actually* encode (AVIF → WebP → the caller's fallback, JPEG by default),
+  skips formats the engine cannot produce, and returns object URLs plus ready-to-paste markup:
+  ```ts
+  const set = await toPictureSet(file, { maxWidthOrHeight: 1600 });
+  container.insertAdjacentHTML('beforeend', set.html);
+  set.revoke(); // releases every object URL it created
+  ```
+  Sources are ordered best-first as `<picture>` requires, and nothing is advertised that wasn't
+  actually encoded (verified in real engines — WebKit encodes AVIF but **not** WebP, where canvas
+  silently returns PNG).
+- **`options.maxConcurrency`** (C3) — `compressAll(files, options, maxConcurrent)` forced callers to
+  pass an empty options object just to reach the third argument. The option is now the supported
+  form; the positional argument still works and is deprecated. Applies to `compressAll()` and
+  `compressAll$()`. Both paths are covered by tests that MEASURE peak parallelism.
+- **A real HEIC fixture and pixel-verified HEIC tests** — `test/fixtures/sample.heic` (real
+  HEIF/HEVC 320x240, produced by macOS ImageIO), the ImageIO decode as ground truth
+  (`sample.reference.png`), a regeneration script, and `src/heic-fixture.spec.ts` (13 tests) that
+  check the fixture is a real ISO-BMFF container, that the decoder receives the exact file bytes
+  (size + FNV-1a), and that the pixels survive the whole cascade.
+- **Real-decoder verification**: `npm run test:heic2any` (`test/heic2any-real.mjs`) drives the
+  genuine `heic2any@0.0.4` UMD bundle in real Chrome — main thread, inside the Worker, and through
+  the default cascade — comparing against the ImageIO ground truth (mean Δ ≈ 1.7/255). It also has
+  a plain-Node mode (`test/heic-hatch-node.mjs`) proving the hatch's runtime import works outside a
+  bundler. A nightly workflow runs it, because it downloads a 1.35 MB third-party bundle.
+- **Cross-engine browser matrix** (`npm run test:matrix`, CI job `browser-matrix`) — Firefox and
+  WebKit via Playwright, driving the same smoke page + harness as the Chromium suites. First run
+  showed exactly why it was needed: neither engine has WebCodecs, and WebKit cannot encode WebP.
 
 ### Changed
 
@@ -27,8 +60,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Rollup failed to resolve import "heic2any"`, even if they never touch HEIC — verified by
   A/B on all five examples (with peer: 5/5 build · without peer: 5/5 fail). `optional: true`
   keeps `npm install` from forcing the package on consumers.
+- **`sharpen` now runs inside the Worker** (C1). It was main-thread-only — the same class of UI jank
+  already fixed for transforms (1.2.0) and the target-size ladder (1.3.0). The mask is applied to
+  the pixels each worker encode path is about to encode — the plain encode, the transformed encode,
+  and *every* ladder step (a step that re-draws the source must re-apply the sharpen, exactly like
+  `drawTransformed()` re-applies rotate/mirror). Still skipped for lossless PNG. Evidence: worker
+  tests assert the pixels change, that the change is deterministic, and that the dark side of a step
+  edge brightens next to the edge; the Chromium suite measures the same effect off-thread.
+- **HEIC decoding now happens in the Worker too** (C2). `decodeHeicBitmap()` chains native
+  `ImageDecoder` → a pre-installed decoder global → the `__IC_HEIC2ANY_URL` module → the bare
+  specifier, all with plain runtime imports. Because a Worker has its own global scope, the service
+  forwards the page's hatch URL as `options.__heic2anyUrl`. If the Worker cannot decode (no native
+  codec and no decoder module) the cascade decodes on the main thread once before the next path, so
+  nothing regresses on engines without a Worker. Verified with the real heic2any bundle logging from
+  the Worker realm, and in the cross-engine matrix.
+- **Cooperative `AbortSignal` still stops at stage boundaries** — unchanged, and now explicitly
+  documented: a Worker RPC in flight cannot be interrupted mid-decode.
+- Deliberately **not** changed: the sharpening formula itself. Measurement showed the existing
+  additive unsharp mask (blur at 1/4 scale + `lighter` composite) clips highlights at 255 and
+  produces a halo rather than more edge energy, so tests assert the halo it actually produces
+  instead of claiming "sharper". Reworking the kernel is a separate, behaviour-changing task.
 
 ### Fixed
+
+- **Build could not resolve the new Worker HEIC import.** `esbuild` tried to bundle the optional
+  `heic2any` specifier; all three outputs (worker, ESM, CJS) now declare `external: ['heic2any']`,
+  matching how the declaration works for consumers. The dead `logOverride: { 'direct-eval' }` from
+  the eval era is gone with it.
+- **HEIC error message** now tells the caller how to fix it (`__IC_HEIC2ANY_URL` is forwarded to the
+  Worker) instead of only "not supported in this browser".
 
 - **Spec files are type-checked now.** `npm run lint` uses `tsconfig.json`, which excludes
   `**/*.spec.ts`, so type errors had silently accumulated in the test suite (13 of them).

@@ -81,6 +81,12 @@ export interface CompressionOptions {
    *  Used by the worker to include the correct path in its progress events.
    *  @internal Not intended for public use. */
   __path?: CompressionPath;
+  /** Internal: the `window.__IC_HEIC2ANY_URL` value, forwarded to the Worker by
+   *  `executeWorkerPath()` because a Worker has its own global scope and cannot
+   *  read the page's. Lets the Worker decode HEIC (native ImageDecoder →
+   *  decoder module → bare specifier) without touching the main thread.
+   *  @internal Not intended for public use. */
+  __heic2anyUrl?: string;
   /** Internal: original file size in bytes. Tagged by the service so
    *  `selectPaths()` can apply the `WORKER_SIZE_THRESHOLD_BYTES` gate
    *  (skip Worker for small files). @internal Not intended for public use. */
@@ -154,6 +160,12 @@ export interface CompressionOptions {
   maxSizeMB?: number;
   /** Output format (default 'image/jpeg') */
   format?: OutputFormat;
+  /** v1.3.3: maximum number of files compressed in parallel by
+   *  `compressAll()` / `compressAll$()` (default 2, tuned for mobile).
+   *  `0` or a negative number means unlimited. Supersedes the deprecated third
+   *  positional argument (`compressAll(files, options, maxConcurrent)`), which
+   *  still works for backward compatibility. */
+  maxConcurrency?: number;
   /**
    * Post-encode sharpening strength, 0..1 (default 0 = off).
    *

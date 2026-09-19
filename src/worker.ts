@@ -8,12 +8,12 @@ import type {
 } from './types';
 import {
   applyExifOrientation,
+  decodeHeicBitmap,
   encodeOffscreenWithTransforms,
   encodeViaOffscreenCanvas,
   encodeWithTargetSize,
   readExifOrientation,
   resizeOffscreen,
-  tryDecodeHEIC,
 } from './worker-helpers';
 
 /**
@@ -54,7 +54,13 @@ const api: ImageWorkerApi = {
       quality = 0.85,
       format = 'image/jpeg',
       maxSizeMB,
+      sharpen = 0,
     } = options;
+
+    // v1.3.3: sharpening runs in the Worker now (it used to be main-thread only,
+    // in executeCanvasMainPath). Skipped for lossless PNG, matching that rule —
+    // sharpening lossless pixels only costs CPU and bytes.
+    const sharpenStrength = format === 'image/png' ? 0 : Math.max(0, sharpen);
 
     // The service tags `options.__path` with the actual path being executed
     // (see executeWorkerPath in service.ts). Use it so worker progress events
@@ -72,7 +78,11 @@ const api: ImageWorkerApi = {
     let width: number;
     let height: number;
 
-    // For HEIC, try native decode first
+    // HEIC: decode in-worker — native ImageDecoder → the forwarded
+    // `__IC_HEIC2ANY_URL` decoder module → bare `heic2any` specifier. All three
+    // are runtime imports (no eval). Before v1.3.3 only the native path ran
+    // here and the service pre-decoded on the main thread, which put the WASM
+    // decoder (the slowest stage) on the UI thread.
     const isHEIC =
       (file instanceof File && /\.(heic|heif)$/i.test(file.name)) ||
       file.type === 'image/heic' ||
@@ -80,7 +90,7 @@ const api: ImageWorkerApi = {
 
     if (isHEIC) {
       emit('decoding', 20);
-      const heicBitmap = await tryDecodeHEIC(file);
+      const heicBitmap = await decodeHeicBitmap(file, options.__heic2anyUrl);
       if (heicBitmap) {
         bitmap = heicBitmap;
         width = heicBitmap.width;
@@ -88,7 +98,8 @@ const api: ImageWorkerApi = {
         emit('resizing', 50);
       } else {
         throw new Error(
-          'HEIC not supported in this browser. Please convert to JPEG first.',
+          'HEIC not supported in this browser. Set window.__IC_HEIC2ANY_URL to a decoder module ' +
+            '(it is forwarded to the Worker), or convert to JPEG first.',
         );
       }
     } else {
@@ -133,6 +144,8 @@ const api: ImageWorkerApi = {
           width: options.width,
           height: options.height,
           keepAspectRatio: options.keepAspectRatio,
+          // v1.3.3: sharpening is applied to the transformed pixels in-worker.
+          sharpen: sharpenStrength,
         });
         // v1.3.0: run the target-size ladder in-worker when requested so the
         // maxSizeMB re-encode doesn't block the main thread.
@@ -149,7 +162,7 @@ const api: ImageWorkerApi = {
             // and rotate/mirror was silently lost (dimensions stayed "portrait"
             // because they came from the transform, so only pixel checks caught
             // it). Same draw math as encodeOffscreenWithTransforms above.
-            { rotate: options.rotate ?? 0, mirror: options.mirror },
+            { rotate: options.rotate ?? 0, mirror: options.mirror, sharpen: sharpenStrength },
           );
           bitmap.close();
           emit('encoding', 95);
@@ -186,7 +199,7 @@ const api: ImageWorkerApi = {
     }
 
     // Encode
-    const blob = await encodeViaOffscreenCanvas(bitmap, format, quality);
+    const blob = await encodeViaOffscreenCanvas(bitmap, format, quality, sharpenStrength);
     // v1.3.0: run the target-size ladder in-worker when requested so the
     // maxSizeMB re-encode doesn't block the main thread.
     if (maxSizeMB !== undefined && maxSizeMB > 0) {
@@ -197,6 +210,7 @@ const api: ImageWorkerApi = {
         maxSizeMB,
         width,
         height,
+        { sharpen: sharpenStrength },
       );
       bitmap.close();
       emit('encoding', 95);

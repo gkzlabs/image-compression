@@ -121,6 +121,29 @@ export class ImageCompression {
     return isWorkerPath && wantsTargetSize;
   }
 
+  /**
+   * v1.3.3: true when the cascade will hand this file to a Worker path — and
+   * that Worker can therefore own HEIC decoding. Keeps the WASM decoder off the
+   * UI thread on devices that have a Worker; devices without one still
+   * pre-decode on the main thread (see the HEIC block in compress()).
+   *
+   * Mirrors the Worker gates in selectPaths(): needs hasWorker +
+   * hasOffscreenCanvas, and the file must clear WORKER_SIZE_THRESHOLD_BYTES.
+   */
+  private static heicDecodedByWorker(
+    caps: DeviceCapabilities,
+    options: CompressionOptions,
+  ): boolean {
+    if (!caps.hasWorker || !caps.hasOffscreenCanvas) return false;
+    const fileSize = (options as { originalSize?: number }).originalSize ?? Infinity;
+    if (fileSize < ImageCompression.WORKER_SIZE_THRESHOLD_BYTES) return false;
+    const forced = options.forcePath;
+    if (forced !== undefined) {
+      return forced === 'webcodecs-worker' || forced === 'offscreen-worker';
+    }
+    return true;
+  }
+
   private capabilities: DeviceCapabilities | null = null;
   private capabilitiesPromise: Promise<DeviceCapabilities> | null = null;
   private worker: ImageWorkerApi | null = null;
@@ -408,6 +431,10 @@ export class ImageCompression {
     this.checkAborted(options.signal);
 
     const originalSize = file.size;
+    /** v1.3.3: true once the HEIC file has been decoded on the main thread.
+     *  When the Worker owns HEIC decoding this stays false until/unless the
+     *  Worker fails, at which point the cascade catch decodes here instead. */
+    let heicPreDecoded = false;
     const name = file instanceof File ? file.name : 'image';
 
     // Smart pass-through: skip compression if file is already small + correct format.
@@ -477,30 +504,44 @@ export class ImageCompression {
     // HEIC pre-decode: try native ImageDecoder, fall back to heic2any (lazy import)
     // On success, the decoded JPEG replaces the HEIC file for the cascade.
     //
-    // Why pre-decode in the service (not in the worker)?
-    // - heic2any is a CommonJS WASM module that doesn't bundle cleanly into a
-    //   Web Worker context. Pre-decoding in the main thread avoids that.
-    // - The worker also has its own tryDecodeHEIC (native ImageDecoder only)
-    //   as defense-in-depth: if main-thread decode fails AND the user did NOT
-    //   set forcePath, the HEIC file falls through to the cascade. The worker's
-    //   tryDecodeHEIC may succeed in browsers where the main thread's path failed.
+    // v1.3.3: when the cascade will run in a Worker, the Worker owns HEIC
+    // decoding — the WASM decoder is the slowest part of the pipeline and used
+    // to block the UI thread here. The raw .heic is handed to the Worker, which
+    // runs native ImageDecoder → decoder module (`__IC_HEIC2ANY_URL`, forwarded
+    // as `__heic2anyUrl`) → bare specifier. If it cannot decode, the cascade
+    // catch below falls back to this main-thread path before the next attempt.
+    //
+    // Devices without a Worker still pre-decode here (unchanged).
     if (this.isHEICFile(file)) {
-      emit({ stage: 'decoding', percent: 10, message: 'Decoding HEIC (may load WASM decoder)...' });
-      const decoded = await tryDecodeHEICLazy(file);
-      this.checkAborted(options.signal);
-      if (decoded) {
-        file = decoded;
-        emit({ stage: 'decoding', percent: 20, message: 'HEIC decoded, continuing cascade' });
-      } else if (options.forcePath) {
-        // Caller asked for a specific path; respect that and fail loudly
-        throw new CompressionError(
-          'HEIC_UNSUPPORTED',
-          'HEIC decode failed (no native ImageDecoder, heic2any failed)',
-          { tried: [options.forcePath] },
-        );
+      const workerOwnsHEIC = ImageCompression.heicDecodedByWorker(caps, {
+        ...options,
+        originalSize,
+      } as CompressionOptions);
+      if (workerOwnsHEIC) {
+        emit({
+          stage: 'decoding',
+          percent: 10,
+          message: 'HEIC will be decoded in the Worker (off the main thread)',
+        });
       } else {
-        // Cascade will fall through; emit note and let it try
-        emit({ stage: 'fallback', percent: 10, message: 'HEIC decode failed, will use server fallback' });
+        emit({ stage: 'decoding', percent: 10, message: 'Decoding HEIC (may load WASM decoder)...' });
+        const decoded = await tryDecodeHEICLazy(file);
+        this.checkAborted(options.signal);
+        if (decoded) {
+          file = decoded;
+          heicPreDecoded = true;
+          emit({ stage: 'decoding', percent: 20, message: 'HEIC decoded, continuing cascade' });
+        } else if (options.forcePath) {
+          // Caller asked for a specific path; respect that and fail loudly
+          throw new CompressionError(
+            'HEIC_UNSUPPORTED',
+            'HEIC decode failed (no native ImageDecoder, heic2any failed)',
+            { tried: [options.forcePath] },
+          );
+        } else {
+          // Cascade will fall through; emit note and let it try
+          emit({ stage: 'fallback', percent: 10, message: 'HEIC decode failed, will use server fallback' });
+        }
       }
     }
 
@@ -576,6 +617,22 @@ export class ImageCompression {
       } catch (err) {
         const errMsg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
         console.warn(`[ImageCompression] path ${path} failed:`, err);
+        // v1.3.3: the Worker owns HEIC decoding on Worker-capable devices. If it
+        // could not decode (no native codec and no decoder module), the
+        // remaining cascade paths need a decodable image — decode on the main
+        // thread once before the next attempt instead of failing the cascade.
+        if (this.isHEICFile(file) && !heicPreDecoded) {
+          const decoded = await tryDecodeHEICLazy(file);
+          if (decoded) {
+            file = decoded;
+            heicPreDecoded = true;
+            emit({
+              stage: 'decoding',
+              percent: 20,
+              message: 'HEIC decoded on the main thread (Worker could not decode it)',
+            });
+          }
+        }
         if (i < paths.length - 1) {
           // Include both the failed path (path) and the next path being tried (attempt+1)
           const nextPath = paths[i + 1];
@@ -617,13 +674,19 @@ export class ImageCompression {
    * @param maxConcurrent Max files processed in parallel (default 2 for mobile).
    *                     Set to 0 or negative to mean Infinity (unlimited).
    *                     Recommended: 2-3 for mobile, 4-8 for desktop.
+   *                     **Deprecated (v1.3.3):** pass `options.maxConcurrency`
+   *                     instead. The positional argument still works.
    */
   async compressAll(
     files: (File | Blob)[],
     options: CompressionOptions = {},
-    maxConcurrent = 2,
+    maxConcurrent?: number,
   ): Promise<(CompressionResult | null)[]> {
     if (files.length === 0) return [];
+    // v1.3.3: `options.maxConcurrency` is the supported way to set this — the
+    // third positional argument forced callers to pass an empty options object
+    // just to reach it. The old form keeps working, so this is not a break.
+    const concurrency = options.maxConcurrency ?? maxConcurrent ?? 2;
 
     return new Promise<(CompressionResult | null)[]>((resolve, reject) => {
       const results: (CompressionResult | null)[] = new Array(files.length).fill(null);
@@ -638,7 +701,7 @@ export class ImageCompression {
         if (errored) return;
         while (
           nextIndex < files.length &&
-          (maxConcurrent <= 0 || activeCount < maxConcurrent)
+          (concurrency <= 0 || activeCount < concurrency)
         ) {
           const fileIndex = nextIndex++;
           activeCount++;
@@ -811,6 +874,9 @@ export class ImageCompression {
     // main-thread concern: checkAborted(options.signal) fires at stage
     // boundaries on the main thread; the worker itself can't be aborted mid-RPC.
     const { onProgress, signal, ...optionsOnly } = options;
+    // v1.3.3: forward the HEIC decoder URL (if the page set one) so the Worker
+    // can decode HEIC off the main thread — its global scope can't see window.
+    const heic2anyUrl = (globalThis as { __IC_HEIC2ANY_URL?: string }).__IC_HEIC2ANY_URL;
     // Always tag the actual path onto the worker options. executePath()
     // normally injects __path, but tagging here makes it robust to direct
     // calls and guarantees the worker reports the right path (offscreen-worker
@@ -818,6 +884,10 @@ export class ImageCompression {
     const workerOptions: CompressionOptions = {
       ...optionsOnly,
       __path: path,
+      // v1.3.3: a Worker cannot read the page's window.__IC_HEIC2ANY_URL (its own
+      // global scope), so forward it explicitly — the Worker needs it to decode
+      // HEIC when the browser has no native ImageDecoder.
+      ...(heic2anyUrl ? { __heic2anyUrl: heic2anyUrl } : {}),
     };
     // Stage 2: Load worker (if not already cached)
     if (!this.worker) {

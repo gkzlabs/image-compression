@@ -42,6 +42,13 @@ execSync('npx tsc -p tsconfig.build.json', { stdio: 'inherit' });
 
 // Step 2: Bundle worker.ts into a standalone ESM file (dist/worker.js) —
 // the single worker artifact shipped to consumers.
+//
+// v1.3.3: `heic2any` is EXTERNAL here on purpose. The Worker now decodes HEIC
+// itself and its last-resort path is a bare `import('heic2any')`; the package is
+// an optional peer, so it must stay a runtime import rather than a hard build
+// dependency (consumers without it must still build — Vite/Rollup tolerate the
+// unresolved specifier precisely BECAUSE it is declared as an optional peer; see
+// docs/BROWSER_COMPAT.md).
 console.log('[build] Bundling worker...');
 const workerResult = await build({
   entryPoints: ['./src/worker.ts'],
@@ -50,6 +57,7 @@ const workerResult = await build({
   write: false,
   target: ['es2022'],
   platform: 'browser',
+  external: ['heic2any'],
   sourcemap: false,
 });
 
@@ -74,13 +82,11 @@ await build({
   define: {
     __BUILD_VERSION__: JSON.stringify(version),
   },
-  // src/heic.ts deliberately uses `eval("import('<url>')")` so no bundler can
-  // statically analyze the optional heic2any import (Angular esbuild fails on
-  // a bare specifier from node_modules). The eval is intentional and covered
-  // in SECURITY.md — silence the per-build warning instead of re-litigating it.
-  logOverride: {
-    'direct-eval': 'silent',
-  },
+  // src/heic.ts keeps the bare `import('heic2any')` literal so bundlers can
+  // resolve the optional peer into their own lazy chunk (v1.3.3 — see
+  // docs/BROWSER_COMPAT.md; removing the peer declaration breaks Vite builds).
+  // esbuild must not try to resolve it here: the package is optional.
+  external: ['heic2any'],
   sourcemap: true,
   minify: false,
 });
@@ -111,9 +117,9 @@ const cjs = await build({
   define: {
     __BUILD_VERSION__: JSON.stringify(version),
   },
-  logOverride: {
-    'direct-eval': 'silent',
-  },
+  // Same reason as the ESM build: heic2any is an optional peer, resolved by the
+  // consumer's bundler (or absent), never by our build.
+  external: ['heic2any'],
   sourcemap: true,
   minify: false,
 });

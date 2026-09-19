@@ -31,6 +31,10 @@ export { tryDecodeHEICLazy, resolveWorker } from './service';
 export { compress$, compressAll$ } from './stream';
 export type { CompressStreamEvent, CompressAllStreamEvent, BatchProgress } from './stream';
 
+// v1.3.3: responsive <picture> output (AVIF/WebP + JPEG fallback in one call).
+export { toPictureSet } from './picture';
+export type { PictureSet, PictureSource } from './picture';
+
 // Types
 export type {
   CompressionPath,

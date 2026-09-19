@@ -48,6 +48,8 @@ const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2
 - 📐 **Exact resize** — `width` / `height` / `keepAspectRatio` for precise dimensions
 - 🖼️ **Auto EXIF rotation** — vertical phone photos auto-orient correctly
 - 🌊 **Streaming API** — `compress$()` and `compressAll$()` return native `AsyncIterable` (no RxJS needed)
+- 🖼️ **Responsive `<picture>` in one call** — `toPictureSet()` encodes AVIF/WebP + JPEG fallback, skips formats the engine can't produce, and returns markup + object URLs (v1.3.3)
+- ⚙️ **Bounded batch parallelism** — `options.maxConcurrency` on `compressAll()` / `compressAll$()` (v1.3.3; the old positional argument still works)
 - 📦 **Framework-agnostic** — Zero dependencies on Angular, React, or RxJS
 - 🖼️ **HEIC decode** — native `ImageDecoder` first, else the optional `heic2any` decoder (declared optional peer) or any decoder module via `__IC_HEIC2ANY_URL`
 - ⚡ **Smart pass-through** — Skip compression for already-small JPEGs (`passThroughUnderBytes`)

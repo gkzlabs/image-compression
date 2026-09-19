@@ -15,3 +15,7 @@ bench/.serve/
 AGENTS.md
 CLAUDE.md
 GEMINI.md
+
+# Real heic2any bundle used ONLY by test/heic2any-real.mjs (never shipped).
+# Recreate: cp node_modules/heic2any/dist/heic2any.min.js test/vendor/  (npm i heic2any@0.0.4)
+test/vendor/

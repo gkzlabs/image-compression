@@ -8,7 +8,7 @@
  *
  * The Node-side driver (test/browser-smoke.mjs) calls `window.__icSmoke.*`.
  */
-import { ImageCompression } from '/dist/index.js';
+import { ImageCompression, toPictureSet } from '/dist/index.js';
 
 /** base64 → File without Buffer (browser context). */
 function base64ToFile(base64, name, type = 'image/jpeg') {
@@ -323,6 +323,296 @@ export function installSmokeApi() {
         if (disposeTimer) clearTimeout(disposeTimer);
         svc.dispose();
         delete window.__IC_WORKER_URL;
+      }
+    },
+
+    /**
+     * HEIC with NO decoder available anywhere: no native ImageDecoder (headless
+     * Chrome has none), no `__IC_HEIC2ANY_URL`, no `window.heic2any` global, and
+     * no installed package. Measures how long the attempt takes and what the
+     * caller actually receives. Exists to answer "if a consumer never installs
+     * heic2any, does compress() hang?" with a number instead of a claim.
+     */
+    async heicNoDecoderProbe({ heicUrl, options = {} }) {
+      const bytes = new Uint8Array(await (await fetch(new URL(heicUrl, document.baseURI))).arrayBuffer());
+      delete window.__IC_HEIC2ANY_URL;
+      delete window.heic2any;
+      const svc = new ImageCompression();
+      const stages = [];
+      const started = performance.now();
+      try {
+        const result = await svc.compress(
+          new File([bytes], 'sample.heic', { type: 'image/heic' }),
+          { ...options, onProgress: (p) => stages.push(`${p.stage}${p.path ? `:${p.path}` : ''}`) },
+        );
+        const out = new Uint8Array(await result.blob.arrayBuffer());
+        let identical = out.length === bytes.length;
+        if (identical) for (let i = 0; i < out.length; i++) if (out[i] !== bytes[i]) { identical = false; break; }
+        return {
+          ok: true,
+          path: result.path,
+          durationMs: Math.round(performance.now() - started),
+          originalSize: result.originalSize,
+          compressedSize: result.compressedSize,
+          returnsOriginalBytes: identical,
+          stages,
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          code: err && err.code ? err.code : 'UNKNOWN',
+          message: err instanceof Error ? err.message : String(err),
+          durationMs: Math.round(performance.now() - started),
+          stages,
+        };
+      } finally {
+        svc.dispose();
+        delete window.__IC_HEIC2ANY_URL;
+      }
+    },
+
+    /**
+     * v1.3.3 (C4): `<picture>` output in a real browser — reports which formats
+     * the engine can actually encode, the generated markup, and whether
+     * `revoke()` really releases the object URLs.
+     */
+    async pictureSetProbe({ fixtureBase64, name, options = {} }) {
+      const file = base64ToFile(fixtureBase64, name);
+      let set;
+      try {
+        set = await toPictureSet(file, options);
+      } catch (err) {
+        return { ok: false, message: err instanceof Error ? err.message : String(err) };
+      }
+      const urls = [set.fallback.url, ...set.sources.map((s) => s.url)];
+      const result = {
+        ok: true,
+        fallback: { type: set.fallback.type, bytes: set.fallback.bytes, width: set.fallback.width, height: set.fallback.height },
+        sources: set.sources.map((s) => ({ type: s.type, bytes: s.bytes })),
+        html: set.html,
+        urlCount: urls.length,
+      };
+      set.revoke();
+      // A revoked object URL must no longer resolve — the observable proof that
+      // revoke() released the blobs instead of just forgetting them.
+      try {
+        const res = await fetch(urls[0]);
+        result.fetchAfterRevoke = res.ok ? 'still-ok' : `status-${res.status}`;
+      } catch {
+        result.fetchAfterRevoke = 'failed';
+      }
+      return result;
+    },
+
+    /**
+     * v1.3.3: sharpen runs in the Worker — browser-side evidence.
+     *
+     * Compresses the same synthetic step-edge image twice (sharpen 0 vs N) with a
+     * fresh service each time, then reports the mean pixel delta and the mean
+     * luminance of the 7px band immediately LEFT of the step edge (the additive
+     * unsharp mask's halo signature). Optionally measures main-thread rAF gaps.
+     */
+    async sharpenProbe({ sharpen = 0.9, options = {}, probeMainThread = false, width = 240, height = 160 }) {
+      const makeEdge = async () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#101010';
+        ctx.fillRect(0, 0, width / 2, height);
+        ctx.fillStyle = '#f0f0f0';
+        ctx.fillRect(width / 2, 0, width / 2, height);
+        const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.95));
+        return new File([blob], 'edge.jpg', { type: 'image/jpeg' });
+      };
+
+      const raster = async (blob) => {
+        const bitmap = await createImageBitmap(blob);
+        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(bitmap, 0, 0);
+        bitmap.close();
+        return { data: ctx.getImageData(0, 0, canvas.width, canvas.height).data, width: canvas.width, height: canvas.height };
+      };
+
+      const run = async (strength) => {
+        const svc = new ImageCompression();
+        const file = await makeEdge();
+        let probe = null;
+        if (probeMainThread) {
+          probe = { frames: 0, maxGapMs: 0, last: performance.now(), running: true };
+          const tick = () => {
+            const now = performance.now();
+            probe.maxGapMs = Math.max(probe.maxGapMs, now - probe.last);
+            probe.last = now;
+            probe.frames++;
+            if (probe.running) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }
+        try {
+          const result = await svc.compress(file, {
+            format: 'image/jpeg',
+            quality: 0.9,
+            sharpen: strength,
+            ...options,
+          });
+          if (probe) probe.running = false;
+          return { path: result.path, width: result.width, height: result.height, blob: result.blob, probe };
+        } finally {
+          if (probe) probe.running = false;
+          svc.dispose();
+        }
+      };
+
+      const plain = await run(0);
+      const sharpened = await run(sharpen);
+
+      const a = await raster(plain.blob);
+      const b = await raster(sharpened.blob);
+      let delta = 0;
+      const n = Math.min(a.data.length, b.data.length);
+      for (let i = 0; i < n; i += 4) {
+        delta += Math.abs(a.data[i] - b.data[i]) + Math.abs(a.data[i + 1] - b.data[i + 1]) + Math.abs(a.data[i + 2] - b.data[i + 2]);
+      }
+      delta = delta / (n / 4) / 3;
+
+      // Band just left of the edge (edge sits at width/2).
+      const bandLuma = (rasterized) => {
+        const edgeX = Math.floor(rasterized.width / 2);
+        let sum = 0;
+        let count = 0;
+        for (let y = 0; y < rasterized.height; y++) {
+          for (let x = Math.max(0, edgeX - 7); x < edgeX; x++) {
+            const i = (y * rasterized.width + x) * 4;
+            sum += (rasterized.data[i] + rasterized.data[i + 1] + rasterized.data[i + 2]) / 3;
+            count++;
+          }
+        }
+        return sum / count;
+      };
+
+      return {
+        path: sharpened.path,
+        plainPath: plain.path,
+        dims: `${sharpened.width}x${sharpened.height}`,
+        delta,
+        bandLumaPlain: bandLuma(a),
+        bandLumaSharpened: bandLuma(b),
+        probe: sharpened.probe ? { frames: sharpened.probe.frames, maxGapMs: sharpened.probe.maxGapMs } : null,
+      };
+    },
+
+    /**
+     * v1.3.3: HEIC fixture end-to-end with the real file, reporting whether the
+     * PAGE-side decoder ran. `test/fixtures/reference-decoder.mjs` records itself
+     * on `globalThis.__IC_REFERENCE_DECODER`, so a page-side decode is visible
+     * here while a Worker-side decode is not — which is exactly the evidence
+     * needed to prove the decode moved off the main thread.
+     */
+    async heicFixtureProbe({ decoderUrl, heicUrl, options = {}, probeMainThread = false, referenceUrl = null }) {
+      const bytes = new Uint8Array(await (await fetch(new URL(heicUrl, document.baseURI))).arrayBuffer());
+      let fnv = 0x811c9dc5;
+      for (let i = 0; i < bytes.length; i++) {
+        fnv ^= bytes[i];
+        fnv = Math.imul(fnv, 0x01000193) >>> 0;
+      }
+
+      delete window.__IC_REFERENCE_DECODER;
+      window.__IC_HEIC2ANY_URL = new URL(decoderUrl, document.baseURI).href;
+
+      const svc = new ImageCompression();
+      let probe = null;
+      if (probeMainThread) {
+        probe = { frames: 0, maxGapMs: 0, last: performance.now(), running: true };
+        const tick = () => {
+          const now = performance.now();
+          probe.maxGapMs = Math.max(probe.maxGapMs, now - probe.last);
+          probe.last = now;
+          probe.frames++;
+          if (probe.running) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }
+
+      const stages = [];
+      try {
+        const result = await svc.compress(
+          new File([bytes], 'sample.heic', { type: 'image/heic' }),
+          { format: 'image/jpeg', quality: 0.9, ...options, onProgress: (p) => stages.push(`${p.stage}${p.path ? `:${p.path}` : ''}`) },
+        );
+        if (probe) probe.running = false;
+
+        const bitmap = await createImageBitmap(result.blob);
+        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(bitmap, 0, 0);
+        bitmap.close();
+        const at = (x, y) => [...ctx.getImageData(x, y, 1, 1).data].slice(0, 3);
+
+        // Optional: mean per-channel difference against a ground-truth image
+        // (ImageIO's own decode of the same .heic) — proves the decoder's
+        // output is not merely "some image" but the right one.
+        let meanDeltaVsReference = null;
+        if (referenceUrl) {
+          const refBlob = await (await fetch(new URL(referenceUrl, document.baseURI))).blob();
+          const refBitmap = await createImageBitmap(refBlob);
+          const refCanvas = new OffscreenCanvas(refBitmap.width, refBitmap.height);
+          const refCtx = refCanvas.getContext('2d');
+          refCtx.drawImage(refBitmap, 0, 0);
+          refBitmap.close();
+          if (refCanvas.width === canvas.width && refCanvas.height === canvas.height) {
+            const a = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            const b = refCtx.getImageData(0, 0, refCanvas.width, refCanvas.height).data;
+            let sum = 0;
+            for (let i = 0; i < a.length; i += 4) {
+              sum += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+            }
+            meanDeltaVsReference = sum / (a.length / 4) / 3;
+          } else {
+            meanDeltaVsReference = `size mismatch: ${canvas.width}x${canvas.height} vs ${refCanvas.width}x${refCanvas.height}`;
+          }
+        }
+
+        return {
+          ok: true,
+          path: result.path,
+          width: result.width,
+          height: result.height,
+          compressedSize: result.compressedSize,
+          originalSize: result.originalSize,
+          stages,
+          fixtureBytes: bytes.length,
+          fixtureFnv: fnv,
+          meanDeltaVsReference,
+          decoderSawOnPage: window.__IC_REFERENCE_DECODER
+            ? { size: window.__IC_REFERENCE_DECODER.size, fnv1a: window.__IC_REFERENCE_DECODER.fnv1a, calls: window.__IC_REFERENCE_DECODER.calls }
+            : null,
+          quadrants: {
+            topLeft: at(40, 40),
+            topRight: canvas.width > 280 ? at(280, 40) : null,
+            bottomLeft: canvas.height > 200 ? at(40, 200) : null,
+            bottomRight: canvas.height > 200 && canvas.width > 280 ? at(280, 200) : null,
+          },
+          probe: probe ? { frames: probe.frames, maxGapMs: probe.maxGapMs } : null,
+        };
+      } catch (err) {
+        if (probe) probe.running = false;
+        return {
+          ok: false,
+          code: err && err.code ? err.code : 'UNKNOWN',
+          message: err instanceof Error ? err.message : String(err),
+          stages,
+          fixtureBytes: bytes.length,
+          fixtureFnv: fnv,
+          decoderSawOnPage: window.__IC_REFERENCE_DECODER ?? null,
+          probe: probe ? { frames: probe.frames, maxGapMs: probe.maxGapMs } : null,
+        };
+      } finally {
+        if (probe) probe.running = false;
+        svc.dispose();
+        delete window.__IC_HEIC2ANY_URL;
+        delete window.__IC_REFERENCE_DECODER;
       }
     },
   };

@@ -1,0 +1,43 @@
+name: Nightly — real heic2any decoder
+
+# Why a separate workflow: this is the only suite that exercises the REAL
+# heic2any package (1.35 MB UMD, downloaded from npm) instead of a stand-in
+# decoder. It proved the decode path end-to-end — main thread, inside the Worker
+# (the bundle logs from the Worker realm), and against ImageIO's own decode as
+# ground truth (mean Δ ≈ 1.7/255). It downloads a large third-party bundle, so it
+# runs nightly / on demand rather than on every push.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  heic2any-real:
+    name: Real heic2any (download + decode + pixels)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit
+      - run: npm run build
+      - name: Fetch heic2any into a scratch project
+        # NOT `npm i heic2any` in the repo: it is declared as an *optional* peer,
+        # so npm considers the tree satisfied and installs nothing.
+        run: |
+          mkdir -p /tmp/heic2any-dl && cd /tmp/heic2any-dl
+          npm init -y >/dev/null
+          npm i --no-audit --no-fund heic2any@0.0.4
+          mkdir -p "$GITHUB_WORKSPACE/test/vendor"
+          cp node_modules/heic2any/dist/heic2any.min.js "$GITHUB_WORKSPACE/test/vendor/"
+          ls -la "$GITHUB_WORKSPACE/test/vendor/"
+      - name: Ensure Chrome for the browser run
+        run: npx puppeteer browsers install chrome
+      - name: Real heic2any decode suite
+        run: npm run test:heic2any

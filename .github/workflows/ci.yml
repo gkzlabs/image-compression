@@ -79,6 +79,39 @@ jobs:
         # (incl. combined with maxSizeMB), worker reuse, and mid-flight dispose.
         run: npm run test:worker
 
+  browser-matrix:
+    # ข้อ 4: the Chromium-only job above never exercised the engines that behave
+    # differently. Measured per engine (this repo, 2026-09-19):
+    #   engine    WebCodecs  WebP encode  AVIF encode
+    #   Chromium     yes         yes          yes
+    #   Firefox      no*         yes          no
+    #   WebKit       no          NO           yes
+    # (*Firefox reports WebCodecs in some builds; the cascade must work either
+    #  way, which is the point.) WebKit cannot encode WebP at all — canvas
+    # silently returns PNG — so `canEncodeFormat()` and the <picture> helper have
+    # to skip it rather than advertise a format the engine cannot produce.
+    # Plays the same smoke page + harness as the Puppeteer suites.
+    name: Browser matrix (${{ matrix.engine }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --prefer-offline --no-audit
+      - run: npm run build
+      - name: Install Playwright browser (${{ matrix.engine }})
+        run: npx --yes playwright@1.56.1 install --with-deps ${{ matrix.engine }}
+      - name: Cross-engine browser matrix
+        run: node test/browser-matrix.mjs ${{ matrix.engine }}
+
   angular-cli-build:
     # Angular CLI = the HOSTILE bundler (esbuild builder, node_modules imports).
     # This is the setup that previously 404'd on the worker URL. Build the real

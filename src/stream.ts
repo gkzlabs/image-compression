@@ -179,6 +179,9 @@ export function compressAll$(
   maxConcurrent: number = 2,
   svc: ImageCompression,
 ): AsyncIterable<CompressAllStreamEvent> {
+  // v1.3.3: `options.maxConcurrency` is the supported way to bound parallelism;
+  // the positional third argument is deprecated but still honoured.
+  const concurrency = options.maxConcurrency ?? maxConcurrent;
   return {
     [Symbol.asyncIterator](): AsyncIterator<CompressAllStreamEvent> {
       if (files.length === 0) {
@@ -226,7 +229,7 @@ export function compressAll$(
         if (errored) return;
         while (
           nextIndex < files.length &&
-          (maxConcurrent <= 0 || activeCount < maxConcurrent)
+          (concurrency <= 0 || activeCount < concurrency)
         ) {
           const fileIndex = nextIndex++;
           activeCount++;

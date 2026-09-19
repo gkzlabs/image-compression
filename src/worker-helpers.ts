@@ -270,6 +270,8 @@ export async function encodeViaOffscreenCanvas(
   bitmap: ImageBitmap,
   format: string,
   quality: number,
+  /** v1.3.3: unsharp-mask strength applied before encoding (skip for PNG). */
+  sharpen?: number,
 ): Promise<Blob> {
   const { width, height } = bitmap;
   const canvas = new OffscreenCanvas(width, height);
@@ -291,6 +293,11 @@ export async function encodeViaOffscreenCanvas(
   // Chrome 149's "image source is detached" error. The caller in worker.ts
   // closes the bitmap after the encode returns (see worker.ts compress()).
   ctx.drawImage(bitmap, 0, 0);
+  // v1.3.3: optional post-resize sharpening, in the Worker (was main-thread
+  // only). Runs on the pixels just drawn at final size, before encoding.
+  if (sharpen !== undefined && sharpen > 0) {
+    sharpenInPlace(ctx, sharpen, width, height);
+  }
   return await canvas.convertToBlob({ type: format, quality });
 }
 
@@ -381,6 +388,101 @@ export async function tryDecodeHEIC(file: File | Blob): Promise<ImageBitmap | nu
     decoder.close();
     const bitmap = await createImageBitmap(image);
     return bitmap;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * v1.3.3: Decode a HEIC/HEIF file to a bitmap INSIDE the Worker.
+ *
+ * Chain (first success wins):
+ *   1. native `ImageDecoder` (Chrome 94+ on macOS 11+/Win 11/Android 12+)
+ *   2. a decoder module at `decoderUrl` — the `window.__IC_HEIC2ANY_URL` hatch,
+ *      forwarded by the service as `options.__heic2anyUrl` because a Worker
+ *      cannot read the page's globals
+ *   3. the bare `heic2any` specifier (bundler-resolved, optional peer)
+ *
+ * Both module paths use plain runtime dynamic `import()` — no `eval`, no
+ * `new Function`, so no CSP `'unsafe-eval'` requirement (see SECURITY.md).
+ *
+ * Moving this into the Worker keeps the WASM decoder (the slowest stage) off
+ * the UI thread; the main thread only pre-decodes when no Worker path is
+ * available (see `ImageCompression.heicDecodedByWorker`).
+ *
+ * @returns the decoded bitmap, or null when nothing could decode it
+ */
+export async function decodeHeicBitmap(
+  file: File | Blob,
+  decoderUrl?: string,
+): Promise<ImageBitmap | null> {
+  const native = await tryDecodeHEIC(file);
+  if (native) return native;
+
+  // 1. A decoder the page already installed as a global (UMD/IIFE <script> tag).
+  //    Checked before any import so we never spend a failed import attempt on it.
+  const preinstalled = (globalThis as { heic2any?: unknown }).heic2any;
+  if (typeof preinstalled === 'function') {
+    const viaGlobal = await runHeic2any(preinstalled as Heic2anyLike, file);
+    if (viaGlobal) return viaGlobal;
+  }
+
+  // 2. The forwarded hatch URL (a decoder module loaded at runtime).
+  const url = decoderUrl ?? (globalThis as { __IC_HEIC2ANY_URL?: string }).__IC_HEIC2ANY_URL;
+  if (url) {
+    const viaHatch = await loadAndRun(() => import(/* @vite-ignore */ url), file);
+    if (viaHatch) return viaHatch;
+  }
+
+  // 3. Bare specifier (bundler-resolved optional peer).
+  //
+  // The specifier is passed through a variable on purpose: an unresolved LITERAL
+  // `import('heic2any')` is tolerated by Vite/Rollup in the main bundle (it is a
+  // declared optional peer) but NOT when the same file is bundled as a WORKER
+  // entry — `vite build` fails with `Rollup failed to resolve import "heic2any"`
+  // while bundling dist/worker.js (verified against the five examples). With a
+  // variable specifier no bundler tries to resolve it; in a browser this path
+  // simply yields nothing and the hatch/native paths remain (see
+  // docs/BROWSER_COMPAT.md).
+  const bareSpecifier = 'heic2any';
+  return await loadAndRun(() => import(/* @vite-ignore */ bareSpecifier), file);
+}
+
+type Heic2anyLike = (opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>;
+
+/** Run a heic2any-shaped decoder and turn its blob into a bitmap. */
+async function runHeic2any(
+  decoder: Heic2anyLike,
+  file: File | Blob,
+): Promise<ImageBitmap | null> {
+  try {
+    const result = await decoder({ blob: file, toType: 'image/jpeg' });
+    const blob = Array.isArray(result) ? result[0] : result;
+    if (!(blob instanceof Blob) || blob.size === 0) return null;
+    return await createImageBitmap(blob);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Import a decoder module and run it. Accepts the three shapes the library
+ * supports: `mod.default`, the module object itself, or a global that the
+ * module installed as a side effect.
+ */
+async function loadAndRun(
+  load: () => Promise<unknown>,
+  file: File | Blob,
+): Promise<ImageBitmap | null> {
+  try {
+    const mod = (await load()) as { default?: unknown };
+    const candidate = mod?.default ?? mod;
+    if (typeof candidate !== 'function') {
+      const sideEffect = (globalThis as { heic2any?: unknown }).heic2any;
+      if (typeof sideEffect !== 'function') return null;
+      return await runHeic2any(sideEffect as Heic2anyLike, file);
+    }
+    return await runHeic2any(candidate as Heic2anyLike, file);
   } catch {
     return null;
   }
@@ -633,6 +735,33 @@ export function applySharpen(
   return out as unknown as HTMLCanvasElement;
 }
 
+/**
+ * v1.3.3: Apply the same unsharp mask to pixels ALREADY drawn on `ctx`, in place.
+ *
+ * Extracted so every Worker encode path (plain encode, transformed encode, and
+ * each target-size ladder step) can sharpen the exact pixels it is about to
+ * encode, without allocating a second full-size canvas per ladder step and
+ * without duplicating the mask math (it delegates to `applySharpen`).
+ *
+ * Callers must skip this for lossless PNG output — sharpening lossless pixels
+ * just wastes CPU and inflates the file for no visual gain.
+ */
+export function sharpenInPlace(
+  ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D,
+  strength: number,
+  width: number,
+  height: number,
+): void {
+  if (!(strength > 0)) return;
+  const sharpened = applySharpen(ctx.canvas as unknown as CanvasImageSource, strength, width, height);
+  ctx.save();
+  // 'copy' replaces the pixels instead of blending the mask on top (a plain
+  // drawImage with source-over would double the original luminance).
+  ctx.globalCompositeOperation = 'copy';
+  ctx.drawImage(sharpened as unknown as CanvasImageSource, 0, 0, width, height);
+  ctx.restore();
+}
+
 export type { ExifOrientation } from './exif';
 export { readExifOrientation } from './exif';
 
@@ -665,6 +794,8 @@ export async function encodeOffscreenWithTransforms(
     width?: number;
     height?: number;
     keepAspectRatio?: boolean;
+    /** v1.3.3: unsharp-mask strength applied to the drawn pixels before encoding. */
+    sharpen?: number;
   },
 ): Promise<{ blob: Blob; width: number; height: number }> {
   const srcW = source.width;
@@ -726,6 +857,11 @@ export async function encodeOffscreenWithTransforms(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('OffscreenCanvas 2d context unavailable for transformed encode');
   drawTransformed(ctx, source, finalW, finalH, { rotate, mirror });
+  // v1.3.3: sharpen the transformed pixels before encoding (PNG is skipped by
+  // the caller — see worker.ts, matching the main-thread canvas-main rule).
+  if (opts.sharpen !== undefined && opts.sharpen > 0) {
+    sharpenInPlace(ctx, opts.sharpen, finalW, finalH);
+  }
 
   const blob = await canvas.convertToBlob({ type: format, quality });
   return { blob, width: finalW, height: finalH };
@@ -798,10 +934,16 @@ export async function encodeWithTargetSize(
   maxMB: number,
   width: number,
   height: number,
-  transform?: { rotate?: 0 | 90 | 180 | 270; mirror?: 'horizontal' | 'vertical' },
+  transform?: {
+    rotate?: 0 | 90 | 180 | 270;
+    mirror?: 'horizontal' | 'vertical';
+    /** v1.3.3: unsharp-mask strength re-applied on EVERY ladder step. */
+    sharpen?: number;
+  },
 ): Promise<{ blob: Blob; width: number; height: number } | null> {
   const targetBytes = maxMB * 1024 * 1024;
   const useTransform = transform !== undefined && (transform.rotate !== undefined || transform.mirror !== undefined);
+  const sharpen = transform?.sharpen;
   return shrinkToTargetSize(source, width, height, format, quality, targetBytes, (w, h, q) =>
     new Promise<Blob | null>((resolve) => {
       const canvas = new OffscreenCanvas(w, h);
@@ -816,6 +958,13 @@ export async function encodeWithTargetSize(
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(source, 0, 0, w, h);
+      }
+      // v1.3.3: every ladder step re-draws the source, so it must re-apply the
+      // sharpen too — otherwise a maxSizeMB re-encode silently returns the
+      // unsharpened image, the same class of bug drawTransformed() fixed for
+      // rotate/mirror in v1.3.1.
+      if (sharpen !== undefined && sharpen > 0) {
+        sharpenInPlace(ctx, sharpen, w, h);
       }
       canvas.convertToBlob({ type: format, quality: q }).then(resolve).catch(() => resolve(null));
     }),

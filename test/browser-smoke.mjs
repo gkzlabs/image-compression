@@ -238,6 +238,137 @@ async function main() {
         record('recovery after 404', 'FAIL', JSON.stringify(r).slice(0, 160));
       }
     }
+
+    // ── v1.3.3: sharpen and HEIC decode moved into the Worker ──────────────
+    const probe = async (method, args) =>
+      page.evaluate(
+        async ({ method, args, timeoutMs }) => {
+          const timeout = new Promise((res) => setTimeout(() => res({ hung: true }), timeoutMs));
+          return Promise.race([window.__icSmoke[method](args), timeout]);
+        },
+        { method, args, timeoutMs: CASE_TIMEOUT_MS },
+      );
+
+    const sharp = await probe('sharpenProbe', {
+      sharpen: 0.9,
+      width: 1200,
+      height: 800,
+      options: { forcePath: 'offscreen-worker', maxWidthOrHeight: 1200 },
+      probeMainThread: true,
+    });
+    if (sharp.hung) {
+      record('sharpen runs in the Worker', 'FAIL', `hung > ${CASE_TIMEOUT_MS}ms`);
+    } else if (
+      sharp.path === 'offscreen-worker' &&
+      // Thresholds measured on this fixture (1200x800): the halo is the strong
+      // signal (16 → ~30 luma on the dark side of the step); the image-wide mean
+      // delta stays small because only edge-adjacent pixels move.
+      sharp.bandLumaSharpened > sharp.bandLumaPlain + 5 &&
+      sharp.delta > 0.05
+    ) {
+      record(
+        'sharpen runs in the Worker (pixels change, off-thread)',
+        'PASS',
+        `path=${sharp.path} ${sharp.dims} mean Δ=${sharp.delta.toFixed(2)} · edge halo ${sharp.bandLumaPlain.toFixed(1)} → ${sharp.bandLumaSharpened.toFixed(1)} · max rAF gap ${sharp.probe?.maxGapMs.toFixed(1)}ms`,
+      );
+    } else {
+      record('sharpen runs in the Worker', 'FAIL', JSON.stringify(sharp).slice(0, 220));
+    }
+
+    const heicWorker = await probe('heicFixtureProbe', {
+      decoderUrl: '/test/fixtures/reference-decoder.mjs',
+      heicUrl: '/test/fixtures/sample.heic',
+      options: { forcePath: 'offscreen-worker', maxWidthOrHeight: 320 },
+      probeMainThread: true,
+    });
+    const heicQuadrantsOk = (q) =>
+      q && q.topLeft?.[0] > 180 && q.topRight?.[1] > 180 && q.bottomLeft?.[2] > 180 && q.bottomRight?.[0] > 180;
+    // Two acceptable outcomes, both measured:
+    //  (a) the Worker decoded HEIC itself → the page-side decoder never ran;
+    //  (b) the Worker could not use the decoder module (engine/module-format
+    //      limitation) → the documented v1.3.3 fallback decodes on the main
+    //      thread once and the Worker compresses the decoded image, so the final
+    //      path and pixels are still the worker path's.
+    const heicWorkerDecodedInWorker = heicWorker.decoderSawOnPage === null;
+    if (heicWorker.hung) {
+      record('real .heic decoded in the Worker', 'FAIL', `hung > ${CASE_TIMEOUT_MS}ms`);
+    } else if (
+      heicWorker.ok &&
+      heicWorker.path === 'offscreen-worker' &&
+      heicWorker.width === 320 &&
+      heicWorker.height === 240 &&
+      heicQuadrantsOk(heicWorker.quadrants)
+    ) {
+      record(
+        heicWorkerDecodedInWorker
+          ? 'real .heic decoded in the Worker (page decoder never ran)'
+          : 'real .heic on the worker path (main-thread fallback decoded)',
+        'PASS',
+        `path=${heicWorker.path} ${heicWorker.width}x${heicWorker.height} · worker-decoded=${heicWorkerDecodedInWorker ? 'yes' : 'no (fallback used)'} · max rAF gap ${heicWorker.probe?.maxGapMs.toFixed(1)}ms`,
+      );
+    } else {
+      record(
+        'real .heic decoded in the Worker',
+        'FAIL',
+        `pageDecoderRan=${heicWorker.decoderSawOnPage ? 'yes' : 'no'} quadrants=${JSON.stringify(heicWorker.quadrants)} stages=${(heicWorker.stages ?? []).join(',')} ${JSON.stringify({ ok: heicWorker.ok, path: heicWorker.path, w: heicWorker.width, h: heicWorker.height, code: heicWorker.code, msg: heicWorker.message }).slice(0, 220)}`,
+      );
+    }
+
+    const heicMain = await probe('heicFixtureProbe', {
+      decoderUrl: '/test/fixtures/reference-decoder.mjs',
+      heicUrl: '/test/fixtures/sample.heic',
+      options: { forcePath: 'canvas-main', maxWidthOrHeight: 320 },
+    });
+    if (heicMain.hung) {
+      record('real .heic on the main-thread path', 'FAIL', `hung > ${CASE_TIMEOUT_MS}ms`);
+    } else if (
+      heicMain.ok &&
+      heicMain.path === 'canvas-main' &&
+      heicQuadrantsOk(heicMain.quadrants) &&
+      heicMain.decoderSawOnPage?.size === heicMain.fixtureBytes
+    ) {
+      record(
+        'real .heic on the main-thread path (decoder got the exact file)',
+        'PASS',
+        `path=${heicMain.path} ${heicMain.width}x${heicMain.height} · decoder saw ${heicMain.decoderSawOnPage.size}B (fixture ${heicMain.fixtureBytes}B)`,
+      );
+    } else {
+      record('real .heic on the main-thread path', 'FAIL', JSON.stringify(heicMain).slice(0, 300));
+    }
+    // ── HEIC with NO decoder at all (the "consumer never installed heic2any" case) ──
+    const noDecoder = await probe('heicNoDecoderProbe', {
+      heicUrl: '/test/fixtures/sample.heic',
+      options: { maxWidthOrHeight: 320 },
+    });
+    if (noDecoder.hung) {
+      record('HEIC with no decoder settles (no hang)', 'FAIL', `hung > ${CASE_TIMEOUT_MS}ms — this IS the hang case`);
+    } else if (noDecoder.ok && noDecoder.path === 'server-fallback' && noDecoder.returnsOriginalBytes) {
+      record(
+        'HEIC with no decoder: falls back to the original file',
+        'PASS',
+        `settled in ${noDecoder.durationMs}ms via ${noDecoder.path} · original ${noDecoder.originalSize}B returned untouched · stages: ${noDecoder.stages.join(' → ')}`,
+      );
+    } else if (noDecoder.ok) {
+      record('HEIC with no decoder: falls back to the original file', 'FAIL', `path=${noDecoder.path} identical=${noDecoder.returnsOriginalBytes} ${noDecoder.durationMs}ms`);
+    } else {
+      record('HEIC with no decoder: falls back to the original file', 'FAIL', `${noDecoder.code}: ${noDecoder.message} (${noDecoder.durationMs}ms)`);
+    }
+
+    const noDecoderForced = await probe('heicNoDecoderProbe', {
+      heicUrl: '/test/fixtures/sample.heic',
+      options: { maxWidthOrHeight: 320, forcePath: 'canvas-main' },
+    });
+    if (noDecoderForced.hung) {
+      record('HEIC with no decoder + forcePath fails loudly', 'FAIL', `hung > ${CASE_TIMEOUT_MS}ms`);
+    } else if (!noDecoderForced.ok && noDecoderForced.code === 'HEIC_UNSUPPORTED') {
+      record(
+        'HEIC with no decoder + forcePath fails loudly',
+        'PASS',
+        `${noDecoderForced.code} in ${noDecoderForced.durationMs}ms — explicit error instead of a silent fallback`,
+      );
+    } else {
+      record('HEIC with no decoder + forcePath fails loudly', 'FAIL', JSON.stringify(noDecoderForced).slice(0, 200));
+    }
   } finally {
     await browser.close();
     server.close();

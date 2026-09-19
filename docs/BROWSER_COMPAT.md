@@ -118,6 +118,29 @@ window.__IC_HEIC2ANY_URL = new URL('heic2any.js', document.baseURI).href;
 
 ## Testing Coverage
 
+### Cross-engine matrix (v1.3.3)
+
+The suites run against the **built bundle** in three engines. The differences are
+large enough that Chromium-only coverage missed real behaviour — measured:
+
+| Engine | OffscreenCanvas | Worker | WebCodecs (`ImageDecoder`) | WebP encode | AVIF encode |
+|---|---|---|---|---|---|
+| Chromium | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Firefox | ✅ | ✅ | ❌ | ✅ | ❌ |
+| WebKit | ✅ | ✅ | ❌ | ❌ (canvas silently returns PNG) | ✅ |
+
+Consequences the matrix verifies: Firefox and WebKit always take the
+non-WebCodecs cascade (`offscreen-worker`), and both `canEncodeFormat()` and
+`toPictureSet()` must **skip** formats an engine cannot encode rather than
+advertising them — on WebKit the `<picture>` set contains AVIF but never WebP.
+
+```bash
+npm run test:browser   # Chromium (Puppeteer): cascade paths, worker evidence, HEIC, sharpen
+npm run test:worker    # Chromium: worker thread evidence + pixel assertions
+npm run test:matrix    # Firefox + WebKit (Playwright) — same smoke page + harness
+npm run test:heic2any  # real heic2any bundle in Chrome (nightly CI; needs test/vendor/)
+```
+
 The library has **262 unit tests** across 27 spec files (all `.spec.ts`), plus two
 real-browser suites. Run with:
 
