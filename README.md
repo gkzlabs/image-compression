@@ -3,7 +3,18 @@
 [![npm version](https://img.shields.io/npm/v/@gkzlabs/image-compression)](https://www.npmjs.com/package/@gkzlabs/image-compression)
 [![npm downloads](https://img.shields.io/npm/dm/@gkzlabs/image-compression)](https://www.npmjs.com/package/@gkzlabs/image-compression)
 [![npm monthly](https://img.shields.io/npm/dw/@gkzlabs/image-compression)](https://www.npmjs.com/package/@gkzlabs/image-compression)
-[![Socket](https://socket.dev/api/badge/npm/package/@gkzlabs/image-compression)](https://socket.dev/npm/package/@gkzlabs/image-compression)
+[![Socket Badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fgkzlabs%2Fimage-compression%2Fmain%2F.github%2Fsocket-score.json)](https://socket.dev/npm/package/@gkzlabs/image-compression)
+<!--
+  Why this is a shields.io endpoint badge instead of Socket's own badge image
+  (`https://socket.dev/api/badge/npm/package/...`): that endpoint answers every
+  non-interactive request with a Cloudflare managed challenge (HTTP 403 + "Just a
+  moment..."), and GitHub's camo image proxy cannot solve a JS challenge, so the
+  badge rendered as a broken image. shields.io renders reliably and reads the
+  value from `.github/socket-score.json` in this repo — which a workflow can
+  rewrite automatically with a Socket API token, or a maintainer can bump by hand.
+  The value carries the version it was measured on; the live score is always the
+  linked Socket page.
+-->
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](https://www.npmjs.com/package/@gkzlabs/image-compression)
 [![CI](https://img.shields.io/github/actions/workflow/status/gkzlabs/image-compression/ci.yml?branch=main&label=CI)](https://github.com/gkzlabs/image-compression/actions/workflows/ci.yml)

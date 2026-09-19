@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "label": "socket.dev",
+  "message": "100/100 · 0 alerts (v1.3.2)",
+  "color": "brightgreen",
+  "labelColor": "1f2937",
+  "cacheSeconds": 3600
+}
