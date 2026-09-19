@@ -1,0 +1,29 @@
+{
+  "_comment": "Fixture used by `node .github/scripts/socket-score.mjs --mock ...` to exercise the parsing/writing path without a Socket token. Shape modelled on Socket's documented POST /v0/purl response (package metadata + score categories + alerts). NOT a real API response.",
+  "rows": [
+    {
+      "id": "pkg:npm/@gkzlabs/image-compression@1.3.3",
+      "name": "@gkzlabs/image-compression",
+      "version": "1.3.3",
+      "type": "npm",
+      "score": {
+        "depscore": 1,
+        "supplyChainRisk": 1,
+        "quality": 0.96,
+        "maintenance": 0.82,
+        "vulnerability": 1,
+        "license": 1,
+        "supplyChainRiskIssueLow": 0,
+        "supplyChainRiskIssueMid": 0,
+        "supplyChainRiskIssueHigh": 0,
+        "supplyChainRiskIssueCritical": 0,
+        "dependencyCount": 0,
+        "totalDependencyCount": 0,
+        "maintainerCount": 1,
+        "versionCount": 26,
+        "fileCount": 60
+      },
+      "alerts": []
+    }
+  ]
+}

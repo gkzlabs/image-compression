@@ -1,0 +1,69 @@
+name: Socket score badge
+
+# Keeps .github/socket-score.json (the value behind the README's Socket badge)
+# in sync with Socket's API.
+#
+# Background: Socket's own badge image endpoint answers non-interactive requests
+# with a Cloudflare managed challenge, so GitHub's camo image proxy can never
+# fetch it — the badge rendered broken. The README therefore uses a shields.io
+# endpoint badge that reads this JSON file, and this job keeps the file honest.
+#
+# Auth: add a repository secret named SOCKET_API_TOKEN with a Socket API token
+# (Socket dashboard → Settings → API tokens; the docs mark the
+# package-metadata route as "authentication required, no scopes required").
+# Without the secret the job skips cleanly — it never fails or corrupts the badge.
+on:
+  schedule:
+    # Weekly: Mondays 06:17 UTC. Weekly is deliberate — Socket's scores move
+    # slowly, and each run that finds a change creates a commit.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write # commit the refreshed badge value
+
+concurrency:
+  group: socket-score
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Refresh the Socket score badge
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Check for the API token
+        id: token
+        run: |
+          if [ -z "${{ secrets.SOCKET_API_TOKEN }}" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SOCKET_API_TOKEN is not set — skipping. Add a Socket API token as a repository secret to enable automatic badge updates."
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Refresh the badge value from Socket's API
+        if: steps.token.outputs.present == 'true'
+        env:
+          SOCKET_API_TOKEN: ${{ secrets.SOCKET_API_TOKEN }}
+        run: node .github/scripts/socket-score.mjs
+
+      - name: Commit the refreshed value (only when it changed)
+        if: steps.token.outputs.present == 'true'
+        run: |
+          if git diff --quiet -- .github/socket-score.json; then
+            echo "No change in .github/socket-score.json"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .github/socket-score.json
+          git commit -m "chore(badge): refresh the Socket score from the API"
+          git push
