@@ -1,7 +1,7 @@
 {
   "version": "1.3.3",
   "browser": "Chrome/152.0.7977.75",
-  "runAt": "2026-09-19T05:13:08.124Z",
+  "runAt": "2026-09-20T13:16:27.787Z",
   "iterations": 10,
   "warmup": 1,
   "formatComparison": [
@@ -54,60 +54,60 @@
       "runs": [
         {
           "path": "webcodecs-worker",
-          "timeMs": 44.79999999998836,
+          "timeMs": 46.09999999997672,
           "ratio": 18.77486668540229
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 45,
+          "timeMs": 44.40000000002328,
           "ratio": 18.77486668540229
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 43.70000000001164,
+          "timeMs": 45.29999999993015,
           "ratio": 18.77486668540229
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 44.10000000000582,
+          "timeMs": 45.09999999997672,
           "ratio": 18.77486668540229
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 43.29999999998836,
+          "timeMs": 45.5,
           "ratio": 18.77486668540229
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 43.39999999999418,
+          "timeMs": 45.300000000046566,
           "ratio": 18.77486668540229
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 44.10000000000582,
+          "timeMs": 44.90000000002328,
           "ratio": 18.77486668540229
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 43.79999999998836,
+          "timeMs": 44.5,
           "ratio": 18.77486668540229
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 43.79999999998836,
+          "timeMs": 43.59999999997672,
           "ratio": 18.77486668540229
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 43.29999999998836,
+          "timeMs": 44.10000000009313,
           "ratio": 18.77486668540229
         }
       ],
       "stats": {
-        "min": 43.29999999998836,
-        "median": 43.79999999998836,
-        "mean": 43.92999999999593,
-        "max": 45,
+        "min": 43.59999999997672,
+        "median": 45.09999999997672,
+        "mean": 44.88000000000466,
+        "max": 46.09999999997672,
         "unit": "ms"
       },
       "outputBytes": 459545,
@@ -126,22 +126,7 @@
       "runs": [
         {
           "path": "canvas-main",
-          "timeMs": 36,
-          "ratio": 18.77486668540229
-        },
-        {
-          "path": "canvas-main",
-          "timeMs": 35.30000000001746,
-          "ratio": 18.77486668540229
-        },
-        {
-          "path": "canvas-main",
-          "timeMs": 34.70000000001164,
-          "ratio": 18.77486668540229
-        },
-        {
-          "path": "canvas-main",
-          "timeMs": 35.10000000000582,
+          "timeMs": 35.79999999993015,
           "ratio": 18.77486668540229
         },
         {
@@ -151,34 +136,49 @@
         },
         {
           "path": "canvas-main",
-          "timeMs": 35.89999999999418,
-          "ratio": 18.77486668540229
-        },
-        {
-          "path": "canvas-main",
           "timeMs": 34.59999999997672,
           "ratio": 18.77486668540229
         },
         {
           "path": "canvas-main",
-          "timeMs": 34.60000000000582,
+          "timeMs": 35,
           "ratio": 18.77486668540229
         },
         {
           "path": "canvas-main",
-          "timeMs": 34.39999999999418,
+          "timeMs": 35,
           "ratio": 18.77486668540229
         },
         {
           "path": "canvas-main",
-          "timeMs": 34.19999999998254,
+          "timeMs": 34.90000000002328,
+          "ratio": 18.77486668540229
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 34.60000000009313,
+          "ratio": 18.77486668540229
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 35.10000000009313,
+          "ratio": 18.77486668540229
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 34.70000000006985,
+          "ratio": 18.77486668540229
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 36,
           "ratio": 18.77486668540229
         }
       ],
       "stats": {
-        "min": 34.19999999998254,
-        "median": 35.09999999997672,
-        "mean": 34.989999999996506,
+        "min": 34.59999999997672,
+        "median": 35,
+        "mean": 35.0800000000163,
         "max": 36,
         "unit": "ms"
       },
@@ -198,12 +198,37 @@
       "runs": [
         {
           "path": "canvas-main",
-          "timeMs": 56.69999999998254,
+          "timeMs": 56.199999999953434,
           "ratio": 20.576491735997326
         },
         {
           "path": "canvas-main",
-          "timeMs": 54.89999999999418,
+          "timeMs": 54.20000000006985,
+          "ratio": 20.576491735997326
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 55.800000000046566,
+          "ratio": 20.576491735997326
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 54.29999999993015,
+          "ratio": 20.576491735997326
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 53.79999999993015,
+          "ratio": 20.576491735997326
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 64.90000000002328,
+          "ratio": 20.576491735997326
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 52.5,
           "ratio": 20.576491735997326
         },
         {
@@ -213,45 +238,20 @@
         },
         {
           "path": "canvas-main",
-          "timeMs": 55.30000000001746,
-          "ratio": 20.576491735997326
-        },
-        {
-          "path": "canvas-main",
-          "timeMs": 54.60000000000582,
-          "ratio": 20.576491735997326
-        },
-        {
-          "path": "canvas-main",
-          "timeMs": 66.30000000001746,
-          "ratio": 20.576491735997326
-        },
-        {
-          "path": "canvas-main",
-          "timeMs": 51.69999999998254,
-          "ratio": 20.576491735997326
-        },
-        {
-          "path": "canvas-main",
-          "timeMs": 55.69999999998254,
-          "ratio": 20.576491735997326
-        },
-        {
-          "path": "canvas-main",
           "timeMs": 55.5,
           "ratio": 20.576491735997326
         },
         {
           "path": "canvas-main",
-          "timeMs": 55.39999999999418,
+          "timeMs": 56.39999999990687,
           "ratio": 20.576491735997326
         }
       ],
       "stats": {
-        "min": 51.69999999998254,
-        "median": 55.5,
-        "mean": 56.26999999999534,
-        "max": 66.30000000001746,
+        "min": 52.5,
+        "median": 55.800000000046566,
+        "mean": 56.0199999999837,
+        "max": 64.90000000002328,
         "unit": "ms"
       },
       "outputBytes": 449352,
@@ -270,32 +270,22 @@
       "runs": [
         {
           "path": "webcodecs-worker",
-          "timeMs": 238.60000000000582,
+          "timeMs": 230,
           "ratio": 28.610187586055748
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 232.79999999998836,
+          "timeMs": 229.80000000004657,
           "ratio": 28.610187586055748
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 234.60000000000582,
+          "timeMs": 229.59999999997672,
           "ratio": 28.610187586055748
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 253.29999999998836,
-          "ratio": 28.610187586055748
-        },
-        {
-          "path": "webcodecs-worker",
-          "timeMs": 233.39999999999418,
-          "ratio": 28.610187586055748
-        },
-        {
-          "path": "webcodecs-worker",
-          "timeMs": 231.69999999998254,
+          "timeMs": 259.4000000000233,
           "ratio": 28.610187586055748
         },
         {
@@ -305,25 +295,35 @@
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 230.39999999999418,
+          "timeMs": 231.40000000002328,
           "ratio": 28.610187586055748
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 234.59999999997672,
+          "timeMs": 230.90000000002328,
           "ratio": 28.610187586055748
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 229.39999999999418,
+          "timeMs": 238.29999999993015,
+          "ratio": 28.610187586055748
+        },
+        {
+          "path": "webcodecs-worker",
+          "timeMs": 233.59999999997672,
+          "ratio": 28.610187586055748
+        },
+        {
+          "path": "webcodecs-worker",
+          "timeMs": 234.40000000002328,
           "ratio": 28.610187586055748
         }
       ],
       "stats": {
-        "min": 229.39999999999418,
-        "median": 233.39999999999418,
-        "mean": 234.97999999999303,
-        "max": 253.29999999998836,
+        "min": 229.59999999997672,
+        "median": 231.40000000002328,
+        "mean": 234.84000000000233,
+        "max": 259.4000000000233,
         "unit": "ms"
       },
       "outputBytes": 403900,
@@ -342,12 +342,42 @@
       "runs": [
         {
           "path": "webcodecs-worker",
-          "timeMs": 264.29999999998836,
+          "timeMs": 264.4000000000233,
           "ratio": -18.876852131707935
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 263.1000000000058,
+          "timeMs": 263,
+          "ratio": -18.876852131707935
+        },
+        {
+          "path": "webcodecs-worker",
+          "timeMs": 264.29999999993015,
+          "ratio": -18.876852131707935
+        },
+        {
+          "path": "webcodecs-worker",
+          "timeMs": 263,
+          "ratio": -18.876852131707935
+        },
+        {
+          "path": "webcodecs-worker",
+          "timeMs": 262.30000000004657,
+          "ratio": -18.876852131707935
+        },
+        {
+          "path": "webcodecs-worker",
+          "timeMs": 263.19999999995343,
+          "ratio": -18.876852131707935
+        },
+        {
+          "path": "webcodecs-worker",
+          "timeMs": 263.5,
+          "ratio": -18.876852131707935
+        },
+        {
+          "path": "webcodecs-worker",
+          "timeMs": 262,
           "ratio": -18.876852131707935
         },
         {
@@ -357,45 +387,15 @@
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 262.20000000001164,
-          "ratio": -18.876852131707935
-        },
-        {
-          "path": "webcodecs-worker",
-          "timeMs": 263.4000000000233,
-          "ratio": -18.876852131707935
-        },
-        {
-          "path": "webcodecs-worker",
-          "timeMs": 263.8999999999942,
-          "ratio": -18.876852131707935
-        },
-        {
-          "path": "webcodecs-worker",
-          "timeMs": 263.1000000000058,
-          "ratio": -18.876852131707935
-        },
-        {
-          "path": "webcodecs-worker",
-          "timeMs": 265.29999999998836,
-          "ratio": -18.876852131707935
-        },
-        {
-          "path": "webcodecs-worker",
-          "timeMs": 268.6000000000058,
-          "ratio": -18.876852131707935
-        },
-        {
-          "path": "webcodecs-worker",
-          "timeMs": 264.70000000001164,
+          "timeMs": 263.29999999993015,
           "ratio": -18.876852131707935
         }
       ],
       "stats": {
-        "min": 262.20000000001164,
-        "median": 263.8999999999942,
-        "mean": 264.17000000000115,
-        "max": 268.6000000000058,
+        "min": 262,
+        "median": 263.19999999995343,
+        "mean": 263.20999999998605,
+        "max": 264.4000000000233,
         "unit": "ms"
       },
       "outputBytes": 672566,
@@ -414,60 +414,60 @@
       "runs": [
         {
           "path": "webcodecs-worker",
+          "timeMs": 183,
+          "ratio": 26.47114448173895
+        },
+        {
+          "path": "webcodecs-worker",
+          "timeMs": 181.30000000004657,
+          "ratio": 26.47114448173895
+        },
+        {
+          "path": "webcodecs-worker",
           "timeMs": 179.5,
           "ratio": 26.47114448173895
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 182,
+          "timeMs": 179.5,
           "ratio": 26.47114448173895
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 179.70000000001164,
+          "timeMs": 180.09999999997672,
           "ratio": 26.47114448173895
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 178.60000000000582,
+          "timeMs": 178.70000000006985,
           "ratio": 26.47114448173895
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 179.10000000000582,
+          "timeMs": 179.5,
           "ratio": 26.47114448173895
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 178.09999999997672,
+          "timeMs": 180,
           "ratio": 26.47114448173895
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 181.39999999999418,
+          "timeMs": 179.20000000006985,
           "ratio": 26.47114448173895
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 178.5,
-          "ratio": 26.47114448173895
-        },
-        {
-          "path": "webcodecs-worker",
-          "timeMs": 178.5,
-          "ratio": 26.47114448173895
-        },
-        {
-          "path": "webcodecs-worker",
-          "timeMs": 179,
+          "timeMs": 181.10000000009313,
           "ratio": 26.47114448173895
         }
       ],
       "stats": {
-        "min": 178.09999999997672,
-        "median": 179.10000000000582,
-        "mean": 179.43999999999943,
-        "max": 182,
+        "min": 178.70000000006985,
+        "median": 180,
+        "mean": 180.1900000000256,
+        "max": 183,
         "unit": "ms"
       },
       "outputBytes": 416002,
@@ -486,60 +486,60 @@
       "runs": [
         {
           "path": "webcodecs-worker",
-          "timeMs": 186.40000000002328,
+          "timeMs": 185.79999999993015,
           "ratio": 90.23903447304579
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 183.39999999996508,
+          "timeMs": 184.79999999993015,
           "ratio": 90.23903447304579
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 188.79999999998836,
+          "timeMs": 191.79999999993015,
           "ratio": 90.23903447304579
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 183.40000000002328,
+          "timeMs": 185.79999999993015,
           "ratio": 90.23903447304579
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 193.10000000003492,
+          "timeMs": 189.10000000009313,
           "ratio": 90.23903447304579
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 184.40000000002328,
+          "timeMs": 184.59999999997672,
           "ratio": 90.23903447304579
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 184.90000000002328,
+          "timeMs": 184.70000000006985,
           "ratio": 90.23903447304579
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 184.60000000003492,
+          "timeMs": 186.5,
           "ratio": 90.23903447304579
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 184.79999999998836,
+          "timeMs": 186.30000000004657,
           "ratio": 90.23903447304579
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 183.59999999997672,
+          "timeMs": 185.29999999993015,
           "ratio": 90.23903447304579
         }
       ],
       "stats": {
-        "min": 183.39999999996508,
-        "median": 184.79999999998836,
-        "mean": 185.74000000000814,
-        "max": 193.10000000003492,
+        "min": 184.59999999997672,
+        "median": 185.79999999993015,
+        "mean": 186.4699999999837,
+        "max": 191.79999999993015,
         "unit": "ms"
       },
       "outputBytes": 424161,
@@ -558,60 +558,60 @@
       "runs": [
         {
           "path": "canvas-main",
-          "timeMs": 171.60000000003492,
+          "timeMs": 171.80000000004657,
           "ratio": 90.23903447304579
         },
         {
           "path": "canvas-main",
-          "timeMs": 171.20000000001164,
+          "timeMs": 170.69999999995343,
           "ratio": 90.23903447304579
         },
         {
           "path": "canvas-main",
-          "timeMs": 169.09999999997672,
+          "timeMs": 168.90000000002328,
           "ratio": 90.23903447304579
         },
         {
           "path": "canvas-main",
-          "timeMs": 171.79999999998836,
+          "timeMs": 171.09999999997672,
           "ratio": 90.23903447304579
         },
         {
           "path": "canvas-main",
-          "timeMs": 169.10000000003492,
+          "timeMs": 168.70000000006985,
           "ratio": 90.23903447304579
         },
         {
           "path": "canvas-main",
-          "timeMs": 171.10000000003492,
+          "timeMs": 171.29999999993015,
           "ratio": 90.23903447304579
         },
         {
           "path": "canvas-main",
-          "timeMs": 169.70000000001164,
+          "timeMs": 169.69999999995343,
           "ratio": 90.23903447304579
         },
         {
           "path": "canvas-main",
-          "timeMs": 171.79999999998836,
+          "timeMs": 171.40000000002328,
           "ratio": 90.23903447304579
         },
         {
           "path": "canvas-main",
-          "timeMs": 169,
+          "timeMs": 168.80000000004657,
           "ratio": 90.23903447304579
         },
         {
           "path": "canvas-main",
-          "timeMs": 175.70000000001164,
+          "timeMs": 171.29999999993015,
           "ratio": 90.23903447304579
         }
       ],
       "stats": {
-        "min": 169,
-        "median": 171.20000000001164,
-        "mean": 171.0100000000093,
-        "max": 175.70000000001164,
+        "min": 168.70000000006985,
+        "median": 171.09999999997672,
+        "mean": 170.36999999999534,
+        "max": 171.80000000004657,
         "unit": "ms"
       },
       "outputBytes": 424161,
@@ -630,47 +630,47 @@
       "runs": [
         {
           "path": "canvas-main",
-          "timeMs": 256.79999999998836,
-          "ratio": 90.23903447304579
-        },
-        {
-          "path": "canvas-main",
-          "timeMs": 259.70000000001164,
-          "ratio": 90.23903447304579
-        },
-        {
-          "path": "canvas-main",
-          "timeMs": 253.59999999997672,
-          "ratio": 90.23903447304579
-        },
-        {
-          "path": "canvas-main",
-          "timeMs": 254.70000000001164,
-          "ratio": 90.23903447304579
-        },
-        {
-          "path": "canvas-main",
-          "timeMs": 254.79999999998836,
-          "ratio": 90.23903447304579
-        },
-        {
-          "path": "canvas-main",
-          "timeMs": 256.20000000001164,
-          "ratio": 90.23903447304579
-        },
-        {
-          "path": "canvas-main",
           "timeMs": 256.4000000000233,
           "ratio": 90.23903447304579
         },
         {
           "path": "canvas-main",
-          "timeMs": 254.20000000001164,
+          "timeMs": 260.5,
           "ratio": 90.23903447304579
         },
         {
           "path": "canvas-main",
-          "timeMs": 256.29999999998836,
+          "timeMs": 253.70000000006985,
+          "ratio": 90.23903447304579
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 254.59999999997672,
+          "ratio": 90.23903447304579
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 254.5,
+          "ratio": 90.23903447304579
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 256.9000000000233,
+          "ratio": 90.23903447304579
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 254.90000000002328,
+          "ratio": 90.23903447304579
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 256.70000000006985,
+          "ratio": 90.23903447304579
+        },
+        {
+          "path": "canvas-main",
+          "timeMs": 256.69999999995343,
           "ratio": 90.23903447304579
         },
         {
@@ -680,10 +680,10 @@
         }
       ],
       "stats": {
-        "min": 253.59999999997672,
-        "median": 256.29999999998836,
-        "mean": 256.0700000000012,
-        "max": 259.70000000001164,
+        "min": 253.70000000006985,
+        "median": 256.69999999995343,
+        "mean": 256.29000000001395,
+        "max": 260.5,
         "unit": "ms"
       },
       "outputBytes": 424161,
@@ -702,60 +702,60 @@
       "runs": [
         {
           "path": "webcodecs-worker",
-          "timeMs": 512.5999999999767,
+          "timeMs": 512,
           "ratio": 90.65240633835326
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 510,
+          "timeMs": 514,
           "ratio": 90.65240633835326
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 513.7999999999884,
+          "timeMs": 511.9000000000233,
           "ratio": 90.65240633835326
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 515,
+          "timeMs": 520,
           "ratio": 90.65240633835326
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 511.5,
+          "timeMs": 512.5,
           "ratio": 90.65240633835326
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 510.5,
+          "timeMs": 513.6999999999534,
           "ratio": 90.65240633835326
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 513.8999999999651,
+          "timeMs": 517.3000000000466,
           "ratio": 90.65240633835326
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 511.29999999998836,
+          "timeMs": 514.6999999999534,
           "ratio": 90.65240633835326
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 512.4000000000233,
+          "timeMs": 520,
           "ratio": 90.65240633835326
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 511.19999999995343,
+          "timeMs": 518.5999999999767,
           "ratio": 90.65240633835326
         }
       ],
       "stats": {
-        "min": 510,
-        "median": 512.4000000000233,
-        "mean": 512.2199999999896,
-        "max": 515,
+        "min": 511.9000000000233,
+        "median": 514.6999999999534,
+        "mean": 515.4699999999954,
+        "max": 520,
         "unit": "ms"
       },
       "outputBytes": 406198,
@@ -774,60 +774,60 @@
       "runs": [
         {
           "path": "webcodecs-worker",
-          "timeMs": 596,
+          "timeMs": 598.5999999999767,
           "ratio": 79.13534102776171
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 591.6000000000349,
+          "timeMs": 598.5999999999767,
           "ratio": 79.13534102776171
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 595.7000000000116,
+          "timeMs": 599.5999999999767,
           "ratio": 79.13534102776171
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 591.7999999999884,
+          "timeMs": 597.9000000000233,
           "ratio": 79.13534102776171
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 592.5999999999767,
+          "timeMs": 596.4000000000233,
           "ratio": 79.13534102776171
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 592.7000000000116,
+          "timeMs": 598.6999999999534,
           "ratio": 79.13534102776171
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 593.2999999999884,
+          "timeMs": 598.5999999999767,
           "ratio": 79.13534102776171
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 592.3999999999651,
+          "timeMs": 595.9000000000233,
           "ratio": 79.13534102776171
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 593.5,
+          "timeMs": 596.6000000000931,
           "ratio": 79.13534102776171
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 592.5,
+          "timeMs": 596.6999999999534,
           "ratio": 79.13534102776171
         }
       ],
       "stats": {
-        "min": 591.6000000000349,
-        "median": 592.7000000000116,
-        "mean": 593.2099999999976,
-        "max": 596,
+        "min": 595.9000000000233,
+        "median": 598.5999999999767,
+        "mean": 597.7599999999977,
+        "max": 599.5999999999767,
         "unit": "ms"
       },
       "outputBytes": 906670,
@@ -846,60 +846,60 @@
       "runs": [
         {
           "path": "webcodecs-worker",
-          "timeMs": 372.20000000001164,
+          "timeMs": 385,
           "ratio": 90.72556277991717
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 374.5,
+          "timeMs": 383.69999999995343,
           "ratio": 90.72556277991717
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 376.5,
+          "timeMs": 381.5999999999767,
           "ratio": 90.72556277991717
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 378.4000000000233,
+          "timeMs": 394,
           "ratio": 90.72556277991717
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 374.9000000000233,
+          "timeMs": 380.0999999999767,
           "ratio": 90.72556277991717
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 375,
+          "timeMs": 384.19999999995343,
           "ratio": 90.72556277991717
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 378.70000000001164,
+          "timeMs": 382.30000000004657,
           "ratio": 90.72556277991717
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 374.5,
+          "timeMs": 378.5,
           "ratio": 90.72556277991717
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 371.3999999999651,
+          "timeMs": 381.4000000000233,
           "ratio": 90.72556277991717
         },
         {
           "path": "webcodecs-worker",
-          "timeMs": 379.80000000004657,
+          "timeMs": 383.4000000000233,
           "ratio": 90.72556277991717
         }
       ],
       "stats": {
-        "min": 371.3999999999651,
-        "median": 375,
-        "mean": 375.59000000000816,
-        "max": 379.80000000004657,
+        "min": 378.5,
+        "median": 383.4000000000233,
+        "mean": 383.41999999999535,
+        "max": 394,
         "unit": "ms"
       },
       "outputBytes": 403019,
@@ -923,60 +923,60 @@
           "runs": [
             {
               "path": "webcodecs-worker",
-              "timeMs": 44.89999999999418,
+              "timeMs": 53.5,
               "ratio": 18.77486668540229
             },
             {
               "path": "webcodecs-worker",
-              "timeMs": 43.80000000001746,
+              "timeMs": 45.199999999953434,
               "ratio": 18.77486668540229
             },
             {
               "path": "webcodecs-worker",
-              "timeMs": 44.60000000000582,
+              "timeMs": 45.300000000046566,
               "ratio": 18.77486668540229
             },
             {
               "path": "webcodecs-worker",
-              "timeMs": 44.70000000001164,
+              "timeMs": 45.5,
               "ratio": 18.77486668540229
             },
             {
               "path": "webcodecs-worker",
-              "timeMs": 46.60000000000582,
+              "timeMs": 45.70000000006985,
               "ratio": 18.77486668540229
             },
             {
               "path": "webcodecs-worker",
-              "timeMs": 48,
+              "timeMs": 45.70000000006985,
               "ratio": 18.77486668540229
             },
             {
               "path": "webcodecs-worker",
-              "timeMs": 48.60000000000582,
+              "timeMs": 45.09999999997672,
               "ratio": 18.77486668540229
             },
             {
               "path": "webcodecs-worker",
-              "timeMs": 49.19999999998254,
+              "timeMs": 46.79999999993015,
               "ratio": 18.77486668540229
             },
             {
               "path": "webcodecs-worker",
-              "timeMs": 48.19999999998254,
+              "timeMs": 48.70000000006985,
               "ratio": 18.77486668540229
             },
             {
               "path": "webcodecs-worker",
-              "timeMs": 48.79999999998836,
+              "timeMs": 47.199999999953434,
               "ratio": 18.77486668540229
             }
           ],
           "stats": {
-            "min": 43.80000000001746,
-            "median": 48,
-            "mean": 46.73999999999942,
-            "max": 49.19999999998254,
+            "min": 45.09999999997672,
+            "median": 45.70000000006985,
+            "mean": 46.87000000000698,
+            "max": 53.5,
             "unit": "ms"
           },
           "outputBytes": 459545,
@@ -993,37 +993,12 @@
           "runs": [
             {
               "path": "webcodecs-worker",
-              "timeMs": 206.90000000002328,
+              "timeMs": 197.90000000002328,
               "ratio": 90.23903447304579
             },
             {
               "path": "webcodecs-worker",
-              "timeMs": 183.09999999997672,
-              "ratio": 90.23903447304579
-            },
-            {
-              "path": "webcodecs-worker",
-              "timeMs": 183,
-              "ratio": 90.23903447304579
-            },
-            {
-              "path": "webcodecs-worker",
-              "timeMs": 182.69999999998254,
-              "ratio": 90.23903447304579
-            },
-            {
-              "path": "webcodecs-worker",
-              "timeMs": 185.5,
-              "ratio": 90.23903447304579
-            },
-            {
-              "path": "webcodecs-worker",
-              "timeMs": 183.39999999999418,
-              "ratio": 90.23903447304579
-            },
-            {
-              "path": "webcodecs-worker",
-              "timeMs": 183.89999999999418,
+              "timeMs": 184.90000000002328,
               "ratio": 90.23903447304579
             },
             {
@@ -1033,20 +1008,45 @@
             },
             {
               "path": "webcodecs-worker",
-              "timeMs": 182,
+              "timeMs": 187.19999999995343,
               "ratio": 90.23903447304579
             },
             {
               "path": "webcodecs-worker",
-              "timeMs": 191.29999999998836,
+              "timeMs": 187.5,
+              "ratio": 90.23903447304579
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 184.80000000004657,
+              "ratio": 90.23903447304579
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 188,
+              "ratio": 90.23903447304579
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 185.79999999993015,
+              "ratio": 90.23903447304579
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 197.5,
+              "ratio": 90.23903447304579
+            },
+            {
+              "path": "webcodecs-worker",
+              "timeMs": 200.09999999997672,
               "ratio": 90.23903447304579
             }
           ],
           "stats": {
-            "min": 182,
-            "median": 183.89999999999418,
-            "mean": 186.62999999999593,
-            "max": 206.90000000002328,
+            "min": 184.5,
+            "median": 187.5,
+            "mean": 189.81999999999533,
+            "max": 200.09999999997672,
             "unit": "ms"
           },
           "outputBytes": 424161,
@@ -1070,60 +1070,60 @@
           "runs": [
             {
               "path": "offscreen-worker",
-              "timeMs": 43.89999999999418,
-              "ratio": 18.77486668540229
-            },
-            {
-              "path": "offscreen-worker",
               "timeMs": 44.59999999997672,
               "ratio": 18.77486668540229
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 45.60000000000582,
+              "timeMs": 54.800000000046566,
               "ratio": 18.77486668540229
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 45.5,
+              "timeMs": 46.79999999993015,
               "ratio": 18.77486668540229
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 47.89999999999418,
+              "timeMs": 48.70000000006985,
               "ratio": 18.77486668540229
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 48,
+              "timeMs": 46.5,
               "ratio": 18.77486668540229
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 47.89999999999418,
+              "timeMs": 45.79999999993015,
               "ratio": 18.77486668540229
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 49.89999999999418,
+              "timeMs": 49.40000000002328,
               "ratio": 18.77486668540229
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 48.5,
+              "timeMs": 47.90000000002328,
               "ratio": 18.77486668540229
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 48.60000000000582,
+              "timeMs": 49.699999999953434,
+              "ratio": 18.77486668540229
+            },
+            {
+              "path": "offscreen-worker",
+              "timeMs": 53.20000000006985,
               "ratio": 18.77486668540229
             }
           ],
           "stats": {
-            "min": 43.89999999999418,
-            "median": 47.89999999999418,
-            "mean": 47.03999999999651,
-            "max": 49.89999999999418,
+            "min": 44.59999999997672,
+            "median": 48.70000000006985,
+            "mean": 48.740000000002325,
+            "max": 54.800000000046566,
             "unit": "ms"
           },
           "outputBytes": 459545,
@@ -1140,60 +1140,60 @@
           "runs": [
             {
               "path": "offscreen-worker",
-              "timeMs": 195.10000000000582,
+              "timeMs": 225.80000000004657,
               "ratio": 90.23903447304579
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 188.39999999999418,
+              "timeMs": 188.69999999995343,
               "ratio": 90.23903447304579
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 185,
+              "timeMs": 193.80000000004657,
               "ratio": 90.23903447304579
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 185.5,
+              "timeMs": 198,
               "ratio": 90.23903447304579
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 184.60000000000582,
+              "timeMs": 200.30000000004657,
               "ratio": 90.23903447304579
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 187.39999999999418,
+              "timeMs": 202.30000000004657,
               "ratio": 90.23903447304579
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 186.10000000000582,
+              "timeMs": 190.09999999997672,
               "ratio": 90.23903447304579
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 186.10000000000582,
+              "timeMs": 193.39999999990687,
               "ratio": 90.23903447304579
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 188,
+              "timeMs": 198.90000000002328,
               "ratio": 90.23903447304579
             },
             {
               "path": "offscreen-worker",
-              "timeMs": 183,
+              "timeMs": 194.70000000006985,
               "ratio": 90.23903447304579
             }
           ],
           "stats": {
-            "min": 183,
-            "median": 186.10000000000582,
-            "mean": 186.92000000000115,
-            "max": 195.10000000000582,
+            "min": 188.69999999995343,
+            "median": 198,
+            "mean": 198.60000000001165,
+            "max": 225.80000000004657,
             "unit": "ms"
           },
           "outputBytes": 424161,
@@ -1217,60 +1217,60 @@
           "runs": [
             {
               "path": "canvas-main",
-              "timeMs": 34.70000000001164,
+              "timeMs": 39.40000000002328,
               "ratio": 18.77486668540229
             },
             {
               "path": "canvas-main",
-              "timeMs": 35.60000000000582,
+              "timeMs": 39.300000000046566,
               "ratio": 18.77486668540229
             },
             {
               "path": "canvas-main",
-              "timeMs": 34.79999999998836,
+              "timeMs": 41.40000000002328,
               "ratio": 18.77486668540229
             },
             {
               "path": "canvas-main",
-              "timeMs": 35.19999999998254,
+              "timeMs": 38,
               "ratio": 18.77486668540229
             },
             {
               "path": "canvas-main",
-              "timeMs": 34.5,
+              "timeMs": 39.09999999997672,
               "ratio": 18.77486668540229
             },
             {
               "path": "canvas-main",
-              "timeMs": 35,
+              "timeMs": 38.40000000002328,
               "ratio": 18.77486668540229
             },
             {
               "path": "canvas-main",
-              "timeMs": 35.09999999997672,
+              "timeMs": 36.199999999953434,
               "ratio": 18.77486668540229
             },
             {
               "path": "canvas-main",
-              "timeMs": 35.5,
+              "timeMs": 39.79999999993015,
               "ratio": 18.77486668540229
             },
             {
               "path": "canvas-main",
-              "timeMs": 35.10000000000582,
+              "timeMs": 38,
               "ratio": 18.77486668540229
             },
             {
               "path": "canvas-main",
-              "timeMs": 35.29999999998836,
+              "timeMs": 36.09999999997672,
               "ratio": 18.77486668540229
             }
           ],
           "stats": {
-            "min": 34.5,
-            "median": 35.10000000000582,
-            "mean": 35.07999999999593,
-            "max": 35.60000000000582,
+            "min": 36.09999999997672,
+            "median": 39.09999999997672,
+            "mean": 38.569999999995346,
+            "max": 41.40000000002328,
             "unit": "ms"
           },
           "outputBytes": 459545,
@@ -1287,60 +1287,60 @@
           "runs": [
             {
               "path": "canvas-main",
-              "timeMs": 169.59999999997672,
+              "timeMs": 172.20000000006985,
               "ratio": 90.23903447304579
             },
             {
               "path": "canvas-main",
-              "timeMs": 170.5,
+              "timeMs": 171.5,
               "ratio": 90.23903447304579
             },
             {
               "path": "canvas-main",
-              "timeMs": 171.70000000001164,
+              "timeMs": 172.69999999995343,
               "ratio": 90.23903447304579
             },
             {
               "path": "canvas-main",
-              "timeMs": 169.20000000001164,
+              "timeMs": 174.80000000004657,
               "ratio": 90.23903447304579
             },
             {
               "path": "canvas-main",
-              "timeMs": 171,
+              "timeMs": 185,
               "ratio": 90.23903447304579
             },
             {
               "path": "canvas-main",
-              "timeMs": 168.80000000001746,
+              "timeMs": 179.90000000002328,
               "ratio": 90.23903447304579
             },
             {
               "path": "canvas-main",
-              "timeMs": 169.29999999998836,
+              "timeMs": 172.60000000009313,
               "ratio": 90.23903447304579
             },
             {
               "path": "canvas-main",
-              "timeMs": 168.89999999999418,
+              "timeMs": 198.40000000002328,
               "ratio": 90.23903447304579
             },
             {
               "path": "canvas-main",
-              "timeMs": 171,
+              "timeMs": 171.20000000006985,
               "ratio": 90.23903447304579
             },
             {
               "path": "canvas-main",
-              "timeMs": 177.40000000002328,
+              "timeMs": 175.29999999993015,
               "ratio": 90.23903447304579
             }
           ],
           "stats": {
-            "min": 168.80000000001746,
-            "median": 170.5,
-            "mean": 170.74000000000234,
-            "max": 177.40000000002328,
+            "min": 171.20000000006985,
+            "median": 174.80000000004657,
+            "mean": 177.36000000002096,
+            "max": 198.40000000002328,
             "unit": "ms"
           },
           "outputBytes": 424161,
