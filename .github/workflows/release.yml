@@ -29,7 +29,9 @@ jobs:
   publish:
     name: Publish to npm + GitHub Release
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 30 min, not 15: the publish verification polls the registry for up to 20 min
+    # (npm processes publishes asynchronously — v1.4.0 took ~20 min to appear).
+    timeout-minutes: 30
     # Only run on tag pushes from the default branch, or manual dispatch
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
@@ -89,15 +91,17 @@ jobs:
         # rejects re-publishing the same version. The GitHub Release step below
         # still runs with the curated changelog.
         #
-        # v1.4.0 — the publish is VERIFIED, because a green CLI is not a publish.
-        # npm now supports *staged* publishing (proof-of-presence): when the
-        # package or its trust relationship requires it, an automated publish
-        # lands in the registry's staging area — invisible to `npm view`, to the
-        # mirrors and to unpkg — while the CLI still prints "+ pkg@version" and
-        # the registry answers "Your package is being processed…". That is exactly
-        # how the v1.4.0 release run went green with nothing published, so this
-        # step now polls the registry and fails loudly (with the approve command
-        # in the job summary) instead of pretending success.
+        # v1.4.0 — the publish is VERIFIED, because the CLI's success is not a live version.
+        # Two registry behaviours make "green run, nothing published" possible:
+        #   1. async processing — the registry answers "Your package is being processed and may
+        #      take a few minutes to become available." and the version stays invisible to
+        #      `npm view`, the mirrors and unpkg for ~20 minutes (measured on v1.4.0; it did
+        #      publish correctly, just late);
+        #   2. staged publishing (proof-of-presence, npm 12) — when the package access rule or
+        #      the trust relationship requires it, the publish lands in the registry's staging
+        #      area and stays invisible until a maintainer runs `npm stage approve <id>` (2FA).
+        # So this step now polls the registry after publishing and fails loudly, quoting the
+        # approve command when a stageId is present, instead of pretending success.
         run: |
           set -euo pipefail
           npm install -g npm@latest
@@ -116,20 +120,24 @@ jobs:
           fi
           cat /tmp/publish.err >&2 || true
 
-          # The registry can lag a few seconds after a successful upload.
-          for i in $(seq 1 12); do
+          # The registry can lag: npm answers "Your package is being processed and may take
+          # a few minutes to become available." and the version only becomes visible later —
+          # measured on v1.4.0: live ~20 minutes after the CLI reported success (invisible to
+          # npm view, the mirrors, unpkg AND an owner-authenticated query in the meantime).
+          # Poll with a generous budget before declaring failure.
+          for i in $(seq 1 40); do
             if npm view "$PKG_NAME@$PKG_VERSION" version >/dev/null 2>&1; then
-              echo "✓ verified live on the registry: $PKG_NAME@$PKG_VERSION"
+              echo "✓ verified live on the registry: $PKG_NAME@$PKG_VERSION (check #$i)"
               exit 0
             fi
-            sleep 5
+            sleep 30
           done
 
           STAGE_ID=$(node -e "try{const j=JSON.parse(require('fs').readFileSync('/tmp/publish.json','utf8'));const r=Array.isArray(j)?j[0]:j;if(r&&r.stageId)process.stdout.write(String(r.stageId))}catch(e){}" || true)
           {
             echo "## ❌ npm publish did not go live"
             echo ""
-            echo "\`$PKG_NAME@$PKG_VERSION\` is still not visible on the registry 60s after the CLI reported success."
+            echo "\`$PKG_NAME@$PKG_VERSION\` is still not visible on the registry 20 minutes after the CLI reported success."
             if [ -n "${STAGE_ID:-}" ]; then
               echo ""
               echo "The publish was **staged** (proof-of-presence): stage id \`$STAGE_ID\`."
@@ -139,6 +147,10 @@ jobs:
               echo "npm stage list $PKG_NAME"
               echo "npm stage approve $STAGE_ID"
               echo '```'
+            else
+              echo ""
+              echo "No stage id was reported, so this looks like a stuck async processing state rather than"
+              echo "staging. Check the registry again before re-tagging: \`npm view $PKG_NAME version\`."
             fi
             echo ""
             echo "To let this workflow publish directly next time, allow \`npm publish\` on the"
