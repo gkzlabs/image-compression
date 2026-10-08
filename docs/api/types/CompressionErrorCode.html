@@ -37,13 +37,14 @@ trigger a retry, or fall back to a different upload strategy).</p>
 <div class="tsd-comment tsd-typography"><p>Options are invalid (e.g. <code>forcePath</code> not in known paths)</p>
 </div></li>
 <li><span class="tsd-signature-type">&quot;FILE_TOO_LARGE&quot;</span>
-<div class="tsd-comment tsd-typography"><p>File is too large for the current device/browser</p>
+<div class="tsd-comment tsd-typography"><p>File is too large for the current device/browser, or over the caller's
+<code>maxPixels</code> budget (v1.5.0: declared width × height too large)</p>
 </div></li>
 <li><span class="tsd-signature-type">&quot;UNKNOWN&quot;</span>
 <div class="tsd-comment tsd-typography"><p>Catch-all for unexpected errors</p>
 </div></li></ul></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L443">src/types.ts:443</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/types.ts#L460">src/types.ts:460</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
