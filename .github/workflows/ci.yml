@@ -130,7 +130,12 @@ jobs:
       - run: npm ci --prefer-offline --no-audit
       - run: npm run build
       - name: Install Playwright browser (${{ matrix.engine }})
-        run: npx --yes playwright@1.56.1 install --with-deps ${{ matrix.engine }}
+        # Derive the version from the INSTALLED playwright-core instead of pinning
+        # one here: the browsers must match what test/browser-matrix.mjs drives,
+        # and a hardcoded 1.56.1 silently broke this job the moment a dependabot
+        # bump moved playwright-core (the installed revision 1555/2370 no longer
+        # matched what the test expected → "Executable doesn't exist").
+        run: npx --yes playwright@$(node -p "require('playwright-core/package.json').version") install --with-deps ${{ matrix.engine }}
       - name: Cross-engine browser matrix
         run: node test/browser-matrix.mjs ${{ matrix.engine }}
 
