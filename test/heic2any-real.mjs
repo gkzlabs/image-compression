@@ -91,7 +91,12 @@ const quadrantsOk = (q) =>
 async function main() {
   ensureBuild();
   const { server, port } = await startServer(ROOT);
-  const launchOptions = { headless: true };
+  // `--no-sandbox` is REQUIRED on the GitHub runner: Ubuntu 24.04 ships an
+  // AppArmor profile that blocks unprivileged user namespaces, so Chrome aborts
+  // with "No usable sandbox!" → "Received signal 6" and puppeteer only reports
+  // "Failed to launch the browser process: Code: null". That is what broke this
+  // nightly suite (test:browser / test:worker already pass the same two flags).
+  const launchOptions = { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] };
   const chromePath = process.argv[2] || process.env.SMOKE_CHROME;
   if (chromePath) launchOptions.executablePath = chromePath;
   const browser = await puppeteer.launch(launchOptions);
