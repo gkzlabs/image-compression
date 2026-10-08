@@ -160,27 +160,35 @@ export async function tryDecodeHEICLazy(file: File | Blob): Promise<Blob | null>
     // heic2any is an optional dependency. The `as string` cast tells
     // TypeScript to treat this as a string literal, not as a type
     // assertion (which would require heic2any in the type space).
-    return await withDecoderTimeout(
-      (async () => {
-        const mod = (await import(/* @vite-ignore */ 'heic2any' as string)) as {
-          default?: unknown;
-        };
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const heic2any =
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (globalThis as any).heic2any ??
-          mod.default ??
-          (mod as any) as
-            | ((opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>)
-            | undefined;
-        if (typeof heic2any !== 'function') {
-          throw new Error('heic2any not found after bare import');
-        }
-        const result = await heic2any({ blob: file, toType: 'image/jpeg' });
-        return Array.isArray(result) ? result[0] : result;
-      })(),
+    //
+    // ⚠️ KEEP THIS import AS A DIRECT STATEMENT OF THE try BLOCK. esbuild only
+    // downgrades an unresolvable dynamic import to a caught run-time error when
+    // it can see it inside a try/catch at statement level; wrap it in a helper
+    // or an arrow function and `ng build` fails hard with
+    // `Could not resolve "heic2any"` (measured on the Angular CLI example,
+    // v1.5.0). That is also why the timeout below covers the DECODE call only.
+    const mod = (await import(/* @vite-ignore */ 'heic2any' as string)) as {
+      default?: unknown;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const heic2any =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (globalThis as any).heic2any ??
+      mod.default ??
+      (mod as any) as
+        | ((opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>)
+        | undefined;
+    if (typeof heic2any !== 'function') {
+      throw new Error('heic2any not found after bare import');
+    }
+    // v1.5.0: bound the decode itself — a decoder that never settles must not
+    // hang compress() (the import above is a bundler-resolved local module).
+    const decoder = heic2any as (opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>;
+    const result = await withDecoderTimeout(
+      decoder({ blob: file, toType: 'image/jpeg' }),
       'HEIC decoder (heic2any)',
     );
+    return Array.isArray(result) ? result[0] : result;
   } catch {
     // Both strategies failed (or timed out)
     return null;
