@@ -18,6 +18,45 @@
  */
 
 /**
+ * Hard ceiling for the runtime `heic2any` decoder (import AND decode).
+ *
+ * Without it, a `__IC_HEIC2ANY_URL` whose host never answers — or a decoder that
+ * never settles — leaves `compress()` waiting on the browser's own import
+ * timeout (minutes) or forever. Measured need: a black-holed decoder must not be
+ * able to hang a UI. Override for tests: `globalThis.__IC_HEIC_DECODER_TIMEOUT_MS`.
+ */
+const DEFAULT_DECODER_TIMEOUT_MS = 10_000;
+
+function decoderTimeoutMs(): number {
+  const raw = (globalThis as { __IC_HEIC_DECODER_TIMEOUT_MS?: number })
+    .__IC_HEIC_DECODER_TIMEOUT_MS;
+  return typeof raw === 'number' && raw > 0 ? raw : DEFAULT_DECODER_TIMEOUT_MS;
+}
+
+/**
+ * Reject with `label timed out after <ms>ms` if `work` has not settled in time.
+ * The underlying promise keeps running (we cannot cancel a dynamic import), but
+ * the caller stops waiting and the cascade falls back — which is the point.
+ */
+export function withDecoderTimeout<T>(work: Promise<T>, label: string, ms = decoderTimeoutMs()): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+/**
  * Try to decode a HEIC/HEIF blob to JPEG. Returns `null` on failure.
  *
  * Exported for unit testing (see `heic-decode.spec.ts`). Used internally by
@@ -79,29 +118,36 @@ export async function tryDecodeHEICLazy(file: File | Blob): Promise<Blob | null>
   const heic2anyUrl = (globalThis as { __IC_HEIC2ANY_URL?: string }).__IC_HEIC2ANY_URL;
   if (heic2anyUrl) {
     try {
-      // Load the decoder module at RUNTIME. heic2any is UMD/IIFE or ESM
-      // depending on how it was built:
-      // - As IIFE: sets `window.heic2any` (UMD browser global path)
-      // - As ESM: exports `default`
-      // We support both.
-      const mod = (await import(/* @vite-ignore */ heic2anyUrl)) as {
-        default?: unknown;
-      };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const heic2any =
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (globalThis as any).heic2any ??
-        mod.default ??
-        (mod as any) as
-          | ((opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>)
-          | undefined;
-      if (typeof heic2any !== 'function') {
-        throw new Error('heic2any not found after script load (no global, no default)');
-      }
-      const result = await heic2any({ blob: file, toType: 'image/jpeg' });
-      return Array.isArray(result) ? result[0] : result;
+      // v1.5.0: the import AND the decode are bounded — a host that never
+      // answers (or a decoder that never settles) must not hang compress().
+      return await withDecoderTimeout(
+        (async () => {
+          // Load the decoder module at RUNTIME. heic2any is UMD/IIFE or ESM
+          // depending on how it was built:
+          // - As IIFE: sets `window.heic2any` (UMD browser global path)
+          // - As ESM: exports `default`
+          // We support both.
+          const mod = (await import(/* @vite-ignore */ heic2anyUrl)) as {
+            default?: unknown;
+          };
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const heic2any =
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (globalThis as any).heic2any ??
+            mod.default ??
+            (mod as any) as
+              | ((opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>)
+              | undefined;
+          if (typeof heic2any !== 'function') {
+            throw new Error('heic2any not found after script load (no global, no default)');
+          }
+          const result = await heic2any({ blob: file, toType: 'image/jpeg' });
+          return Array.isArray(result) ? result[0] : result;
+        })(),
+        'HEIC decoder (__IC_HEIC2ANY_URL)',
+      );
     } catch {
-      // URL hatch failed; try bare specifier
+      // URL hatch failed or timed out; try bare specifier
     }
   }
 
@@ -114,24 +160,29 @@ export async function tryDecodeHEICLazy(file: File | Blob): Promise<Blob | null>
     // heic2any is an optional dependency. The `as string` cast tells
     // TypeScript to treat this as a string literal, not as a type
     // assertion (which would require heic2any in the type space).
-    const mod = (await import(/* @vite-ignore */ 'heic2any' as string)) as {
-      default?: unknown;
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const heic2any =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (globalThis as any).heic2any ??
-      mod.default ??
-      (mod as any) as
-        | ((opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>)
-        | undefined;
-    if (typeof heic2any !== 'function') {
-      throw new Error('heic2any not found after bare import');
-    }
-    const result = await heic2any({ blob: file, toType: 'image/jpeg' });
-    return Array.isArray(result) ? result[0] : result;
+    return await withDecoderTimeout(
+      (async () => {
+        const mod = (await import(/* @vite-ignore */ 'heic2any' as string)) as {
+          default?: unknown;
+        };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const heic2any =
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (globalThis as any).heic2any ??
+          mod.default ??
+          (mod as any) as
+            | ((opts: { blob: Blob; toType: string }) => Promise<Blob | Blob[]>)
+            | undefined;
+        if (typeof heic2any !== 'function') {
+          throw new Error('heic2any not found after bare import');
+        }
+        const result = await heic2any({ blob: file, toType: 'image/jpeg' });
+        return Array.isArray(result) ? result[0] : result;
+      })(),
+      'HEIC decoder (heic2any)',
+    );
   } catch {
-    // Both strategies failed
+    // Both strategies failed (or timed out)
     return null;
   }
 }

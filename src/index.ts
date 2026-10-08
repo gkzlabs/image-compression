@@ -58,6 +58,11 @@ export { isCompressionResult, isBatchResult } from './types';
 // Utility functions
 export { detectCapabilities, calculateTier } from './capabilities';
 export { readExifOrientation } from './exif';
+// v1.5.0: read declared dimensions from a file header (no decode) — used by the
+// `maxPixels` decompression-bomb guard, exported for callers who want the same
+// check before handing a file to the library.
+export { readImageDimensions } from './image-header';
+export type { ImageDimensions } from './image-header';
 export { extensionForMimeType } from './types';
 export {
   applyExifOrientation,

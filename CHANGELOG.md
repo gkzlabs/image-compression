@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`maxPixels` — decompression-bomb guard.** A 4 KB PNG can declare 100 000 × 100 000 pixels
+  (~40 GB once decoded), which used to take the tab down before any compression option could help.
+  Set a pixel budget and the library refuses such a file from its **header** — one 64 KB read, no
+  decode, no worker, no canvas:
+  ```ts
+  await svc.compress(file, { maxPixels: 40_000_000 });   // throws FILE_TOO_LARGE when exceeded
+  ```
+  It **throws** `CompressionError('FILE_TOO_LARGE')` instead of falling back, because quietly
+  forwarding a bomb to the server fallback would defeat the budget. Header parsing covers
+  PNG/JPEG/GIF/WebP; AVIF/HEIC/BMP/TIFF cannot be pre-checked. Default: no limit.
+- **`readImageDimensions()`** — exported header reader (`{ type, width, height } | null`, no decode)
+  for callers who want the same check before handing a file to the library.
+
+### Fixed
+
+- **The optional HEIC decoder can no longer hang `compress()`.** The runtime decoder (the
+  `__IC_HEIC2ANY_URL` hatch and the bare `heic2any` specifier) was awaited unbounded: a URL whose
+  host never answers — or a decoder that never settles — left `compress()` waiting on the browser's
+  own import timeout. The import AND the decode call are now abandoned after 10 s
+  (`globalThis.__IC_HEIC_DECODER_TIMEOUT_MS` overrides it) and the cascade continues.
+
+### Security
+
+- **Every GitHub Action is pinned to a commit SHA** (was major tags). `release.yml` carries the
+  npm publish credential, so a moved/compromised tag was a publish-path risk. `# vN` comments keep
+  the pins readable and Dependabot keeps them current.
+- **CodeQL** (`security-and-quality` suite) and **OpenSSF Scorecard** workflows added, plus a new CI
+  job `Dependency audit + signatures` (`npm audit --omit=dev --audit-level=moderate` and
+  `npm audit signatures` — 243 packages verified, 63 with attestations when this was written).
+
 ## [1.4.0] - 2026-10-08
 
 ### Added

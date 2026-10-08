@@ -65,7 +65,9 @@ After you submit a report:
 When using `@gkzlabs/image-compression` in your project:
 
 - **Always validate user-uploaded files** before processing (e.g., check MIME type, magic bytes)
-- **Set size limits** on uploads to prevent OOM (e.g., reject files > 50 MB)
+- **Set size limits** on uploads to prevent OOM (e.g., reject files > 50 MB) **and set a pixel
+  budget** with `maxPixels` — byte size says nothing about decoded size (see
+  [Untrusted input](#untrusted-input--decompression-bombs-v150))
 - **Use CSP headers** to restrict Worker source origins (see the CSP sections below)
 - **Sandbox image processing** — don't process untrusted files in privileged contexts
 - **Keep the library updated** — subscribe to releases for security patches
@@ -108,6 +110,29 @@ If your CSP forbids WebAssembly (`'wasm-unsafe-eval'`):
 - rely on the native `ImageDecoder` path (covers iOS/macOS Safari and recent Chromium), and/or
 - pre-decode HEIC yourself (decode to JPEG/PNG before calling `compress()`), and/or
 - simply do not set `__IC_HEIC2ANY_URL` — the library then skips layer 2 entirely.
+
+### Untrusted input — decompression bombs (v1.5.0)
+
+Byte size says nothing about decoded size: a 4 KB PNG can *declare* 100 000 × 100 000 pixels
+(10 billion pixels ≈ 40 GB of RGBA). Set a pixel budget and the library refuses such a file from
+its header — before any decode, worker spawn or canvas allocation:
+
+```ts
+await svc.compress(file, { maxPixels: 40_000_000 }); // ≈ 40 MP → FILE_TOO_LARGE when exceeded
+```
+
+- The check reads the first 64 KB of the file and parses the container header (PNG / JPEG / GIF /
+  WebP). `readImageDimensions()` is exported if you want the same check before handing a file over.
+- Over-budget input **throws** `CompressionError('FILE_TOO_LARGE')` — it is not quietly forwarded
+  to the server fallback.
+- Containers whose header cannot be parsed pre-decode (AVIF/HEIC, BMP, TIFF, …) are not covered:
+  keep a byte-size limit for those as well.
+- Default: no limit (existing callers are unaffected).
+
+The optional HEIC decoder is time-bounded too: a `__IC_HEIC2ANY_URL` whose host never answers, or
+a decoder that never settles, is abandoned after **10 s** (override with
+`globalThis.__IC_HEIC_DECODER_TIMEOUT_MS`) and the cascade moves on — a black-holed decoder can no
+longer hang `compress()`.
 
 ### Worker loading
 

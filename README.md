@@ -50,6 +50,7 @@ const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2
 - 🚀 **4-path cascade** — WebCodecs → OffscreenCanvas → Canvas2D → server-fallback
 - 🎯 **Target-size mode** — `maxSizeMB` guarantees the output fits under a size budget (**binary-search quality** finds the highest usable quality, then a dimension ladder — v1.1.0 replaced the old fixed quality ladder)
 - 🎚️ **Strict target size** *(v1.4.0)* — `targetSizeStrict: true` keeps shrinking past the default floors (quality → `minQuality`, dimensions → `minDimension` px) so the budget is actually met; the outcome is machine-readable via `result.targetMet`, plus `outputQuality` / `outputScale` for the step that produced the bytes
+- 🛡️ **Decompression-bomb guard** *(v1.5.0)* — `maxPixels` parses the file **header** (no decode) and throws `FILE_TOO_LARGE` for a 4 KB file that claims 100 000 × 100 000 pixels; `readImageDimensions()` is exported for pre-flight checks
 - 🖼️ **AVIF / WebP / JPEG / PNG output** — `format: 'image/avif'` encodes 30-50% smaller than JPEG, with automatic fallback on browsers that can't encode AVIF
 - ✨ **`qualityBoost`** — WebP/AVIF quality is raised (+0.1) so photos land near JPEG-at-`quality` size while looking sharper; low-detail content may grow (see caveat in options)
 - 🪄 **`sharpen`** — optional post-resize unsharp-mask (0..1, default 0 = off) to restore edge definition lost during downscaling
@@ -65,7 +66,7 @@ const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2
 - 🖼️ **HEIC decode** — native `ImageDecoder` first, else the optional `heic2any` decoder (declared optional peer) or any decoder module via `__IC_HEIC2ANY_URL`
 - ⚡ **Smart pass-through** — Skip compression for already-small JPEGs (`passThroughUnderBytes`)
 - 🛑 **Cancellable** — `AbortSignal` support for clean cancellation
-- 🧪 **Well-tested** — 312 unit tests (+5 skipped) + two real-browser suites (worker thread evidence, pixel checks)
+- 🧪 **Well-tested** — 328 unit tests (+5 skipped) + two real-browser suites (worker thread evidence, pixel checks)
 - 📱 **Mobile-friendly** — Bounded concurrency (default 2) prevents OOM on phones
 
 ## 📦 Installation
@@ -232,6 +233,16 @@ interface CompressionOptions {
   minQuality?: number;
   /** v1.4.0: dimension floor in px for strict mode (default 64; ignored without targetSizeStrict) */
   minDimension?: number;
+  /**
+   * v1.5.0: refuse inputs whose declared width × height exceeds this budget,
+   * before decoding anything. A 4 KB PNG can declare 100000×100000 pixels
+   * (~40 GB decoded); the dimensions come from the file header, so rejection
+   * costs one 64 KB read. Over budget → throws
+   * `CompressionError('FILE_TOO_LARGE')` (never a silent server fallback).
+   * Header parsing covers PNG/JPEG/GIF/WebP; AVIF/HEIC/BMP/TIFF are not
+   * pre-checked. Default: undefined (no limit).
+   */
+  maxPixels?: number;
   /** Output format: 'image/jpeg' | 'image/webp' | 'image/png' | 'image/avif' (default 'image/jpeg') */
   format?: OutputFormat;
   /**
@@ -348,7 +359,7 @@ Measured on the same 1920×1080 landscape photo (libwebp 1.3 / libaom 3.8):
 ## 🧪 Tests
 
 ```bash
-npm test              # 312 passed, 5 skipped, 0 failing
+npm test              # 328 passed, 5 skipped, 0 failing
 npm run test:coverage # v8 coverage + threshold gate (lines/stmts ≥70, branches ≥70, funcs ≥85)
 npm run test:browser  # real Chromium: every cascade path, __IC_WORKER_URL, worker-404 fallback
 npm run test:worker   # real Chromium: worker-thread evidence, pixel checks, mid-flight dispose

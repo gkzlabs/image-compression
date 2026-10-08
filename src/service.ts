@@ -1,4 +1,5 @@
 import { detectCapabilities } from './capabilities';
+import { readImageDimensions } from './image-header';
 import { wrap as rpcWrap } from './rpc';
 import { shrinkToTargetSize } from './target-size';
 import { CompressionError, CompressionErrorCode, extensionForMimeType } from './types';
@@ -89,6 +90,13 @@ export class ImageCompression {
   /** Idle timeout for the Web Worker (ms). Worker is terminated after this
    * period of inactivity to free memory. Set to 0 to disable. Default: 30s. */
   private static readonly WORKER_IDLE_TIMEOUT_MS = 30_000;
+  /**
+   * v1.5.0: how much of the file the `maxPixels` guard reads. Every supported
+   * container (PNG/JPEG/GIF/WebP) declares its dimensions within the first few
+   * hundred bytes; 64 KB is comfortable headroom for a JPEG stuffed with a large
+   * EXIF/ICC segment before the frame header.
+   */
+  private static readonly PIXEL_GUARD_HEADER_BYTES = 64 * 1024;
 
   /**
    * Files smaller than this (in bytes) skip Worker paths entirely.
@@ -473,6 +481,14 @@ export class ImageCompression {
       }
       onProgress?.(p);
     };
+
+    // v1.5.0: decompression-bomb guard — cheapest check first, before capability
+    // probing, decode or worker spawn. Throws rather than falling back: quietly
+    // forwarding an over-budget image to the server would defeat the caller's
+    // budget. Header-only, so an allowed image pays one 64 KB read.
+    if (options.maxPixels !== undefined && options.maxPixels > 0) {
+      await ImageCompression.assertWithinPixelBudget(file, options.maxPixels);
+    }
 
     // Stage 1: Detect capabilities
     emit({ stage: 'detecting', percent: 5, message: 'Checking device capabilities...' });
@@ -1619,6 +1635,34 @@ export class ImageCompression {
         { path: forcedPath, tried: [forcedPath], cause: err },
       );
     }
+  }
+
+  /**
+   * v1.5.0: reject an image whose header declares more than `maxPixels` pixels.
+   *
+   * Reads only the first `PIXEL_GUARD_HEADER_BYTES` of the file, so a
+   * decompression bomb costs one small read instead of a multi-GB decode.
+   * Containers we cannot parse (AVIF/HEIC/ISOBMFF, BMP, TIFF, …) pass through.
+   */
+  private static async assertWithinPixelBudget(file: File | Blob, maxPixels: number): Promise<void> {
+    let header: Uint8Array;
+    try {
+      header = new Uint8Array(
+        await file.slice(0, ImageCompression.PIXEL_GUARD_HEADER_BYTES).arrayBuffer(),
+      );
+    } catch {
+      return; // unreadable file — let the normal cascade report it
+    }
+    const dims = readImageDimensions(header);
+    if (!dims) return; // unknown container (AVIF/HEIC/BMP/TIFF/…) — nothing to assert
+    const pixels = dims.width * dims.height;
+    if (pixels <= maxPixels) return;
+    throw new CompressionError(
+      'FILE_TOO_LARGE',
+      `${dims.type.toUpperCase()} declares ${dims.width}×${dims.height} = ${pixels} pixels, ` +
+        `over the maxPixels budget of ${maxPixels}`,
+      { cause: { type: dims.type, width: dims.width, height: dims.height, pixels, maxPixels } },
+    );
   }
 
   /**

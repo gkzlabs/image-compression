@@ -1,0 +1,56 @@
+# OpenSSF Scorecard (v1.5.0) — independent, published security posture check.
+#
+# Why: the repo's own claims (zero deps, provenance, pinned actions) are worth
+# more when a third party verifies them. Scorecard checks branch protection,
+# pinned dependencies, CI tests, dangerous workflow patterns, signed releases …
+# and `publish_results: true` publishes the score to the OpenSSF API (that is
+# what the README badge/scorecard.dev reads).
+name: Scorecard
+
+on:
+  # Branch protection changes are the one event Scorecard wants to re-check
+  # immediately; everything else is weekly.
+  branch_protection_rule:
+  schedule:
+    - cron: '37 4 * * 6'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# read-all at the top; the job widens only what it needs.
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      security-events: write # upload the SARIF result
+      id-token: write # publish_results → signed score to the OpenSSF API
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false # Scorecard rule: don't leak the token
+
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # Publishes the score so it can be read from the OpenSSF API (badge).
+          publish_results: true
+
+      - name: Upload SARIF artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: scorecard-results
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload to the Security tab
+        uses: github/codeql-action/upload-sarif@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+        with:
+          sarif_file: results.sarif

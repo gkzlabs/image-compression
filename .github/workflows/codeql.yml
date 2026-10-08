@@ -1,0 +1,53 @@
+# CodeQL — static analysis for the shipped TypeScript (v1.5.0).
+#
+# Why this repo needs it: the library builds HTML strings (toPictureSet), reads
+# untrusted image bytes and ships a Worker RPC surface — all classic sink
+# territory. CodeQL is free for public repos and uploads findings to the
+# Security tab.
+#
+# Note: CodeQL "default setup" must stay DISABLED for this repo, otherwise GitHub
+# rejects advanced-configuration analyses (`code-scanning/default-setup` reports
+# `not-configured`, which is the expected state).
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, off the top of the hour (GitHub's cron queue is busiest at :00).
+    - cron: '41 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (javascript-typescript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      security-events: write # upload results to the Security tab
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+        with:
+          languages: javascript-typescript
+          # security-and-quality is broader than the default suite: it also flags
+          # maintainability/correctness queries. Findings land in the Security tab.
+          queries: security-and-quality
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+        with:
+          category: '/language:javascript-typescript'

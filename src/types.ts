@@ -162,6 +162,23 @@ export interface CompressionOptions {
    */
   maxSizeMB?: number;
   /**
+   * v1.5.0: refuse inputs whose declared pixel count (`width × height`) exceeds
+   * this budget, before anything is decoded.
+   *
+   * Why: a 4 KB PNG can declare 100 000 × 100 000 pixels — decoding it allocates
+   * tens of GB and takes the tab down ("decompression bomb"). The dimensions come
+   * from the file header (PNG/JPEG/GIF/WebP), so the rejection costs one 64 KB
+   * read and no decode at all.
+   *
+   * When the budget is exceeded, `compress()` **throws**
+   * `CompressionError('FILE_TOO_LARGE')` instead of falling back — silently
+   * forwarding a bomb to the server would defeat the point. Containers whose
+   * header we cannot read (AVIF/HEIC, BMP, TIFF, …) are not checked pre-decode.
+   *
+   * Default: undefined (no limit — unchanged behaviour).
+   */
+  maxPixels?: number;
+  /**
    * v1.4.0: keep shrinking past the default floors until the budget is really
    * met — prioritises the size limit over image quality.
    *
@@ -453,7 +470,8 @@ export type CompressionErrorCode =
   | 'INVALID_FILE'
   /** Options are invalid (e.g. `forcePath` not in known paths) */
   | 'INVALID_OPTIONS'
-  /** File is too large for the current device/browser */
+  /** File is too large for the current device/browser, or over the caller's
+   *  `maxPixels` budget (v1.5.0: declared width × height too large) */
   | 'FILE_TOO_LARGE'
   /** Catch-all for unexpected errors */
   | 'UNKNOWN';
