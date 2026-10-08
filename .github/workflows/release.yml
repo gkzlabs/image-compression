@@ -84,18 +84,69 @@ jobs:
         #     gkzlabs/image-compression + release.yml (done at first OIDC
         #     publish, v0.10.23).
         #
-        # Idempotent: if this exact version is already on the registry
-        # (e.g. tag re-pushed after a workflow fix), skip the publish —
-        # npm rejects re-publishing the same version with 403. The GitHub
-        # Release step below still runs with the curated changelog.
+        # Idempotent: if this exact version is already live on the registry
+        # (e.g. tag re-pushed after a workflow fix), skip the publish — npm
+        # rejects re-publishing the same version. The GitHub Release step below
+        # still runs with the curated changelog.
+        #
+        # v1.4.0 — the publish is VERIFIED, because a green CLI is not a publish.
+        # npm now supports *staged* publishing (proof-of-presence): when the
+        # package or its trust relationship requires it, an automated publish
+        # lands in the registry's staging area — invisible to `npm view`, to the
+        # mirrors and to unpkg — while the CLI still prints "+ pkg@version" and
+        # the registry answers "Your package is being processed…". That is exactly
+        # how the v1.4.0 release run went green with nothing published, so this
+        # step now polls the registry and fails loudly (with the approve command
+        # in the job summary) instead of pretending success.
         run: |
+          set -euo pipefail
           npm install -g npm@latest
+          PKG_NAME=$(node -p "require('./package.json').name")
           PKG_VERSION=$(node -p "require('./package.json').version")
-          if npm view "$(node -p "require('./package.json').name")@$PKG_VERSION" version >/dev/null 2>&1; then
+
+          if npm view "$PKG_NAME@$PKG_VERSION" version >/dev/null 2>&1; then
             echo "Version $PKG_VERSION already published — skipping npm publish"
-          else
-            npm publish --provenance --access public
+            exit 0
           fi
+
+          # --json: a staged publish reports a stageId there (npm 12+).
+          if ! npm publish --provenance --access public --json > /tmp/publish.json 2>/tmp/publish.err; then
+            cat /tmp/publish.err >&2
+            exit 1
+          fi
+          cat /tmp/publish.err >&2 || true
+
+          # The registry can lag a few seconds after a successful upload.
+          for i in $(seq 1 12); do
+            if npm view "$PKG_NAME@$PKG_VERSION" version >/dev/null 2>&1; then
+              echo "✓ verified live on the registry: $PKG_NAME@$PKG_VERSION"
+              exit 0
+            fi
+            sleep 5
+          done
+
+          STAGE_ID=$(node -e "try{const j=JSON.parse(require('fs').readFileSync('/tmp/publish.json','utf8'));const r=Array.isArray(j)?j[0]:j;if(r&&r.stageId)process.stdout.write(String(r.stageId))}catch(e){}" || true)
+          {
+            echo "## ❌ npm publish did not go live"
+            echo ""
+            echo "\`$PKG_NAME@$PKG_VERSION\` is still not visible on the registry 60s after the CLI reported success."
+            if [ -n "${STAGE_ID:-}" ]; then
+              echo ""
+              echo "The publish was **staged** (proof-of-presence): stage id \`$STAGE_ID\`."
+              echo "A maintainer must approve it with 2FA before anyone can install it:"
+              echo '```bash'
+              echo "npm login                              # refresh the token if it expired"
+              echo "npm stage list $PKG_NAME"
+              echo "npm stage approve $STAGE_ID"
+              echo '```'
+            fi
+            echo ""
+            echo "To let this workflow publish directly next time, allow \`npm publish\` on the"
+            echo "trust relationship (npmjs.com → package → Trusted Publisher) and/or set the"
+            echo "package access rule so an OIDC publish is not redirected into staging."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error::npm publish did not produce a live version — see the job summary for the approve command."
+          exit 1
 
       - name: Extract changelog section for release notes
         id: changelog
