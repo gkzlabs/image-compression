@@ -15,6 +15,35 @@ import {
   readExifOrientation,
   resizeOffscreen,
 } from './worker-helpers';
+import type { TargetSizeLadderOptions, TargetSizeLadderResult } from './target-size';
+
+/**
+ * v1.4.0: shape the in-worker target-size ladder result as the worker's return
+ * payload, carrying the ladder metadata (`targetMet` / `outputQuality` /
+ * `outputScale`) the service copies onto the CompressionResult.
+ */
+function withLadderMeta(
+  sized: TargetSizeLadderResult,
+  mimeType: string,
+): {
+  blob: Blob;
+  width: number;
+  height: number;
+  mimeType: string;
+  targetMet: boolean;
+  outputScale: number;
+  outputQuality?: number;
+} {
+  return {
+    blob: sized.blob,
+    width: sized.width,
+    height: sized.height,
+    mimeType,
+    targetMet: sized.met,
+    outputScale: sized.scale,
+    ...(sized.quality !== undefined ? { outputQuality: sized.quality } : {}),
+  };
+}
 
 /**
  * Image compression Web Worker.
@@ -55,7 +84,19 @@ const api: ImageWorkerApi = {
       format = 'image/jpeg',
       maxSizeMB,
       sharpen = 0,
+      // v1.4.0: strict target-size floors, forwarded from the service so the
+      // main thread and the Worker run the SAME ladder configuration.
+      targetSizeStrict,
+      minQuality,
+      minDimension,
     } = options;
+
+    /** v1.4.0: ladder options derived from the caller's CompressionOptions. */
+    const ladder: TargetSizeLadderOptions = {
+      strict: targetSizeStrict === true,
+      ...(minQuality !== undefined ? { minQuality } : {}),
+      ...(minDimension !== undefined ? { minDimension } : {}),
+    };
 
     // v1.3.3: sharpening runs in the Worker now (it used to be main-thread only,
     // in executeCanvasMainPath). Skipped for lossless PNG, matching that rule —
@@ -163,11 +204,12 @@ const api: ImageWorkerApi = {
             // because they came from the transform, so only pixel checks caught
             // it). Same draw math as encodeOffscreenWithTransforms above.
             { rotate: options.rotate ?? 0, mirror: options.mirror, sharpen: sharpenStrength },
+            ladder,
           );
           bitmap.close();
           emit('encoding', 95);
           if (sized) {
-            return { blob: sized.blob, width: sized.width, height: sized.height, mimeType: format };
+            return withLadderMeta(sized, format);
           }
           // Ladder failed (no blob produced) — fall back to the transform result.
           return { blob: out.blob, width: out.width, height: out.height, mimeType: format };
@@ -211,11 +253,12 @@ const api: ImageWorkerApi = {
         width,
         height,
         { sharpen: sharpenStrength },
+        ladder,
       );
       bitmap.close();
       emit('encoding', 95);
       if (sized) {
-        return { blob: sized.blob, width: sized.width, height: sized.height, mimeType: format };
+        return withLadderMeta(sized, format);
       }
       // Ladder failed (no blob produced) — fall back to the plain encode.
       return { blob, width, height, mimeType: format };

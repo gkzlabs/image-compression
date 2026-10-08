@@ -145,19 +145,45 @@ export interface CompressionOptions {
   /** JPEG/WebP/AVIF quality 0..1 (default 0.85) */
   quality?: number;
   /**
-   * Target maximum output size in megabytes. When set, the library
-   * re-encodes iteratively until the output fits under this limit:
-   *   1. Quality ladder — steps down from `quality` toward 0.15
-   *   2. Dimension ladder — if still too large at min quality, reduces
-   *      dimensions by 10% per step (down to 50% of the current size)
-   * The smallest result that meets the target is returned. If the target
-   * is unreachable (e.g. extremely noisy input), the smallest achievable
-   * output is returned instead.
+   * Target maximum output size in megabytes. When set, the library re-encodes
+   * iteratively until the output fits under this limit:
+   *   1. Binary-search quality (floor 0.2 by default) at the current
+   *      dimensions — the highest quality that still fits is returned.
+   *   2. Dimension ladder — only when no quality at that size fits: 100% → 90%
+   *      → … → 50% of the current dimensions, re-running the quality search at
+   *      each step.
+   * The first step that fits wins (largest dimensions + highest quality). If the
+   * target is unreachable, the smallest achievable output is returned — read
+   * `result.targetMet` rather than parsing console warnings, and set
+   * `targetSizeStrict` to keep shrinking past these floors.
    *
    * No-op for `passthrough` / `server-fallback` results (no decode happened).
    * Default: undefined (no size target).
    */
   maxSizeMB?: number;
+  /**
+   * v1.4.0: keep shrinking past the default floors until the budget is really
+   * met — prioritises the size limit over image quality.
+   *
+   * The ladder then may probe quality down to `minQuality` (default 0.05 in
+   * this mode) and dimensions down to `minDimension` px on the longest edge
+   * (default 64), preferring to lower quality at the current dimensions before
+   * dropping resolution further. Encode work stays bounded (≤64 ladder probes).
+   *
+   * Default: false (unchanged v1.3.x behaviour: quality floor 0.2, dimensions
+   * floor 50%).
+   */
+  targetSizeStrict?: boolean;
+  /**
+   * v1.4.0: lowest quality the `maxSizeMB` ladder may probe. Default: 0.2, or
+   * 0.05 when `targetSizeStrict` is set. Never raised above `quality`.
+   */
+  minQuality?: number;
+  /**
+   * v1.4.0: dimension floor (px, longest edge) for the strict `maxSizeMB`
+   * ladder. Default: 64. Ignored unless `targetSizeStrict` is set.
+   */
+  minDimension?: number;
   /** Output format (default 'image/jpeg') */
   format?: OutputFormat;
   /** v1.3.3: maximum number of files compressed in parallel by
@@ -278,6 +304,26 @@ export interface CompressionResult {
   tier: DeviceTier;
   /** Output MIME type */
   mimeType: string;
+  /**
+   * v1.4.0: whether the output meets the `maxSizeMB` budget
+   * (`compressedSize <= maxSizeMB * 1024 * 1024`).
+   * - `undefined` when no `maxSizeMB` was requested.
+   * - `false` when the budget could not be met (the ladder ran out of floors,
+   *   or the file was passed through / left to the server).
+   */
+  targetMet?: boolean;
+  /**
+   * v1.4.0: quality the `maxSizeMB` ladder actually used for this output.
+   * `undefined` when the ladder did not run (no `maxSizeMB`, pass-through,
+   * server-fallback) and for lossless PNG output.
+   */
+  outputQuality?: number;
+  /**
+   * v1.4.0: dimension scale the `maxSizeMB` ladder actually used
+   * (1 = original dimensions, 0.5 = half). `undefined` when the ladder did not
+   * run (e.g. the first encode already fit the budget).
+   */
+  outputScale?: number;
 }
 
 export interface DeviceCapabilities {
@@ -341,7 +387,8 @@ export interface ImageWorkerApi {
    * @param options Compression options (NO onProgress — passed as 3rd arg)
    * @param onProgress Progress callback (serialized to a CallbackRef by rpc.ts
    *   so it stays structured-clone safe, then routed back over the same channel)
-   * @returns Compressed Blob + dimensions
+   * @returns Compressed Blob + dimensions (+ v1.4.0 target-size metadata when
+   *   the in-worker `maxSizeMB` ladder produced the output)
    */
   compress(
     file: File | Blob,
@@ -352,6 +399,10 @@ export interface ImageWorkerApi {
     width: number;
     height: number;
     mimeType: string;
+    /** v1.4.0: set by the in-worker target-size ladder (see CompressionResult). */
+    targetMet?: boolean;
+    outputQuality?: number;
+    outputScale?: number;
   }>;
 
   /**

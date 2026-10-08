@@ -29,6 +29,25 @@ interface RpcDisposable {
   __dispose?: (reason?: Error) => void;
 }
 
+/** v1.4.0: target-size metadata a path may already carry on its partial result. */
+type TargetSizeMeta = Pick<CompressionResult, 'targetMet' | 'outputQuality' | 'outputScale'>;
+
+/**
+ * v1.4.0: build a target-size metadata object **without undefined keys**, so a
+ * result only advertises `targetMet` / `outputQuality` / `outputScale` when the
+ * ladder actually produced a value (keeps non-`maxSizeMB` results byte-for-byte
+ * identical to v1.3.x, which matters for tests and for callers that iterate
+ * `Object.keys(result)`).
+ */
+function metaWith(meta?: TargetSizeMeta): TargetSizeMeta {
+  const out: TargetSizeMeta = {};
+  if (!meta) return out;
+  if (meta.targetMet !== undefined) out.targetMet = meta.targetMet;
+  if (meta.outputQuality !== undefined) out.outputQuality = meta.outputQuality;
+  if (meta.outputScale !== undefined) out.outputScale = meta.outputScale;
+  return out;
+}
+
 /**
  * Worker URL resolution lives in ./worker-resolution (single source of truth,
  * unit-tested via worker-resolution.spec.ts). Re-exported here because
@@ -409,6 +428,36 @@ export class ImageCompression {
     file: File | Blob,
     options: CompressionOptions = {},
   ): Promise<CompressionResult> {
+    return ImageCompression.applyTargetSizeVerdict(
+      await this.compressInternal(file, options),
+      options,
+    );
+  }
+
+  /**
+   * v1.4.0: attach `targetMet` to the FINAL result of any cascade path.
+   *
+   * The verdict is derived from the returned byte size — never from the ladder's
+   * internal promise — because a later main-thread stage (transform re-encode,
+   * server fallback) can change the output size after the ladder ran. Enables
+   * `if (!result.targetMet) showWarning()` without parsing console output.
+   *
+   * No-op when `maxSizeMB` was not requested, so existing results are unchanged.
+   */
+  private static applyTargetSizeVerdict(
+    result: CompressionResult,
+    options: CompressionOptions,
+  ): CompressionResult {
+    const maxMB = options.maxSizeMB;
+    if (maxMB === undefined || maxMB <= 0) return result;
+    return { ...result, targetMet: result.compressedSize <= maxMB * 1024 * 1024 };
+  }
+
+  /** Internal cascade body of the public `compress()` (see the doc block above). */
+  private async compressInternal(
+    file: File | Blob,
+    options: CompressionOptions = {},
+  ): Promise<CompressionResult> {
     const start = performance.now();
     const onProgress = options.onProgress;
 
@@ -591,6 +640,13 @@ export class ImageCompression {
             result.height,
             result.mimeType,
             file,
+            false,
+            // v1.4.0: carry the in-worker target-size metadata onto the result.
+            metaWith({
+              targetMet: result.targetMet,
+              outputQuality: result.outputQuality,
+              outputScale: result.outputScale,
+            }),
           );
           const finalResult = await ImageCompression.applyTransformsIfRequested(
             baseResult,
@@ -900,12 +956,18 @@ export class ImageCompression {
     // otherwise have its own worker terminated mid-flight.
     this.suspendWorkerIdleTimer();
     try {
-      const { blob, width, height, mimeType } = await worker.compress(
-        file,
-        workerOptions,
-        onProgress,
-      );
-      return { blob, compressedSize: blob.size, width, height, mimeType };
+      const { blob, width, height, mimeType, targetMet, outputQuality, outputScale } =
+        await worker.compress(file, workerOptions, onProgress);
+      return {
+        blob,
+        compressedSize: blob.size,
+        width,
+        height,
+        mimeType,
+        // v1.4.0: the in-worker ladder reports which quality/scale it used and
+        // whether the budget was met — carried up so the result can expose it.
+        ...metaWith({ targetMet, outputQuality, outputScale }),
+      };
     } finally {
       if (this.worker) this.resetWorkerIdleTimer();
     }
@@ -1314,15 +1376,18 @@ export class ImageCompression {
    *
    * If the compressed result is still larger than the requested target,
    * re-encode iteratively until it fits:
-   *   1. **Quality ladder** — step quality down from the caller's `quality`
-   *      (default 0.85) toward 0.15 at the SAME dimensions.
-   *   2. **Dimension ladder** — if min quality still overshoots, reduce
-   *      dimensions by 10% per step (down to 50%) and re-try the quality
-   *      ladder at each size.
+   *   1. **Quality search** — binary-search the highest quality that fits, from
+   *      the caller's `quality` (default 0.85) down to 0.2, SAME dimensions.
+   *   2. **Dimension ladder** — if no quality at that size fits, step dimensions
+   *      down 100% → 90% → … → 50% and re-run the quality search at each size.
+   *   3. **v1.4.0 strict mode** (`targetSizeStrict`) — keep going past those
+   *      floors: quality down to `minQuality` (default 0.05) and dimensions down
+   *      to `minDimension` px (default 64) so the budget is actually met.
    *
-   * Returns the smallest result that meets the target. If the target is
-   * unreachable (e.g. extremely noisy input where even 50% size + q0.15
-   * overshoots), returns the smallest achievable output.
+   * Returns the largest/highest-quality result that meets the target, else the
+   * smallest achievable output. Since v1.4.0 the outcome is also machine-readable
+   * on the result: `targetMet`, plus `outputQuality` / `outputScale` (the ladder
+   * step that produced the returned bytes).
    *
    * No-op conditions:
    *   - `maxSizeMB` not set (or ≤ 0)
@@ -1392,6 +1457,13 @@ export class ImageCompression {
             ctx.drawImage(bitmap, 0, 0, w, h);
             canvas.toBlob((b) => resolve(b), format, q);
           }),
+        // v1.4.0: strict-mode floors travel with the call so the main-thread
+        // ladder runs the exact same configuration as the in-worker one.
+        {
+          strict: options.targetSizeStrict === true,
+          ...(options.minQuality !== undefined ? { minQuality: options.minQuality } : {}),
+          ...(options.minDimension !== undefined ? { minDimension: options.minDimension } : {}),
+        },
       );
 
       if (!shrunk) {
@@ -1399,9 +1471,14 @@ export class ImageCompression {
         return result;
       }
       // Warn when the target was unreachable (helper returned its smallest).
-      if (shrunk.blob.size > targetBytes) {
+      // `result.targetMet` is the machine-readable signal (set by
+      // applyTargetSizeVerdict on the final result) — the log is for humans.
+      if (!shrunk.met) {
         console.warn(
-          `[ImageCompression] reachTargetSize: could not reach ${maxMB}MB target, returning smallest achievable (${(shrunk.blob.size / 1024).toFixed(0)}KB)`,
+          `[ImageCompression] reachTargetSize: could not reach ${maxMB}MB target, returning smallest achievable (${(shrunk.blob.size / 1024).toFixed(0)}KB at quality ${shrunk.quality ?? 'n/a'}, scale ${shrunk.scale})` +
+            (options.targetSizeStrict
+              ? ' — targetSizeStrict is already on; raise minDimension\'s headroom or lower maxSizeMB'
+              : ' — set targetSizeStrict: true to keep shrinking past the default floors'),
         );
       }
       return ImageCompression.buildResult(
@@ -1414,6 +1491,13 @@ export class ImageCompression {
         shrunk.height,
         format,
         result.file,
+        false,
+        // v1.4.0: expose the quality/scale the ladder settled on + the verdict.
+        metaWith({
+          targetMet: shrunk.met,
+          outputQuality: shrunk.quality,
+          outputScale: shrunk.scale,
+        }),
       );
     } finally {
       bitmap.close();
@@ -1483,6 +1567,13 @@ export class ImageCompression {
           result.height,
           result.mimeType,
           file,
+          false,
+          // v1.4.0: carry the in-worker target-size metadata onto the result.
+          metaWith({
+            targetMet: result.targetMet,
+            outputQuality: result.outputQuality,
+            outputScale: result.outputScale,
+          }),
         );
         const finalResult = await ImageCompression.applyTransformsIfRequested(
           baseResult,
@@ -1570,6 +1661,8 @@ export class ImageCompression {
    * @param preserveOriginalName If true, the original filename is kept unchanged
    *   (no extension replacement). Used by server-fallback paths where the
    *   server is expected to handle any extension based on mime type.
+   * @param targetSize v1.4.0: target-size metadata (`targetMet` /
+   *   `outputQuality` / `outputScale`) to attach when the path already knows it.
    */
   private static buildResult(
     blob: Blob,
@@ -1582,7 +1675,9 @@ export class ImageCompression {
     mimeType: string,
     originalFile?: File | Blob,
     preserveOriginalName = false,
+    targetSize?: TargetSizeMeta,
   ): CompressionResult {
+    const meta = metaWith(targetSize);
     // Fast path: input is already a File with matching type + no rename needed.
     // Returns the original File reference (no copy, no allocation).
     if (blob instanceof File && blob.type === mimeType) {
@@ -1601,6 +1696,7 @@ export class ImageCompression {
           path,
           durationMs,
           tier,
+          ...meta,
         };
       }
     }
@@ -1638,6 +1734,7 @@ export class ImageCompression {
       path,
       durationMs,
       tier,
+      ...meta,
     };
   }
 

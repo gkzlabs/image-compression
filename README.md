@@ -49,6 +49,7 @@ const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2
 
 - 🚀 **4-path cascade** — WebCodecs → OffscreenCanvas → Canvas2D → server-fallback
 - 🎯 **Target-size mode** — `maxSizeMB` guarantees the output fits under a size budget (**binary-search quality** finds the highest usable quality, then a dimension ladder — v1.1.0 replaced the old fixed quality ladder)
+- 🎚️ **Strict target size** *(v1.4.0)* — `targetSizeStrict: true` keeps shrinking past the default floors (quality → `minQuality`, dimensions → `minDimension` px) so the budget is actually met; the outcome is machine-readable via `result.targetMet`, plus `outputQuality` / `outputScale` for the step that produced the bytes
 - 🖼️ **AVIF / WebP / JPEG / PNG output** — `format: 'image/avif'` encodes 30-50% smaller than JPEG, with automatic fallback on browsers that can't encode AVIF
 - ✨ **`qualityBoost`** — WebP/AVIF quality is raised (+0.1) so photos land near JPEG-at-`quality` size while looking sharper; low-detail content may grow (see caveat in options)
 - 🪄 **`sharpen`** — optional post-resize unsharp-mask (0..1, default 0 = off) to restore edge definition lost during downscaling
@@ -64,7 +65,7 @@ const result = await new ImageCompression().compress(file, { maxWidthOrHeight: 2
 - 🖼️ **HEIC decode** — native `ImageDecoder` first, else the optional `heic2any` decoder (declared optional peer) or any decoder module via `__IC_HEIC2ANY_URL`
 - ⚡ **Smart pass-through** — Skip compression for already-small JPEGs (`passThroughUnderBytes`)
 - 🛑 **Cancellable** — `AbortSignal` support for clean cancellation
-- 🧪 **Well-tested** — 262 unit tests + two real-browser suites (worker thread evidence, pixel checks)
+- 🧪 **Well-tested** — 312 unit tests (+5 skipped) + two real-browser suites (worker thread evidence, pixel checks)
 - 📱 **Mobile-friendly** — Bounded concurrency (default 2) prevents OOM on phones
 
 ## 📦 Installation
@@ -208,10 +209,29 @@ interface CompressionOptions {
    * v1.1.0: **binary search** finds the highest quality that still fits
    * the budget (instead of the old fixed quality ladder, which overshot
    * and wasted quality), then a dimension ladder (down to 50%). Returns
-   * the best result that meets the target, or the smallest achievable
-   * with a warning.
+   * the best result that meets the target, or the smallest achievable.
+   * v1.4.0: read `result.targetMet` instead of parsing warnings, and set
+   * `targetSizeStrict` to keep shrinking past the default floors.
    */
   maxSizeMB?: number;
+  /**
+   * v1.4.0: prioritise the size budget over image quality — keep shrinking
+   * past the default floors (quality 0.2, dimensions 50%) until the budget is
+   * met: quality down to `minQuality` (default 0.05), dimensions down to
+   * `minDimension` px (default 64). Resolution is preserved as long as
+   * possible: quality drops at the current size before dimensions shrink.
+   * Bounded to ≤64 ladder encodes. Default false.
+   *
+   * ```ts
+   * // "must be under 1 MB, whatever it takes"
+   * await svc.compress(file, { maxSizeMB: 1, targetSizeStrict: true });
+   * ```
+   */
+  targetSizeStrict?: boolean;
+  /** v1.4.0: lowest quality the maxSizeMB ladder may probe (default 0.2, or 0.05 with targetSizeStrict) */
+  minQuality?: number;
+  /** v1.4.0: dimension floor in px for strict mode (default 64; ignored without targetSizeStrict) */
+  minDimension?: number;
   /** Output format: 'image/jpeg' | 'image/webp' | 'image/png' | 'image/avif' (default 'image/jpeg') */
   format?: OutputFormat;
   /**
@@ -328,7 +348,7 @@ Measured on the same 1920×1080 landscape photo (libwebp 1.3 / libaom 3.8):
 ## 🧪 Tests
 
 ```bash
-npm test              # 262 passed, 5 skipped, 0 failing
+npm test              # 312 passed, 5 skipped, 0 failing
 npm run test:coverage # v8 coverage + threshold gate (lines/stmts ≥70, branches ≥70, funcs ≥85)
 npm run test:browser  # real Chromium: every cascade path, __IC_WORKER_URL, worker-404 fallback
 npm run test:worker   # real Chromium: worker-thread evidence, pixel checks, mid-flight dispose

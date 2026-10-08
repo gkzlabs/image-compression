@@ -26,7 +26,7 @@
 
 </div></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L69">src/service.ts:69</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L88">src/service.ts:88</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-accordion" open><summary class="tsd-accordion-summary tsd-index-summary"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
@@ -80,7 +80,7 @@ the main thread, so the Worker overhead would be a net loss.</p>
 <p>Exposed for testing. Not part of the public API.</p>
 </div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L87">src/service.ts:87</a></li></ul></aside></section></section></details>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L106">src/service.ts:106</a></li></ul></aside></section></section></details>
 <details class="tsd-panel-group tsd-member-group tsd-accordion" open><summary class="tsd-accordion-summary" data-key="section-Methods"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><use href="../assets/icons.svg#icon-chevronDown"></use></svg>
 <h2 class="tsd-anchor-link" id="methods-1">Methods<a href="#methods-1" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h2></summary>
 <section>
@@ -127,7 +127,7 @@ Worker's resize+encode speed (Stage 1) AND get correct transforms
 <code>applyTransformsIfRequested.spec.ts</code>.</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1102">src/service.ts:1102</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1234">src/service.ts:1234</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="reachtargetsize"><code class="tsd-tag">Static</code><span>reach<wbr/>Target<wbr/>Size</span><a href="#reachtargetsize" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -138,15 +138,18 @@ Worker's resize+encode speed (Stage 1) AND get correct transforms
 <p>If the compressed result is still larger than the requested target,
 re-encode iteratively until it fits:</p>
 <ol>
-<li><strong>Quality ladder</strong> — step quality down from the caller's <code>quality</code>
-(default 0.85) toward 0.15 at the SAME dimensions.</li>
-<li><strong>Dimension ladder</strong> — if min quality still overshoots, reduce
-dimensions by 10% per step (down to 50%) and re-try the quality
-ladder at each size.</li>
+<li><strong>Quality search</strong> — binary-search the highest quality that fits, from
+the caller's <code>quality</code> (default 0.85) down to 0.2, SAME dimensions.</li>
+<li><strong>Dimension ladder</strong> — if no quality at that size fits, step dimensions
+down 100% → 90% → … → 50% and re-run the quality search at each size.</li>
+<li><strong>v1.4.0 strict mode</strong> (<code>targetSizeStrict</code>) — keep going past those
+floors: quality down to <code>minQuality</code> (default 0.05) and dimensions down
+to <code>minDimension</code> px (default 64) so the budget is actually met.</li>
 </ol>
-<p>Returns the smallest result that meets the target. If the target is
-unreachable (e.g. extremely noisy input where even 50% size + q0.15
-overshoots), returns the smallest achievable output.</p>
+<p>Returns the largest/highest-quality result that meets the target, else the
+smallest achievable output. Since v1.4.0 the outcome is also machine-readable
+on the result: <code>targetMet</code>, plus <code>outputQuality</code> / <code>outputScale</code> (the ladder
+step that produced the returned bytes).</p>
 <p>No-op conditions:</p>
 <ul>
 <li><code>maxSizeMB</code> not set (or ≤ 0)</li>
@@ -167,7 +170,7 @@ involvement, no Chrome 149 detach risk (no transferToImageBitmap chain).</p>
 <li><span><span class="tsd-kind-parameter">options</span>: <a href="../interfaces/CompressionOptions.html" class="tsd-signature-type tsd-kind-interface">CompressionOptions</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/CompressionResult.html" class="tsd-signature-type tsd-kind-interface">CompressionResult</a><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1270">src/service.ts:1270</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1405">src/service.ts:1405</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="getcapabilities"><span>get<wbr/>Capabilities</span><a href="#getcapabilities" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -185,7 +188,7 @@ be slower for the first call after page load.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/DeviceCapabilities.html" class="tsd-signature-type tsd-kind-interface">DeviceCapabilities</a><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L154">src/service.ts:154</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L196">src/service.ts:196</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="resolveoutputformat"><span>resolve<wbr/>Output<wbr/>Format</span><a href="#resolveoutputformat" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -209,7 +212,7 @@ library is broken. Probes once per format per instance (cached).</p>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../types/OutputFormat.html" class="tsd-signature-type tsd-kind-type-alias">OutputFormat</a><span class="tsd-signature-symbol">&gt;</span></h4><p>A format the browser can encode (never 'image/avif' if unsupported)</p>
 <aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L238">src/service.ts:238</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L280">src/service.ts:280</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="compress"><span>compress</span><a href="#compress" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -237,7 +240,7 @@ Never throws — falls back to server-fallback (returns original).</p>
 <li><span><span class="tsd-kind-parameter">options</span>: <a href="../interfaces/CompressionOptions.html" class="tsd-signature-type tsd-kind-interface">CompressionOptions</a><span class="tsd-signature-symbol"> = {}</span></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="../interfaces/CompressionResult.html" class="tsd-signature-type tsd-kind-interface">CompressionResult</a><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L385">src/service.ts:385</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L427">src/service.ts:427</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="compressall"><span>compress<wbr/>All</span><a href="#compressall" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -266,14 +269,16 @@ null-check each element when <code>continueOnError</code> is enabled.</li>
 <li><span><span class="tsd-kind-parameter">options</span>: <a href="../interfaces/CompressionOptions.html" class="tsd-signature-type tsd-kind-interface">CompressionOptions</a><span class="tsd-signature-symbol"> = {}</span></span>
 <div class="tsd-comment tsd-typography"><p>Shared options (same as <code>compress()</code>)</p>
 </div></li>
-<li><span><span class="tsd-kind-parameter">maxConcurrent</span>: <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> = 2</span></span>
+<li><span><code class="tsd-tag">Optional</code><span class="tsd-kind-parameter">maxConcurrent</span>: <span class="tsd-signature-type">number</span></span>
 <div class="tsd-comment tsd-typography"><p>Max files processed in parallel (default 2 for mobile).
 Set to 0 or negative to mean Infinity (unlimited).
-Recommended: 2-3 for mobile, 4-8 for desktop.</p>
+Recommended: 2-3 for mobile, 4-8 for desktop.
+<strong>Deprecated (v1.3.3):</strong> pass <code>options.maxConcurrency</code>
+instead. The positional argument still works.</p>
 </div></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span>(<a href="../interfaces/CompressionResult.html" class="tsd-signature-type tsd-kind-interface">CompressionResult</a> <span class="tsd-signature-symbol">|</span> <span class="tsd-signature-type">null</span>)<span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L621">src/service.ts:621</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L736">src/service.ts:736</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member tsd-is-protected">
 <h3 class="tsd-anchor-link" id="selectpaths"><code class="tsd-tag">Protected</code><span>select<wbr/>Paths</span><a href="#selectpaths" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures tsd-is-protected">
@@ -316,7 +321,7 @@ v0.5.7 Angular wrapper.</p>
 <li><span><span class="tsd-kind-parameter">options</span>: <a href="../interfaces/CompressionOptions.html" class="tsd-signature-type tsd-kind-interface">CompressionOptions</a></span></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="../types/CompressionPath.html" class="tsd-signature-type tsd-kind-type-alias">CompressionPath</a><span class="tsd-signature-symbol">[]</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L730">src/service.ts:730</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L849">src/service.ts:849</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="terminate"><span>terminate</span><a href="#terminate" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -329,7 +334,7 @@ Safe to call multiple times.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1600">src/service.ts:1600</a></li></ul></aside></div></li></ul></section>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1767">src/service.ts:1767</a></li></ul></aside></div></li></ul></section>
 <section class="tsd-panel tsd-member">
 <h3 class="tsd-anchor-link" id="dispose"><span>dispose</span><a href="#dispose" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="../assets/icons.svg#icon-anchor"></use></svg></a></h3>
 <ul class="tsd-signatures">
@@ -342,7 +347,7 @@ Safe to call multiple times.</p>
 </div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1640">src/service.ts:1640</a></li></ul></aside></div></li></ul></section></section></details></div>
+<li>Defined in <a href="https://github.com/gkzlabs/image-compression/blob/main/src/service.ts#L1807">src/service.ts:1807</a></li></ul></aside></div></li></ul></section></section></details></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">

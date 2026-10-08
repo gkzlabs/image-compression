@@ -25,7 +25,7 @@
   "plugin": [],
   "readme": "./README.md",
   "githubPages": false,
-  "gitRemote": "github",
+  "gitRemote": "origin",
   "gitRevision": "main",
   "hideGenerator": true,
   "skipErrorChecking": true,

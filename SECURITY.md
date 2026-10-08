@@ -4,7 +4,8 @@
 
 | Version | Supported          |
 |---------|--------------------|
-| 1.3.x   | :white_check_mark: (current) |
+| 1.4.x   | :white_check_mark: (current) |
+| 1.3.x   | :white_check_mark: |
 | 1.2.x   | :white_check_mark: |
 | 1.1.x   | :white_check_mark: |
 | 1.0.x   | :white_check_mark: (critical fixes only) |
@@ -16,7 +17,10 @@
 > `qualityBoost`, binary-search target size), v1.2.0 (worker-side transforms,
 > CJS build, server-fallback docs), v1.3.0 (target-size ladder in the Worker),
 > v1.3.1 (worker reliability: transform-preserving target-size ladder,
-> in-flight `dispose()` no longer hangs, no progress-callback leak).
+> in-flight `dispose()` no longer hangs, no progress-callback leak),
+> v1.3.3 (`toPictureSet()`, `options.maxConcurrency`, HEIC fixture tests),
+> v1.4.0 (strict target-size mode `targetSizeStrict`/`minQuality`/`minDimension`
+> and machine-readable `targetMet`/`outputQuality`/`outputScale` on the result).
 > All additions are opt-in; defaults are unchanged.
 > See [CHANGELOG.md](CHANGELOG.md) for the full release history and
 > [GitHub Releases](https://github.com/gkzlabs/image-compression/releases)

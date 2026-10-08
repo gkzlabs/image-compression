@@ -10,6 +10,7 @@
 
 import type { ExifOrientation } from './exif';
 import { shrinkToTargetSize } from './target-size';
+import type { TargetSizeLadderOptions, TargetSizeLadderResult } from './target-size';
 
 /**
  * Resize a File/Blob to fit within maxWidthOrHeight, preserving aspect ratio.
@@ -925,7 +926,10 @@ export function drawTransformed(
  *   ladder re-encodes the raw bitmap and the rotation is silently lost
  *   (fixed — see CHANGELOG [Unreleased]; the ladder used to always draw the
  *   source unrotated, which broke `rotate`/`mirror` + `maxSizeMB` together).
- * @return Shrunk blob + dimensions, or null if no encode produced a blob.
+ * @param ladder v1.4.0: strict-mode floors (`targetSizeStrict` / `minQuality` /
+ *   `minDimension`). Omit for the historical ladder.
+ * @return Shrunk blob + dimensions + the quality/scale actually used and whether
+ *   the budget was met, or null if no encode produced a blob.
  */
 export async function encodeWithTargetSize(
   source: ImageBitmap,
@@ -940,7 +944,8 @@ export async function encodeWithTargetSize(
     /** v1.3.3: unsharp-mask strength re-applied on EVERY ladder step. */
     sharpen?: number;
   },
-): Promise<{ blob: Blob; width: number; height: number } | null> {
+  ladder?: TargetSizeLadderOptions,
+): Promise<TargetSizeLadderResult | null> {
   const targetBytes = maxMB * 1024 * 1024;
   const useTransform = transform !== undefined && (transform.rotate !== undefined || transform.mirror !== undefined);
   const sharpen = transform?.sharpen;
@@ -968,6 +973,7 @@ export async function encodeWithTargetSize(
       }
       canvas.convertToBlob({ type: format, quality: q }).then(resolve).catch(() => resolve(null));
     }),
+    ladder,
   );
 }
 

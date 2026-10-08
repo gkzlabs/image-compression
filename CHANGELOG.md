@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-10-08
+
+### Added
+
+- **Strict target-size mode — `targetSizeStrict: true`.** `maxSizeMB` used to give up at quality
+  0.2 / 50% dimensions, so a noisy photo could still land above the budget. Strict mode keeps
+  shrinking — quality down to `minQuality` (default **0.05**), dimensions down to `minDimension` px
+  on the longest edge (default **64**) — until the budget is actually met:
+  ```ts
+  const result = await svc.compress(file, { maxSizeMB: 1, targetSizeStrict: true });
+  console.log(result.targetMet, result.outputQuality, result.outputScale);
+  ```
+  Resolution is preserved as long as possible (quality drops at the current size before dimensions
+  shrink), and the extra encode work is bounded (≤64 ladder probes) so it cannot loop forever.
+- **`minQuality` / `minDimension` options** — the floors are now caller-controlled, individually:
+  `minQuality` also works without strict mode (e.g. `minQuality: 0.1` lowers the floor from 0.2);
+  `minDimension` only applies to strict mode.
+- **Machine-readable outcome on `CompressionResult`**: `targetMet` (budget met or not — derived
+  from the FINAL output size, so a later main-thread re-encode can't invalidate it),
+  `outputQuality` (quality the ladder settled on) and `outputScale` (dimension scale used).
+  No more parsing `console.warn` to find out whether the target was reached.
+
+### Changed
+
+- **`maxSizeMB` documentation corrected.** The TSDoc/README described a fixed quality ladder
+  stepping toward 0.15 and a "10% per step" dimension ladder; v1.1.0 had already replaced that with
+  a binary-search for the highest quality that fits (floor 0.2) plus a 100→50% dimension ladder.
+- README test count corrected (262 → 312; the suite has grown since v1.3.0).
+
+### Notes
+
+- Defaults are unchanged: without `targetSizeStrict`, the ladder probes the exact same
+  `(width, height, quality)` sequence as v1.3.3 (asserted by tests that pin the floors), and results
+  without `maxSizeMB` gain **no** new keys.
+
 ## [1.3.3] - 2026-09-19
 
 > **Note:** `1.3.2` was prepared but never published — everything in that section ships in `1.3.3`.

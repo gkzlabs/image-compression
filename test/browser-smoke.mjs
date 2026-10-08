@@ -192,6 +192,79 @@ async function main() {
       }
     }
 
+    // 6b. v1.4.0 strict target size — on the REAL (in-worker) ladder: the default
+    //     floors must give up, `targetSizeStrict` must still hit the budget (past
+    //     the quality floor and/or the dimension floor — a real encoder usually
+    //     pays in quality first), and the result must report it
+    //     (targetMet / outputScale / outputQuality).
+    //     Calibrated against this same build: an unreachable target makes the
+    //     default ladder return its floor; the strict runs then ask for 75% of it.
+    {
+      const r = await page.evaluate(
+        async ({ fixtureBase64, timeoutMs }) => {
+          const hang = new Promise((res) => setTimeout(() => res({ hung: true }), timeoutMs));
+          const work = (async () => {
+            const { ImageCompression } = await import('/dist/index.js');
+            const binary = atob(fixtureBase64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const file = () => new File([bytes], 'medium-1500x1000.jpg', { type: 'image/jpeg' });
+            const base = { quality: 0.85, maxWidthOrHeight: 512 };
+            const svc = new ImageCompression();
+            try {
+              const floor = await svc.compress(file(), { ...base, maxSizeMB: 1e-9 });
+              const targetBytes = Math.floor(floor.compressedSize * 0.75);
+              const maxSizeMB = targetBytes / 1024 / 1024;
+              const relaxed = await svc.compress(file(), { ...base, maxSizeMB });
+              const strict = await svc.compress(file(), {
+                ...base,
+                maxSizeMB,
+                targetSizeStrict: true,
+                minDimension: 48,
+              });
+              return {
+                ok: true,
+                targetBytes,
+                relaxed: { met: relaxed.targetMet, bytes: relaxed.compressedSize, scale: relaxed.outputScale, path: relaxed.path },
+                strict: { met: strict.targetMet, bytes: strict.compressedSize, scale: strict.outputScale, quality: strict.outputQuality, path: strict.path },
+              };
+            } catch (err) {
+              return { ok: false, message: err instanceof Error ? err.message : String(err) };
+            } finally {
+              svc.dispose();
+            }
+          })();
+          return Promise.race([work, hang]);
+        },
+        { fixtureBase64, timeoutMs: CASE_TIMEOUT_MS },
+      );
+
+      if (r.hung) {
+        record('strict target size (v1.4.0)', 'FAIL', `compress() never settled (> ${CASE_TIMEOUT_MS}ms)`);
+      } else if (!r.ok) {
+        record('strict target size (v1.4.0)', 'FAIL', r.message || JSON.stringify(r).slice(0, 160));
+      } else if (
+        r.strict.met === true &&
+        r.strict.bytes <= r.targetBytes &&
+        r.relaxed.met === false &&
+        // Went past at least one default floor: lower quality than 0.2, or
+        // dimensions below 50%.
+        (r.strict.quality < 0.2 || r.strict.scale < 0.5)
+      ) {
+        record(
+          'strict target size (v1.4.0)',
+          'PASS',
+          `default stops at ${(r.relaxed.bytes / 1024).toFixed(1)}KB (targetMet=false) · strict reaches ${(r.strict.bytes / 1024).toFixed(1)}KB ≤ ${(r.targetBytes / 1024).toFixed(1)}KB at scale ${r.strict.scale} (q ${r.strict.quality}, ${r.strict.path})`,
+        );
+      } else {
+        record(
+          'strict target size (v1.4.0)',
+          'FAIL',
+          `relaxed=${JSON.stringify(r.relaxed)} strict=${JSON.stringify(r.strict)} target=${r.targetBytes}`,
+        );
+      }
+    }
+
     // 7. __IC_WORKER_URL escape hatch (absolute URL — the Chrome 149 rule)
     {
       const r = await evalCase(page, { ...common, options: opts, workerUrl: '/dist/worker.js' });

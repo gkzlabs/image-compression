@@ -1,7 +1,7 @@
 # Browser Compatibility Matrix
 
-> Last updated: 2026-09-19
-> Library version: v1.3.2
+> Last updated: 2026-10-08
+> Library version: v1.4.0
 
 This matrix shows which browser features each compression path depends on, and the
 minimum browser versions that support them. Use it to predict which cascade paths
