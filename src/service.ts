@@ -3,14 +3,7 @@ import { readImageDimensions } from './image-header';
 import { wrap as rpcWrap } from './rpc';
 import { shrinkToTargetSize } from './target-size';
 import { CompressionError, CompressionErrorCode, extensionForMimeType } from './types';
-import {
-  applyExifOrientation,
-  applyRotation,
-  applyTransforms,
-  canEncodeFormat,
-  downscaleInSteps,
-  resizeExact,
-} from './worker-helpers';
+import { applyRotation, canEncodeFormat, downscaleInSteps } from './worker-helpers';
 import type {
   CompressionOptions,
   CompressionPath,
@@ -60,7 +53,7 @@ export { resolveWorker, workerFallbackUrl };
 // ============================================================================
 // HEIC pre-decode extracted to ./heic (re-exported here for backwards compat)
 // ============================================================================
-import { tryDecodeHEICLazy, isHEICFile } from './heic';
+import { tryDecodeHEICLazy } from './heic';
 export { tryDecodeHEICLazy } from './heic';
 
 /**
@@ -500,7 +493,6 @@ export class ImageCompression {
      *  When the Worker owns HEIC decoding this stays false until/unless the
      *  Worker fails, at which point the cascade catch decodes here instead. */
     let heicPreDecoded = false;
-    const name = file instanceof File ? file.name : 'image';
 
     // Smart pass-through: skip compression if file is already small + correct format.
     // Saves CPU/RAM and preserves EXIF (no decode/re-encode).
@@ -1127,8 +1119,6 @@ export class ImageCompression {
       // detached" bug when chained after applyRotation's transfer).
       // We close the source bitmap AFTER the drawImage succeeds, so it stays
       // alive through the encode step.
-      outWidth = targetW;
-      outHeight = targetH;
       // Defer the actual draw to the encode step below — it already
       // does `ctx.drawImage(bitmap, 0, 0)` at line 948. We need to extend
       // that to draw at the target dimensions. Use a flag for the encode

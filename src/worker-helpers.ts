@@ -116,7 +116,6 @@ export function downscaleInSteps(
   let curH = bitmap.height;
   let source: CanvasImageSource = bitmap as unknown as CanvasImageSource;
   let canvas = new OffscreenCanvas(curW, curH);
-  let ctx = canvas.getContext('2d', { willReadFrequently: false });
 
   while (curW > targetW * 2 || curH > targetH * 2) {
     // Halve (at most), keeping aspect ratio
@@ -130,7 +129,6 @@ export function downscaleInSteps(
     stepCtx.drawImage(source, 0, 0, nextW, nextH);
     source = step as unknown as CanvasImageSource;
     canvas = step;
-    ctx = stepCtx;
     curW = nextW;
     curH = nextH;
   }
@@ -144,7 +142,6 @@ export function downscaleInSteps(
       finalCtx.imageSmoothingQuality = 'high';
       finalCtx.drawImage(source, 0, 0, targetW, targetH);
       canvas = final;
-      ctx = finalCtx;
     }
   }
 

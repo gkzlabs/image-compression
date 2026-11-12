@@ -1,7 +1,6 @@
 /**
  * Type guards — isCompressionResult, isBatchResult.
  */
-import { ImageCompression } from './index';
 import { isCompressionResult, isBatchResult } from './types';
 import type { CompressionResult, CompressionProgress } from './types';
 

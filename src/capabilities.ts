@@ -65,7 +65,6 @@ export async function detectCapabilities(): Promise<DeviceCapabilities> {
   // in modern browsers) for JPEG/WebP encoding, not VideoEncoder.
   // Requiring VideoEncoder would falsely downgrade browsers to 'mid' tier.
   const hasVideoEncoder = typeof VideoEncoder !== 'undefined';
-  const hasWebCodecs = hasImageDecoder; // What we actually use from WebCodecs
   const hasCanvas2D = hasOffscreenCanvas || typeof HTMLCanvasElement !== 'undefined';
 
   // Layer 2: Runtime validation
@@ -116,19 +115,10 @@ export async function detectCapabilities(): Promise<DeviceCapabilities> {
     }
   }
 
-  // Browser quirks detection
+  // Browser quirks detection (isSafari/isIOS were removed in v0.2.5 — no
+  // code path branches on them any more; keep the UA read below only if a
+  // future quirk needs it).
   const ua = navigator.userAgent;
-  const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
-  // iOS detection: prefer the explicit UA check. The "Mac + ontouchend"
-  // heuristic is for iPads that report as Mac in Safari's request desktop
-  // mode. Guard with `typeof document !== 'undefined'` so this file is
-  // safe to import in SSR / Node environments (e.g. Next.js, Nuxt, Angular
-  // SSR) where `document` is undefined.
-  const isIOS =
-    /iPad|iPhone|iPod/.test(ua) ||
-    (typeof document !== 'undefined' &&
-      ua.includes('Mac') &&
-      'ontouchend' in document);
 
   // Hardware / network info
   const hardwareConcurrency = nav.hardwareConcurrency || 2;

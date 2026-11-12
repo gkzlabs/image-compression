@@ -31,7 +31,6 @@ describe('readExifOrientation()', () => {
     bytes.push(0x45, 0x78, 0x69, 0x66, 0x00, 0x00);
 
     // TIFF header (little-endian = 'II')
-    const tiffStart = bytes.length - app1Start;
     bytes.push(0x49, 0x49); // 'II'
     bytes.push(0x2a, 0x00); // magic 0x002A (LE)
     bytes.push(0x08, 0x00, 0x00, 0x00); // IFD0 offset = 8 (from TIFF start)
