@@ -18,7 +18,7 @@
 
 import puppeteer from 'puppeteer';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { resolve, dirname, join } from 'node:path';
+import { resolve, dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 
@@ -65,10 +65,12 @@ function startServer(root) {
   return new Promise((res) => {
     const server = http.createServer((req, res) => {
       const url = decodeURIComponent(req.url.split('?')[0]);
-      let filePath = join(root, url === '/' ? '/index.html' : url);
+      // resolve() normalises `..`/`%2e%2e` segments BEFORE the containment
+      // check below, so a crafted request can never escape `root`.
+      let filePath = resolve(root, `.${url === '/' ? '/index.html' : url}`);
       // SPA fallback for deep links, mirrors a real static host.
-      if (!existsSync(filePath) && !url.includes('.')) filePath = join(root, 'index.html');
-      if (!filePath.startsWith(root) || !existsSync(filePath) || statSync(filePath).isDirectory()) {
+      if (!existsSync(filePath) && !url.includes('.')) filePath = resolve(root, 'index.html');
+      if (!filePath.startsWith(root + sep) || !existsSync(filePath) || statSync(filePath).isDirectory()) {
         res.writeHead(404);
         res.end('not found');
         return;
