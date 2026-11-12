@@ -38,7 +38,12 @@ function log(m) {
   process.stdout.write(`${m}\n`);
 }
 
-if (!existsSync(VENDOR)) {
+// Read the decoder ONCE — the marked copy further down needs its source, and an
+// existsSync-then-readFileSync pair is exactly the TOCTOU window CodeQL flags.
+let VENDOR_SRC;
+try {
+  VENDOR_SRC = readFileSync(VENDOR, 'utf8');
+} catch {
   log('[heic2any-real] SKIP — test/vendor/heic2any.min.js not present.');
   log('  npm i heic2any@0.0.4 && cp node_modules/heic2any/dist/heic2any.min.js test/vendor/');
   process.exit(0);
@@ -65,7 +70,16 @@ function startServer(root) {
     const server = http.createServer((req, rep) => {
       const url = decodeURIComponent(req.url.split('?')[0]);
       const filePath = join(root, url);
-      if (!filePath.startsWith(root) || !existsSync(filePath) || statSync(filePath).isDirectory()) {
+      if (!filePath.startsWith(root)) {
+        rep.writeHead(404);
+        rep.end('not found');
+        return;
+      }
+      // One read, no stat-then-read window: ENOENT and EISDIR both mean 404.
+      let body;
+      try {
+        body = readFileSync(filePath);
+      } catch {
         rep.writeHead(404);
         rep.end('not found');
         return;
@@ -73,7 +87,7 @@ function startServer(root) {
       const ext = filePath.slice(filePath.lastIndexOf('.'));
       rep.setHeader('Content-Type', types[ext] || 'application/octet-stream');
       rep.setHeader('Cache-Control', 'no-store');
-      rep.end(readFileSync(filePath));
+      rep.end(body);
     });
     server.listen(0, '127.0.0.1', () => res({ server, port: server.address().port }));
   });
@@ -209,7 +223,7 @@ async function main() {
     const marked = `${VENDOR}.marked.js`;
     writeFileSync(
       marked,
-      `${readFileSync(VENDOR, 'utf8')}\n;try{console.log('__HEIC2ANY_IN_WORKER__', typeof document === 'undefined');}catch(e){}\n`,
+      `${VENDOR_SRC}\n;try{console.log('__HEIC2ANY_IN_WORKER__', typeof document === 'undefined');}catch(e){}\n`,
     );
     let workerDecoderRan = false;
     page.on('console', (msg) => {

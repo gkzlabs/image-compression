@@ -4,7 +4,7 @@
 // Skips if files already exist (deterministic across runs).
 
 import { createCanvas } from '@napi-rs/canvas';
-import { writeFileSync, existsSync, statSync } from 'node:fs';
+import { writeFileSync, openSync, closeSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,8 +23,14 @@ function mulberry32(seed) {
 
 async function generateFixture({ name, width, height, quality, fileSizeHint }) {
   const out = resolve(FIXTURES_DIR, name);
-  if (existsSync(out) && statSync(out).size > 0) {
-    console.log(`✓ ${name} already exists (${(statSync(out).size / 1024).toFixed(0)} KB) — skip`);
+  // 'wx' = create-or-fail: one atomic call replaces the old
+  // existsSync+statSync pre-check and its check-then-write window.
+  let fd;
+  try {
+    fd = openSync(out, 'wx');
+  } catch (err) {
+    if (err?.code !== 'EEXIST') throw err;
+    console.log(`✓ ${name} already exists — skip`);
     return out;
   }
 
@@ -63,7 +69,8 @@ async function generateFixture({ name, width, height, quality, fileSizeHint }) {
 
   // Encode to JPEG
   const buffer = canvas.toBuffer('image/jpeg', { quality });
-  writeFileSync(out, buffer);
+  writeFileSync(fd, buffer);
+  closeSync(fd);
 
   const sizeKB = (buffer.length / 1024).toFixed(0);
   const sizeMB = (buffer.length / (1024 * 1024)).toFixed(2);

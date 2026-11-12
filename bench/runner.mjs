@@ -98,7 +98,11 @@ function startServer(root, port = 0) {
         res.end('forbidden');
         return;
       }
-      if (!existsSync(filePath) || statSync(filePath).isDirectory()) {
+      // One read, no stat-then-read window: ENOENT and EISDIR both mean 404.
+      let body;
+      try {
+        body = readFileSync(filePath);
+      } catch {
         res.writeHead(404);
         res.end('not found');
         return;
@@ -107,7 +111,7 @@ function startServer(root, port = 0) {
       res.setHeader('Content-Type', types[ext] || 'application/octet-stream');
       // Workers need cross-origin isolation OR same-origin — same-origin works
       res.setHeader('Cache-Control', 'no-store');
-      res.end(readFileSync(filePath));
+      res.end(body);
     });
 
     server.listen(port, '127.0.0.1', () => {

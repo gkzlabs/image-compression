@@ -69,14 +69,23 @@ function startServer(root) {
     const server = http.createServer((req, res) => {
       const url = decodeURIComponent(req.url.split('?')[0]);
       const filePath = join(root, url);
-      if (!filePath.startsWith(root) || !existsSync(filePath) || statSync(filePath).isDirectory()) {
+      if (!filePath.startsWith(root)) {
+        res.writeHead(404);
+        res.end('not found');
+        return;
+      }
+      // One read, no stat-then-read window: ENOENT and EISDIR both mean 404.
+      let body;
+      try {
+        body = readFileSync(filePath);
+      } catch {
         res.writeHead(404);
         res.end('not found');
         return;
       }
       res.setHeader('Content-Type', types[filePath.slice(filePath.lastIndexOf('.'))] || 'application/octet-stream');
       res.setHeader('Cache-Control', 'no-store');
-      res.end(readFileSync(filePath));
+      res.end(body);
     });
     server.listen(0, '127.0.0.1', () => res({ server, port: server.address().port }));
   });
