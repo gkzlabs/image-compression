@@ -1,14 +1,14 @@
 import { defineConfig } from 'vite';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { sveltePreprocess } from 'svelte-preprocess';
+import { svelte, vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 /**
  * Svelte example for @gkzlabs/image-compression.
- * svelte-preprocess is required so the `<script lang="ts">` blocks
- * (with `import type { ... }`) compile correctly. Without it, Svelte's
- * native parser chokes on TypeScript-only syntax like `import type`.
+ *
+ * Svelte 5 + vite-plugin-svelte 7: `vitePreprocess` replaces the old
+ * `svelte-preprocess` dependency (which peer-caps Svelte at 4) so the
+ * `<script lang="ts">` blocks — including `import type { ... }` — compile.
  */
 export default defineConfig({
-  plugins: [svelte({ preprocess: [sveltePreprocess()] })],
+  plugins: [svelte({ preprocess: [vitePreprocess()] })],
   server: { port: 5173, open: true },
 });
