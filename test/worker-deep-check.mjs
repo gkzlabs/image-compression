@@ -357,7 +357,7 @@ async function main() {
     {
       // Chromium's generic "Failed to load resource: 404" console line carries no
       // URL, so it is only benign when every 4xx we actually saw was the favicon.
-      const consoleErrors = consoleLines.filter((l) => /^error:|pageerror/.test(l));
+      const consoleErrors = consoleLines.filter((l) => /^(?:error:|pageerror)/.test(l));
       const realErrors = consoleErrors.filter(
         (l) => !/Failed to load resource/.test(l) || badResponses.length > 0,
       );

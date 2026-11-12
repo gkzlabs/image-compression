@@ -11,7 +11,6 @@
  * No RxJS, no framework-specific abstractions.
  */
 
-import { CompressionError, isCompressionResult } from './types';
 import type {
   CompressionOptions,
   CompressionProgress,
@@ -106,7 +105,7 @@ export function compress$(
       };
 
       // Kick off the compression
-      const promise = svc.compress(file, wrappedOpts)
+      void svc.compress(file, wrappedOpts)
         .then((result) => {
           push(result);
           isDone = true;

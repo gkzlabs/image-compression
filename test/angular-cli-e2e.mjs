@@ -17,8 +17,8 @@
  */
 
 import puppeteer from 'puppeteer';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { resolve, dirname, join } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { resolve, dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 
@@ -65,18 +65,28 @@ function startServer(root) {
   return new Promise((res) => {
     const server = http.createServer((req, res) => {
       const url = decodeURIComponent(req.url.split('?')[0]);
-      let filePath = join(root, url === '/' ? '/index.html' : url);
+      // Only ever serve ONE file name out of `root`: basename() drops every
+      // directory component, so `..` (raw or percent-encoded) cannot escape.
+      const candidates = [basename(url === '/' ? 'index.html' : url)];
       // SPA fallback for deep links, mirrors a real static host.
-      if (!existsSync(filePath) && !url.includes('.')) filePath = join(root, 'index.html');
-      if (!filePath.startsWith(root) || !existsSync(filePath) || statSync(filePath).isDirectory()) {
-        res.writeHead(404);
-        res.end('not found');
+      if (!url.includes('.')) candidates.push('index.html');
+      for (const name of candidates) {
+        let body;
+        try {
+          // One read, no stat-then-read window: a missing file throws ENOENT
+          // and a directory throws EISDIR, both handled the same way.
+          body = readFileSync(join(root, name));
+        } catch {
+          continue;
+        }
+        const ext = name.slice(name.lastIndexOf('.'));
+        res.setHeader('Content-Type', types[ext] || 'application/octet-stream');
+        res.setHeader('Cache-Control', 'no-store');
+        res.end(body);
         return;
       }
-      const ext = filePath.slice(filePath.lastIndexOf('.'));
-      res.setHeader('Content-Type', types[ext] || 'application/octet-stream');
-      res.setHeader('Cache-Control', 'no-store');
-      res.end(readFileSync(filePath));
+      res.writeHead(404);
+      res.end('not found');
     });
     server.listen(0, '127.0.0.1', () => res({ server, port: server.address().port }));
   });

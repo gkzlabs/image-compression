@@ -162,8 +162,6 @@ const api: ImageWorkerApi = {
         // in a single draw, so we DON'T pre-resize here.
         const pbm = await createImageBitmap(file);
         bitmap = pbm;
-        width = pbm.width;
-        height = pbm.height;
         // EXIF auto-rotation — skipped when caller provided a manual rotate
         // (including `rotate: 0`, which means "disable EXIF"). readExifOrientation
         // is a JPEG-only no-op otherwise.
@@ -173,8 +171,6 @@ const api: ImageWorkerApi = {
             const rotated = applyExifOrientation(bitmap, orientation);
             bitmap.close();
             bitmap = rotated.bitmap;
-            width = rotated.width;
-            height = rotated.height;
           }
         }
         emit('resizing', 70);

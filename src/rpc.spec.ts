@@ -15,7 +15,7 @@
  * - Unknown method: worker replies with an error
  * - 'then' trap guard: proxy is not treated as a thenable
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { expose, wrap, callbackOf, __callbackRegistrySize } from './rpc';
 
 interface TestApi {

@@ -23,7 +23,7 @@
   <input type="file" id="fixture" accept="image/jpeg" style="display:none">
 
   <script type="module">
-    import { ImageCompression, compress$ } from './dist/index.js';
+    import { ImageCompression } from './dist/index.js';
 
     const log = (msg, cls) => {
       const el = document.getElementById('log');
@@ -48,7 +48,6 @@
       }
       if (mode === 'no-workers') {
         // Patch Worker to throw on construction
-        const RealWorker = window.Worker;
         window.Worker = function PatchedWorker() {
           throw new Error('Worker disabled for benchmark');
         };

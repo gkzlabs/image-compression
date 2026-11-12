@@ -107,7 +107,7 @@ for (const file of readdirSync(outdir)) {
 // frameworks like Next.js/Nuxt that compile to CJS, server-fallback usage).
 // Same entry + defines as the ESM build, but format: 'cjs'.
 console.log('[build] Bundling CJS...');
-const cjs = await build({
+await build({
   entryPoints: ['./src/index.ts'],
   bundle: true,
   format: 'cjs',
