@@ -115,11 +115,6 @@ export async function detectCapabilities(): Promise<DeviceCapabilities> {
     }
   }
 
-  // Browser quirks detection (isSafari/isIOS were removed in v0.2.5 — no
-  // code path branches on them any more; keep the UA read below only if a
-  // future quirk needs it).
-  const ua = navigator.userAgent;
-
   // Hardware / network info
   const hardwareConcurrency = nav.hardwareConcurrency || 2;
   const deviceMemory = nav.deviceMemory || 0;
