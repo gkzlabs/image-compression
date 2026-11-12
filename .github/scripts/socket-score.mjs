@@ -39,16 +39,20 @@ const flag = (name, fallback = undefined) => {
   return i >= 0 ? (args[i + 1] ?? true) : fallback;
 };
 
+// Only semver ever leaves this script (into the Socket request) or lands in the
+// badge JSON, so validate that shape explicitly instead of trusting package.json.
+const SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
 const packageName = flag('package', '@gkzlabs/image-compression');
 const mockPath = flag('mock');
 const token = process.env.SOCKET_API_TOKEN;
 
 function currentVersion() {
   const explicit = flag('version');
-  if (explicit && explicit !== true) return explicit;
+  if (explicit && explicit !== true) return SEMVER_RE.test(String(explicit)) ? String(explicit) : undefined;
   try {
     const pkg = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8'));
-    return pkg.version;
+    return typeof pkg.version === 'string' && SEMVER_RE.test(pkg.version) ? pkg.version : undefined;
   } catch {
     return undefined;
   }
@@ -100,13 +104,26 @@ function extract(payload) {
 }
 
 function writeBadge({ percent, alerts, version: measuredOn }, previous) {
-  const alertsText = typeof alerts === 'number' ? `${alerts} alert${alerts === 1 ? '' : 's'}` : '0 alerts';
+  // Build the badge out of coerced numbers / validated strings only. Nothing
+  // from the API response (or the previous badge file) is written verbatim.
+  const pct =
+    typeof percent === 'number' && Number.isFinite(percent)
+      ? Math.min(100, Math.max(0, Math.round(percent)))
+      : 0;
+  const alertCount =
+    typeof alerts === 'number' && Number.isFinite(alerts) ? Math.max(0, Math.round(alerts)) : undefined;
+  const alertsText = alertCount === undefined ? '0 alerts' : `${alertCount} alert${alertCount === 1 ? '' : 's'}`;
+  const safeVersion = typeof measuredOn === 'string' && SEMVER_RE.test(measuredOn) ? measuredOn : undefined;
+  const labelColor =
+    typeof previous?.labelColor === 'string' && /^[0-9a-fA-F]{3,8}$/.test(previous.labelColor)
+      ? previous.labelColor
+      : '1f2937';
   const badge = {
     schemaVersion: 1,
     label: 'socket.dev',
-    message: `${percent}/100 · ${alertsText}${measuredOn ? ` (v${measuredOn})` : ''}`,
-    color: percent >= 90 ? 'brightgreen' : percent >= 70 ? 'green' : percent >= 50 ? 'yellow' : 'red',
-    labelColor: previous?.labelColor ?? '1f2937',
+    message: `${pct}/100 · ${alertsText}${safeVersion ? ` (v${safeVersion})` : ''}`,
+    color: pct >= 90 ? 'brightgreen' : pct >= 70 ? 'green' : pct >= 50 ? 'yellow' : 'red',
+    labelColor,
     cacheSeconds: 3600,
   };
   writeFileSync(BADGE_JSON, `${JSON.stringify(badge, null, 2)}\n`);
