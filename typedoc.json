@@ -26,6 +26,7 @@
   "readme": "./README.md",
   "githubPages": false,
   "gitRemote": "origin",
+  "basePath": ".",
   "gitRevision": "main",
   "hideGenerator": true,
   "skipErrorChecking": true,

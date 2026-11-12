@@ -31,13 +31,17 @@ describe('resolveWorker()', () => {
   beforeEach(() => {
     originalWorker = (globalThis as { Worker?: typeof globalThis.Worker }).Worker;
     originalICWorkerURL = (window as { __IC_WORKER_URL?: string }).__IC_WORKER_URL;
-    workerSpy = vi.fn().mockImplementation(() => ({
+    // A plain `function` (not an arrow): vitest 5 refuses to `new` an arrow
+    // mock implementation — "is not a constructor".
+    workerSpy = vi.fn().mockImplementation(function (this: unknown) {
       // Mock minimal Worker interface
-      postMessage: vi.fn(),
-      terminate: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    }));
+      return {
+        postMessage: vi.fn(),
+        terminate: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      };
+    });
     (globalThis as { Worker?: unknown }).Worker = workerSpy as unknown as typeof Worker;
   });
 
@@ -93,7 +97,9 @@ describe('resolveWorker()', () => {
       // import.meta.url)` pattern (e.g. Angular CLI 17 esbuild on
       // node_modules imports).
       const originalURL = globalThis.URL;
-      const urlSpy = vi.fn().mockImplementation(() => {
+      // `new URL()` needs a constructible implementation, so this cannot be
+      // an arrow function under vitest 5.
+      const urlSpy = vi.fn().mockImplementation(function () {
         throw new TypeError('Invalid URL');
       });
       (globalThis as { URL?: unknown }).URL = urlSpy;
@@ -130,7 +136,9 @@ describe('resolveWorker()', () => {
     it('logs a warning when falling back', () => {
       // Force strategy 2 to fail
       const originalURL = globalThis.URL;
-      const urlSpy = vi.fn().mockImplementation(() => {
+      // `new URL()` needs a constructible implementation, so this cannot be
+      // an arrow function under vitest 5.
+      const urlSpy = vi.fn().mockImplementation(function () {
         throw new TypeError('Invalid URL');
       });
       (globalThis as { URL?: unknown }).URL = urlSpy;
@@ -164,7 +172,11 @@ describe('resolveWorker()', () => {
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
       };
-      workerSpy.mockReturnValue(mockWorkerInstance);
+      // vitest 5: `new Worker()` rejects mockReturnValue — the implementation
+      // must be constructible, and returning an object overrides `this`.
+      workerSpy.mockImplementation(function () {
+        return mockWorkerInstance;
+      });
       const result = resolveWorker();
       expect(result).toBe(mockWorkerInstance);
     });
