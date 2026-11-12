@@ -25,7 +25,7 @@
  * leaves the existing badge value untouched and exits 0 — a stale score is better
  * than a broken badge or a red weekly run.
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -92,7 +92,7 @@ function extract(payload) {
 
   const alerts = Array.isArray(row.alerts) ? row.alerts.length : undefined;
   const issues = ['critical', 'high', 'medium', 'low'].reduce((sum, level) => {
-    const v = score[`${level}IssueCount`] ?? score[`${level}IssueCount`];
+    const v = score[`${level}IssueCount`];
     return sum + (typeof v === 'number' ? v : 0);
   }, 0);
 

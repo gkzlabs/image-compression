@@ -126,10 +126,6 @@ function readPackageVersion() {
   return pkg.version;
 }
 
-function readBrowserVersion() {
-  return puppeteer.executablePath ? 'puppeteer-bundled' : 'unknown';
-}
-
 // ─── benchmark orchestration ────────────────────────────────────────────────
 
 /**
@@ -397,7 +393,7 @@ function generateMarkdown(allResults, { version, browser, runAt }, formatData = 
     lines.push('');
     lines.push('| Fixture | Path | Median | Speedup |');
     lines.push('| --- | --- | --- | --- |');
-    for (const { config, results } of allResults) {
+    for (const { results } of allResults) {
       for (const r of results) {
         const baseR = baseline.results.find((x) => x.fixture === r.fixture);
         if (!baseR) continue;
@@ -545,7 +541,6 @@ async function main() {
   const { server, port } = await startServer(SERVE_DIR, PORT);
   log(`HTTP server on http://127.0.0.1:${port}`);
 
-  let browser;
   try {
     // 5. Run benchmarks across all browser configs
     const allResults = [];
@@ -678,7 +673,6 @@ async function main() {
       }
     }
   } finally {
-    if (browser) await browser.close();
     server.close();
     // Clean up serve dir
     try {
@@ -689,10 +683,7 @@ async function main() {
 
 // ─── node:fs helpers (avoid extra import line) ───────────────────────────────
 
-import { readdirSync, copyFileSync, rmSync, statSync as fsStatSync } from 'node:fs';
-function readdirSyncSafe(p) {
-  try { return readdirSync(p); } catch { return []; }
-}
+import { readdirSync, copyFileSync, rmSync } from 'node:fs';
 
 function copyDirSync(src, dest) {
   mkdirSync(dest, { recursive: true });
