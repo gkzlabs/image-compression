@@ -21,7 +21,7 @@
  * Usage: node test/browser-matrix.mjs [firefox|webkit|all]     (default: all)
  * Exit 0 = every case passed (SKIP counts as pass-with-note).
  */
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
