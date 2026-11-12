@@ -20,6 +20,7 @@ function CompressorDemo() {
   const [caps, setCaps] = useState<DeviceCapabilities | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [result, setResult] = useState<CompressionResult | null>(null);
+  const downloadRef = useRef<HTMLAnchorElement | null>(null);
 
   // One-time setup
   useEffect(() => {
@@ -50,6 +51,20 @@ function CompressorDemo() {
       setIsCompressing(false);
     }
   }
+
+  // The blob: URL is created here, not in JSX: the browser never sees the blob
+  // flow into an HTML attribute during render, and the URL gets revoked instead
+  // of leaking for the lifetime of the page.
+  useEffect(() => {
+    const anchor = downloadRef.current;
+    if (!anchor || !result) return;
+    const url = URL.createObjectURL(result.blob);
+    // createObjectURL only ever returns blob:, but validate the exact shape
+    // before it reaches the href — a javascript: URL would execute on click.
+    if (!/^blob:[\w:/?#\[\]@!$&'()*+,;=.%~-]+$/i.test(url)) return;
+    anchor.href = url;
+    return () => URL.revokeObjectURL(url);
+  }, [result]);
 
   const saved = result
     ? Math.round((1 - result.compressedSize / result.originalSize) * 100)
@@ -92,7 +107,7 @@ function CompressorDemo() {
           {result.width && result.height && (
             <p><strong>Dimensions:</strong> {result.width}×{result.height}</p>
           )}
-          <a href={URL.createObjectURL(result.blob)} download={result.name}>
+          <a ref={downloadRef} download={result.name}>
             ⬇️ Download
           </a>
         </div>

@@ -36,8 +36,17 @@ let nextCallbackId = 1;
  */
 export function expose<T extends object>(api: T): void {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ctx = self as unknown as { onmessage: ((ev: MessageEvent) => void) | null };
+  const ctx = self as unknown as {
+    onmessage: ((ev: MessageEvent) => void) | null;
+    location?: { origin?: string };
+  };
+  const selfOrigin = ctx.location?.origin;
   ctx.onmessage = async (ev: MessageEvent) => {
+    // Defence in depth: a dedicated Worker only receives messages from the
+    // document that created it, but anything carrying a foreign origin (a
+    // MessagePort forwarded from an iframe, a future SharedWorker) is dropped
+    // before it can reach the exposed API.
+    if (selfOrigin && ev.origin && ev.origin !== selfOrigin) return;
     const { id, method, args } = (ev.data ?? {}) as {
       id?: number;
       method?: string;
