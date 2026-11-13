@@ -22,6 +22,7 @@
 [![Bundle Size](https://img.shields.io/bundlephobia/minzip/@gkzlabs/image-compression)](https://bundlephobia.com/package/@gkzlabs/image-compression)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](#tests)
 [![Provenance](https://img.shields.io/badge/npm-provenance-blue)](https://docs.npmjs.com/generating-provenance-statements)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16644/badge)](https://www.bestpractices.dev/projects/16644)
 
 **🎮 [Try the live demo](https://gkzlabs.github.io/image-compression/)** — 5 framework examples (React, Vue, Svelte, Angular, Vanilla) running in your browser. No install.
 
