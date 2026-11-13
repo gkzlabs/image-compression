@@ -84,9 +84,9 @@ Base URL for every link below: `https://github.com/gkzlabs/image-compression/blo
 | `report_responses` | **Met** | No bug reports were filed in the last 12 months (0 issues); anything that arrives is triaged in the public tracker. |
 | `enhancement_responses` | **Met** | Same window: no enhancement requests filed; the feature-request template routes them to the tracker. |
 | `report_archive` | **Met** | Closed issues and discussions stay publicly readable and searchable. |
-| `vulnerability_report_process` | **Met** | SECURITY.md documents the private channel and what a report should contain. **URL:** `SECURITY.md` |
-| `vulnerability_report_private` | **Met** | Reports go through GitHub private security advisories (linked from SECURITY.md), staying private until a fix ships. |
-| `vulnerability_report_response` | **Met** | No reports received in the last 6 months; SECURITY.md commits to an initial response within 14 days. |
+| `vulnerability_report_process` | **Met** | SECURITY.md documents the private email channel, what to include in a report, and the response/fix timeline per severity. **URL:** `SECURITY.md` |
+| `vulnerability_report_private` | **Met** | SECURITY.md asks for **email to gkz.labs@gmail.com** (explicitly *not* a public issue), so a report stays private until a fix ships. |
+| `vulnerability_report_response` | **Met** | No reports received in the last 6 months; SECURITY.md commits to an acknowledgment within **48 hours** and an initial assessment within 5 business days, with fix windows per severity. |
 
 ## Quality — build
 
