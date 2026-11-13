@@ -1,5 +1,5 @@
 /**
- * Angular 18 standalone component demonstrating @gkzlabs/image-compression.
+ * Angular 22 standalone component demonstrating @gkzlabs/image-compression.
  *
  * Same UI logic as react/vue/svelte/vanilla examples — only the framework
  * binding differs. Uses Angular signals for state management (Angular 17+ API).
@@ -10,7 +10,6 @@ import type { CompressionResult, DeviceCapabilities } from '@gkzlabs/image-compr
 
 @Component({
   selector: 'app-root',
-  standalone: true,
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
 })
