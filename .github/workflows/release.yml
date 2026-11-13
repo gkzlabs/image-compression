@@ -179,6 +179,39 @@ jobs:
           fi
           echo "Release notes extracted ($(wc -l < /tmp/release-notes.md | tr -d ' ') lines)"
 
+      - name: Build release assets (tarball + in-toto provenance)
+        # A GitHub Release with no assets is invisible to OpenSSF Scorecard's
+        # Signed-Releases check (it looks for a published artifact next to a
+        # signature). `npm publish --provenance` already produced attestations for
+        # this exact version on the registry — fetch them and publish them as the
+        # release's signature, next to the exact tarball npm published.
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          # @gkzlabs/image-compression -> gkzlabs-image-compression (npm pack naming)
+          SLUG="${PKG_NAME#@}"
+          SLUG="${SLUG//\//-}"
+
+          mkdir -p /tmp/release-assets
+          npm pack --pack-destination /tmp/release-assets > /dev/null
+
+          curl -fsS "https://registry.npmjs.org/-/npm/v1/attestations/${PKG_NAME}@${PKG_VERSION}" \
+            -o /tmp/attestations.json
+
+          # Each attestation's Sigstore bundle becomes one in-toto JSONL line.
+          node -e '
+          const fs = require("node:fs");
+          const [src, out] = process.argv.slice(1);
+          const { attestations = [] } = JSON.parse(fs.readFileSync(src, "utf8"));
+          if (attestations.length === 0) { console.error("registry returned no attestations for this version"); process.exit(1); }
+          fs.writeFileSync(out, attestations.map((a) => JSON.stringify(a.bundle)).join("\n") + "\n");
+          console.log("attestations:", attestations.map((a) => a.predicateType).join(", "));
+          ' /tmp/attestations.json "/tmp/release-assets/${SLUG}-${PKG_VERSION}.intoto.jsonl"
+
+          ls -l /tmp/release-assets
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
@@ -187,4 +220,9 @@ jobs:
           # release); fall back to auto-generated notes when absent.
           body_path: /tmp/release-notes.md
           generate_release_notes: ${{ steps.changelog.outputs.notes_found != 'true' }}
+          # The published tarball + its provenance bundle — this is what makes the
+          # release verifiable (and what Signed-Releases looks for).
+          files: |
+            /tmp/release-assets/*.tgz
+            /tmp/release-assets/*.intoto.jsonl
           fail_on_unmatched_files: false
