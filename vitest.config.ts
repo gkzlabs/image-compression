@@ -37,17 +37,18 @@ export default defineConfig({
       ],
       // Ratchets, not aspirations — set under the measured baseline so a real
       // regression fails CI while ordinary refactors pass.
-      // Measured 2026-09-19 (after the worker-entry spec + the ImageBitmap
-      // polyfill fix): lines 76.7 / branches 75.7 / functions 92.1 / statements 76.7.
+      // Measured 2026-11-13 (vitest 5 + fast-check fuzz spec): statements 80.1 /
+      // branches 74.7 / functions 87.6 / lines 82.6. Thresholds sit ~2 points
+      // under each, so ordinary refactors pass and a real drop fails.
       // Weak spots to watch: heic.ts 59.6, service.ts 63.8, exif.ts 74.6.
-      // `src/worker.ts` is now covered too (75.1) by driving the exposed RPC
-      // surface in-process — see src/worker.spec.ts; the real-browser suites
-      // (`npm run test:browser` / `test:worker`) still prove the parts happy-dom
-      // cannot reach (real Worker targets, WebCodecs, main-thread offloading).
+      // `src/worker.ts` is covered by driving the exposed RPC surface in-process
+      // — see src/worker.spec.ts; the real-browser suites (`npm run test:browser`
+      // / `test:worker`) still prove the parts happy-dom cannot reach (real Worker
+      // targets, WebCodecs, main-thread offloading).
       thresholds: {
-        lines: 70,
-        statements: 70,
-        branches: 70,
+        lines: 80,
+        statements: 78,
+        branches: 72,
         functions: 85,
       },
     },

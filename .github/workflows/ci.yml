@@ -166,6 +166,40 @@ jobs:
         # silently degrade to canvas-main) or if compression throws.
         run: node test/angular-cli-e2e.mjs
 
+  examples-vite:
+    # The four Vite-based demos (react / vue / svelte / vanilla). They consume the
+    # library through `file:../..`, so a green build here is the cheapest proof
+    # that the published manifest still resolves for bundler users — dropping the
+    # optional `heic2any` peer, for instance, fails all four with
+    # `Rollup failed to resolve import "heic2any"`.
+    #
+    # angular-cli has its own job above because it ALSO drives the built app in a
+    # real browser; these four only need to build. Locally the same thing is
+    # `bash test/verify-examples.sh`, which nobody remembers to run before a
+    # release-time change to the examples or the manifest.
+    name: Example (${{ matrix.framework }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [react, vue, svelte, vanilla]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+      - name: Build the library first (the example consumes file:../..)
+        run: |
+          npm ci --prefer-offline --no-audit
+          npm run build
+      - name: Install + build the ${{ matrix.framework }} example
+        working-directory: examples/${{ matrix.framework }}
+        run: |
+          npm ci --prefer-offline --no-audit
+          npm run build
+
   cjs-smoke:
     name: CJS bundle loads
     runs-on: ubuntu-latest
