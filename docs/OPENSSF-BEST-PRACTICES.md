@@ -1,5 +1,13 @@
 # OpenSSF Best Practices badge — answer sheet (passing level)
 
+**Status: earned.** [Project 16644](https://www.bestpractices.dev/projects/16644)
+on bestpractices.dev — registered and filled on 2026-11-13 at the **passing**
+level (100% of passing criteria). The badge is in `README.md`; Scorecard's
+CII-Best-Practices check reads it from there.
+
+The rest of this page stays as the record of what was answered, so a re-review or
+a silver-level attempt starts from the same evidence.
+
 Scorecard's **CII-Best-Practices** check asks `bestpractices.dev` whether a
 project with this repository's URL exists and holds a badge. That cannot be
 answered from inside the repo — a maintainer has to register and fill the form.
