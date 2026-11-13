@@ -504,8 +504,21 @@ Run `npm run bench` to measure `webcodecs-worker` vs `offscreen-worker` vs `canv
 
 [MIT](LICENSE)
 
+## 🤝 Contributing & feedback
+
+- **Bug reports / feature requests:** [open an issue](https://github.com/gkzlabs/image-compression/issues/new/choose)
+  (templates for bug, feature and question).
+- **Questions and ideas:** [GitHub Discussions](https://github.com/gkzlabs/image-compression/discussions).
+- **How to contribute:** [CONTRIBUTING.md](CONTRIBUTING.md) — branch → Conventional
+  Commit → pull request, with the CI gates that must pass. Please include a test
+  with any behaviour change.
+- **Security reports:** [SECURITY.md](SECURITY.md) — **do not** open a public issue
+  for a vulnerability; use GitHub's private security advisories.
+
 ## 🔗 Links
 
 - [GitHub Repository](https://github.com/gkzlabs/image-compression)
 - [Issue Tracker](https://github.com/gkzlabs/image-compression/issues)
+- [Discussions](https://github.com/gkzlabs/image-compression/discussions)
 - [Changelog](https://github.com/gkzlabs/image-compression/blob/main/CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md) · [Security policy](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md)
