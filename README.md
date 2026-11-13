@@ -513,7 +513,7 @@ Run `npm run bench` to measure `webcodecs-worker` vs `offscreen-worker` vs `canv
   Commit → pull request, with the CI gates that must pass. Please include a test
   with any behaviour change.
 - **Security reports:** [SECURITY.md](SECURITY.md) — **do not** open a public issue
-  for a vulnerability; use GitHub's private security advisories.
+  for a vulnerability — email **gkz.labs@gmail.com** (see [SECURITY.md](SECURITY.md)).
 
 ## 🔗 Links
 
