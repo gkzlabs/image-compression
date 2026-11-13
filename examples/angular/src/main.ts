@@ -1,5 +1,5 @@
 /**
- * Angular 18 standalone bootstrap for @gkzlabs/image-compression example.
+ * Angular 22 standalone bootstrap for @gkzlabs/image-compression example.
  *
  * ## Vite handles worker bundling automatically
  *
@@ -22,8 +22,6 @@
  * the lib can load (e.g., `public/heic2any.js` + set `__IC_HEIC2ANY_URL`).
  * For this minimal demo, HEIC is opt-in.
  */
-import 'zone.js';
-
 import { bootstrapApplication } from '@angular/platform-browser';
 import { AppComponent } from './app/app.component';
 
